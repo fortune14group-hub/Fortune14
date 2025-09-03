@@ -44,9 +44,9 @@
     <div class="projbox">
       <label for="projectSelect" style="margin:0">Projekt:</label>
       <select id="projectSelect"></select>
-      <button class="btn" id="newProjectBtn">Nytt projekt</button>
-      <button class="btn-outline" id="renameProjectBtn">Byt namn</button>
-      <button class="btn-outline" id="deleteProjectBtn">Radera</button>
+      <button type="button" class="btn" id="newProjectBtn">Nytt projekt</button>
+      <button type="button" class="btn-outline" id="renameProjectBtn">Byt namn</button>
+      <button type="button" class="btn-outline" id="deleteProjectBtn">Radera</button>
     </div>
   </div>
 
@@ -105,11 +105,11 @@
       </div>
       <div>
         <label>&nbsp;</label>
-        <button class="btn" id="addBtn">Lägg till spel</button>
+        <button type="button" class="btn" id="addBtn">Lägg till spel</button>
       </div>
     </div>
     <div style="margin-top:8px">
-      <button class="btn-outline" id="clearBtn" title="Raderar allt i detta projekt">Nollställ projekt</button>
+      <button type="button" class="btn-outline" id="clearBtn" title="Raderar allt i detta projekt">Nollställ projekt</button>
     </div>
   </section>
 
@@ -184,7 +184,12 @@
   </section>
 
 <script>
-(function(){
+window.addEventListener('DOMContentLoaded', () => {
+  /* ---------- Safe helpers ---------- */
+  const safeUUID = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                        : 'id-' + Math.random().toString(36).slice(2) + Date.now();
+  const canStore = (()=>{ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true;}catch{ return false; } })();
+
   /* ---------- Constants ---------- */
   const STORE_PROJECTS = "betspread-projects-v1";
   const STORE_CURRENT  = "betspread-current-project-v1";
@@ -192,95 +197,93 @@
   const MONTHS_SV = ["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
 
   /* ---------- Elements ---------- */
-  const el = (id)=>document.getElementById(id);
+  const $ = (id)=>document.getElementById(id);
   const tabs = document.querySelectorAll('.tab');
   const sections = {
-    register: document.getElementById('tab-register'),
-    summary:  document.getElementById('tab-summary'),
-    list:     document.getElementById('tab-list'),
+    register: $('tab-register'),
+    summary:  $('tab-summary'),
+    list:     $('tab-list'),
   };
-  const projSelect = el('projectSelect');
+  const projSelect = $('projectSelect');
 
   const form = {
-    sentDate: el('sentDate'),
-    matchDate: el('matchDate'),
-    match: el('match'),
-    market: el('market'),
-    odds: el('odds'),
-    stake: el('stake'),
-    bookie: el('bookie'),
-    result: el('result'),
-    note: el('note'),
-    addBtn: el('addBtn'),
-    clearBtn: el('clearBtn'),
+    sentDate: $('sentDate'),
+    matchDate: $('matchDate'),
+    match: $('match'),
+    market: $('market'),
+    odds: $('odds'),
+    stake: $('stake'),
+    bookie: $('bookie'),
+    result: $('result'),
+    note: $('note'),
+    addBtn: $('addBtn'),
+    clearBtn: $('clearBtn'),
   };
 
   const listUI = {
-    monthFilter: el('monthFilterList'),
-    search: el('search'),
+    monthFilter: $('monthFilterList'),
+    search: $('search'),
     tableBody: document.querySelector('#betsTable tbody'),
-    summary: el('listSummary'),
+    summary: $('listSummary'),
   };
 
   const sumUI = {
-    monthFilter: el('monthFilterSummary'),
-    boxes: el('summaryBoxes'),
+    monthFilter: $('monthFilterSummary'),
+    boxes: $('summaryBoxes'),
     tableBody: document.querySelector('#summaryTable tbody'),
   };
 
-  /* ---------- Projects ---------- */
-  let projects = loadProjects();
-  if (projects.length === 0) {
-    const p = createProject("Bet365");
-    projects.push(p);
-    saveProjects(projects);
-    setCurrentProjectId(p.id);
-  }
-  let currentProjectId = getCurrentProjectId() || projects[0].id;
+  /* ---------- Storage wrappers ---------- */
+  const readJSON = (k, fallback)=>{ if(!canStore) return fallback;
+    try{ const v=localStorage.getItem(k); return v?JSON.parse(v):fallback; }catch{ return fallback; } };
+  const writeJSON = (k, v)=>{ if(!canStore) return; try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} };
+  const removeKey = (k)=>{ if(!canStore) return; try{ localStorage.removeItem(k); }catch{} };
 
-  function createProject(name){
-    return { id: crypto.randomUUID(), name: name || "Projekt" };
+  /* ---------- Projects ---------- */
+  let projects = readJSON(STORE_PROJECTS, []);
+  if (projects.length === 0) {
+    const p = { id: safeUUID(), name: "Bet365" };
+    projects = [p];
+    writeJSON(STORE_PROJECTS, projects);
+    writeJSON(STORE_CURRENT, p.id);
   }
-  function loadProjects(){ try { return JSON.parse(localStorage.getItem(STORE_PROJECTS))||[] } catch { return [] } }
-  function saveProjects(arr){ localStorage.setItem(STORE_PROJECTS, JSON.stringify(arr)); }
-  function getCurrentProjectId(){ return localStorage.getItem(STORE_CURRENT); }
-  function setCurrentProjectId(id){ localStorage.setItem(STORE_CURRENT, id); currentProjectId=id; }
+  let currentProjectId = readJSON(STORE_CURRENT, projects[0].id);
 
   function refreshProjectSelect(){
     projSelect.innerHTML = projects.map(p=>`<option value="${p.id}" ${p.id===currentProjectId?'selected':''}>${p.name}</option>`).join('');
   }
 
-  /* ---------- Data (per project) ---------- */
-  function dataKey(){ return DATA_PREFIX + currentProjectId; }
-  function loadBets(){
-    try { return migrate(JSON.parse(localStorage.getItem(dataKey()))||[]); }
-    catch { return []; }
+  function setCurrentProjectId(id){
+    currentProjectId = id;
+    writeJSON(STORE_CURRENT, id);
   }
-  function saveBets(bets){ localStorage.setItem(dataKey(), JSON.stringify(bets)); }
-  function clearBets(){ localStorage.setItem(dataKey(), JSON.stringify([])); }
 
-  function migrate(arr){
-    // Back-compat: if only "date" exists, copy to both dates
-    return (arr||[]).map(b=>{
-      if(!b.sent_date && b.date) b.sent_date=b.date;
-      if(!b.match_date && b.date) b.match_date=b.date;
-      return b;
-    });
-  }
+  /* ---------- Data (per project) ---------- */
+  const dataKey = ()=> DATA_PREFIX + currentProjectId;
+  const loadBets = ()=> readJSON(dataKey(), []).map(b=>{
+    if(!b.id) b.id = safeUUID();
+    if(!b.sent_date && b.date) b.sent_date = b.date;
+    if(!b.match_date && b.date) b.match_date = b.date;
+    return b;
+  });
+  const saveBets = (bets)=> writeJSON(dataKey(), bets);
+  const clearBets = ()=> writeJSON(dataKey(), []);
 
   /* ---------- Helpers ---------- */
-  function formatMoney(n){ return (Number(n)||0).toFixed(2); }
-  function payout(b){ if(b.result==='WIN') return b.stake*b.odds; if(b.result==='VOID') return b.stake; return 0; }
-  function profit(b){ if(b.result==='WIN') return b.stake*(b.odds-1); if(b.result==='LOSS') return -b.stake; return 0; }
-  function tag(status){
+  const formatMoney = (n)=> (Number(n)||0).toFixed(2);
+  const payout = (b)=> b.result==='WIN' ? b.stake*b.odds : (b.result==='VOID' ? b.stake : 0);
+  const profit = (b)=> b.result==='WIN' ? b.stake*(b.odds-1) : (b.result==='LOSS' ? -b.stake : 0);
+  const tag = (s)=> {
     const m={WIN:'tag-win',LOSS:'tag-loss',PENDING:'tag-pending',VOID:'tag-void'};
-    const l={WIN:'Vinst',LOSS:'Förlust',PENDING:'Pending',VOID:'Void'}[status]||status;
-    return `<span class="tag ${m[status]||'tag-pending'}">${l}</span>`;
-  }
-  function yyyymm(d){ const dt=new Date(d); if(isNaN(dt)) return ''; return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,'0'); }
-  function monthIdx(d){ const dt=new Date(d); return isNaN(dt)?null:(dt.getMonth()+1); } // 1..12
-  function monthName(idx){ return MONTHS_SV[(idx-1+12)%12]; }
-  function monthNameWithYear(d){ const dt=new Date(d); if(isNaN(dt)) return ''; return `${MONTHS_SV[dt.getMonth()]} ${dt.getFullYear()}`; }
+    const l={WIN:'Vinst',LOSS:'Förlust',PENDING:'Pending',VOID:'Void'}[s]||s;
+    return `<span class="tag ${m[s]||'tag-pending'}">${l}</span>`;
+  };
+  const yyyymm = (d)=>{ const dt=new Date(d); if(isNaN(dt)) return ''; return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,'0'); };
+  const monthNameWithYear = (ym)=>{ // ym = "YYYY-MM"
+    const y=Number(ym.slice(0,4)), m=Number(ym.slice(5))-1;
+    if(!y||m<0) return ym;
+    return `${MONTHS_SV[m]} ${y}`;
+  };
 
   /* ---------- Tabs ---------- */
   tabs.forEach(t=>{
@@ -293,29 +296,29 @@
   });
 
   /* ---------- Project buttons ---------- */
-  document.getElementById('newProjectBtn').addEventListener('click', ()=>{
-    const name = prompt("Namn på nytt projekt:", "Nytt projekt");
+  $('newProjectBtn').addEventListener('click', ()=>{
+    const name = (prompt("Namn på nytt projekt:", "Nytt projekt")||'').trim();
     if(!name) return;
-    const p = createProject(name.trim());
-    projects.push(p); saveProjects(projects); setCurrentProjectId(p.id); refreshProjectSelect(); renderAll();
+    const p = { id: safeUUID(), name };
+    projects.push(p); writeJSON(STORE_PROJECTS, projects);
+    setCurrentProjectId(p.id);
+    refreshProjectSelect(); renderAll();
   });
 
-  document.getElementById('renameProjectBtn').addEventListener('click', ()=>{
+  $('renameProjectBtn').addEventListener('click', ()=>{
     const p = projects.find(x=>x.id===currentProjectId); if(!p) return;
-    const name = prompt("Nytt namn:", p.name);
+    const name = (prompt("Nytt namn:", p.name)||'').trim();
     if(!name) return;
-    p.name = name.trim(); saveProjects(projects); refreshProjectSelect();
+    p.name = name; writeJSON(STORE_PROJECTS, projects); refreshProjectSelect();
   });
 
-  document.getElementById('deleteProjectBtn').addEventListener('click', ()=>{
+  $('deleteProjectBtn').addEventListener('click', ()=>{
     if(projects.length<=1){ alert("Du måste ha minst ett projekt."); return; }
     const p = projects.find(x=>x.id===currentProjectId);
     if(!confirm(`Radera projekt "${p.name}" och alla dess spel?`)) return;
-    // remove data
-    localStorage.removeItem(DATA_PREFIX + currentProjectId);
-    // remove project
+    removeKey(DATA_PREFIX + currentProjectId);
     projects = projects.filter(x=>x.id!==currentProjectId);
-    saveProjects(projects);
+    writeJSON(STORE_PROJECTS, projects);
     setCurrentProjectId(projects[0].id);
     refreshProjectSelect(); renderAll();
   });
@@ -328,16 +331,16 @@
   /* ---------- Register actions ---------- */
   form.addBtn.addEventListener('click', ()=>{
     const bet = {
-      id: crypto.randomUUID(),
+      id: safeUUID(),
       sent_date: form.sentDate.value || new Date().toISOString().slice(0,10),
       match_date: form.matchDate.value || form.sentDate.value || new Date().toISOString().slice(0,10),
-      match: form.match.value.trim(),
-      market: form.market.value.trim(),
+      match: (form.match.value||'').trim(),
+      market: (form.market.value||'').trim(),
       odds: Number(form.odds.value),
       stake: Number(form.stake.value),
-      bookie: form.bookie.value.trim(),
+      bookie: (form.bookie.value||'').trim(),
       result: form.result.value,
-      note: form.note.value.trim(),
+      note: (form.note.value||'').trim(),
     };
     if(!bet.match || !bet.market || !bet.odds || !bet.stake){ alert("Fyll i minst Match, Marknad, Odds och Insats."); return; }
     const bets = loadBets(); bets.unshift(bet); saveBets(bets); renderAll();
@@ -361,14 +364,10 @@
     const bets = loadBets();
     const months = new Set(bets.map(b=>yyyymm(b.match_date)).filter(Boolean));
     const sorted = Array.from(months).sort().reverse();
-    const optList = [`<option value="ALL">Alla månader</option>`]
-      .concat(sorted.map(k=>{
-        // k = "YYYY-MM"
-        const year=k.slice(0,4), m=parseInt(k.slice(5),10);
-        return `<option value="${k}">${MONTHS_SV[m-1]} ${year}</option>`;
-      })).join('');
-    listUI.monthFilter.innerHTML = optList;
-    sumUI.monthFilter.innerHTML  = optList;
+    const options = [`<option value="ALL">Alla månader</option>`]
+      .concat(sorted.map(k=>`<option value="${k}">${monthNameWithYear(k)}</option>`));
+    listUI.monthFilter.innerHTML = options.join('');
+    sumUI.monthFilter.innerHTML  = options.join('');
   }
 
   function renderList(){
@@ -399,13 +398,12 @@
         <td class="right">${formatMoney(prof)}</td>
         <td class="right">${(b.result==='WIN'||b.result==='LOSS')?formatMoney(roi)+'%':'—'}</td>
         <td class="row-actions">
-          <button class="btn-outline" onclick="editBet('${b.id}')">Ändra</button>
-          <button class="btn-outline" onclick="deleteBet('${b.id}')">Ta bort</button>
+          <button type="button" class="btn-outline" onclick="editBet('${b.id}')">Ändra</button>
+          <button type="button" class="btn-outline" onclick="deleteBet('${b.id}')">Ta bort</button>
         </td>
       </tr>`;
     }).join('');
 
-    // list summary (avgjorda)
     const settled = filtered.filter(b=>b.result!=='PENDING');
     const totalStake = settled.reduce((s,b)=>s + (b.stake||0), 0);
     const totalProfit = settled.reduce((s,b)=>s + profit(b), 0);
@@ -425,15 +423,13 @@
     const bets = loadBets();
     const k = sumUI.monthFilter.value || 'ALL';
 
-    // group by yyyymm
     const groups = {};
     for(const b of bets){
       const key = yyyymm(b.match_date);
       if(!key) continue;
-      if(!groups[key]) groups[key]=[];
-      groups[key].push(b);
+      (groups[key] ||= []).push(b);
     }
-    const keys = Object.keys(groups).sort().reverse(); // latest first
+    const keys = Object.keys(groups).sort().reverse();
 
     const rows = [];
     for(const key of keys){
@@ -447,10 +443,9 @@
       const totalProfit = settled.reduce((s,x)=>s+profit(x),0);
       const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
 
-      const display = monthNameWithYear(key+"-01");
       rows.push(`
         <tr>
-          <td>${display}</td>
+          <td>${monthNameWithYear(key)}</td>
           <td class="right">${settled.length}</td>
           <td class="right">${wins}</td>
           <td class="right">${losses}</td>
@@ -463,7 +458,6 @@
     }
     sumUI.tableBody.innerHTML = rows.join('') || `<tr><td colspan="8" class="muted">Inga data ännu.</td></tr>`;
 
-    // header summary (overall of filtered)
     const filteredAll = (k==='ALL') ? bets : bets.filter(b=>yyyymm(b.match_date)===k);
     const settled = filteredAll.filter(b=>b.result!=='PENDING');
     const totalStake = settled.reduce((s,b)=>s+(b.stake||0),0);
@@ -488,21 +482,23 @@
 
   function renderAll(){
     refreshProjectSelect();
-    setDefaultDates();
+    const today = new Date().toISOString().slice(0,10);
+    if(!form.sentDate.value) form.sentDate.value = today;
+    if(!form.matchDate.value) form.matchDate.value = today;
     renderMonthFiltersAndAll();
   }
 
-  /* ---------- Global actions for edit/delete ---------- */
+  /* ---------- Global edit/delete ---------- */
   window.deleteBet = function(id){
+    const bets = loadBets();
     if(!confirm('Ta bort raden?')) return;
-    const bets = loadBets().filter(b=>b.id!==id);
-    saveBets(bets); renderMonthFiltersAndAll();
+    saveBets(bets.filter(b=>b.id!==id));
+    renderMonthFiltersAndAll();
   };
 
   window.editBet = function(id){
     const bets = loadBets();
     const b = bets.find(x=>x.id===id); if(!b) return;
-    // förifyll
     form.sentDate.value = b.sent_date || '';
     form.matchDate.value = b.match_date || '';
     form.match.value = b.match || '';
@@ -512,24 +508,15 @@
     form.bookie.value = b.bookie || '';
     form.result.value = b.result || 'PENDING';
     form.note.value = b.note || '';
-    // ta bort den gamla; ny sparas när du trycker "Lägg till spel"
-    const rest = bets.filter(x=>x.id!==id);
-    saveBets(rest); renderMonthFiltersAndAll();
-    // hoppa till fliken Registrera
+    saveBets(bets.filter(x=>x.id!==id));
+    renderMonthFiltersAndAll();
     document.querySelector('.tab[data-tab="register"]').click();
   };
 
   /* ---------- Init ---------- */
-  function setDefaultDates(){
-    const today = new Date().toISOString().slice(0,10);
-    if(!form.sentDate.value) form.sentDate.value = today;
-    if(!form.matchDate.value) form.matchDate.value = today;
-  }
-
-  refreshProjectSelect();
-  setDefaultDates();
-  renderMonthFiltersAndAll();
-})();
+  try { refreshProjectSelect(); renderAll(); }
+  catch(e){ console.error(e); alert("Ett fel uppstod när sidan laddades. Prova att ladda om."); }
+});
 </script>
 </body>
 </html>
