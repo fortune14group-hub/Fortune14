@@ -1,101 +1,731 @@
 <!doctype html>
 <html lang="sv">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BetSpread – Supabase test</title>
-  <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
-    input { display:block; margin:8px 0; padding:8px; width:100%; max-width:400px; }
-    button { padding:8px 12px; margin:4px 0; }
-    ul { padding-left: 20px; }
-    .card { border:1px solid #ddd; padding: 16px; margin-bottom:24px; border-radius:8px; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BetSpread – med Supabase Login</title>
+<style>
+  :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  body { margin:24px; background:#0b1116; color:#e7eef5; }
+  h1 { margin:0 0 12px; font-size:20px; }
+  .topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .projbox{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  select,input,button{padding:10px;border-radius:8px;border:1px solid #243244;background:#0b1320;color:#e7eef5}
+  input[type="email"],input[type="password"]{width:220px}
+  button{cursor:pointer}
+  .btn{background:#22c55e;color:#0b1116;border:0;font-weight:600}
+  .btn-outline{background:transparent;border:1px solid #334155}
+  .btn-mini{padding:6px 10px;border-radius:7px;font-size:12px}
+  .btn-win{background:#083d24;color:#22c55e;border:1px solid #195a39}
+  .btn-loss{background:#3b0a0a;color:#fca5a5;border:1px solid #6b1212}
+  .btn-pending{background:#17324a;color:#93c5fd;border:1px solid #244a6e}
+  .btn-void{background:#2f2f2f;color:#cbd5e1;border:1px solid #475569}
+  .tabs{display:flex;gap:6px;margin:12px 0}
+  .tab{padding:8px 12px;border:1px solid #334155;border-bottom:0;border-radius:8px 8px 0 0;background:#0f1720;cursor:pointer}
+  .tab.active{background:#17212e;font-weight:700}
+  .card{background:#0f1720;border:1px solid #1f2a37;border-radius:12px;padding:16px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  label{font-size:12px;color:#b6c2cf;display:block;margin-bottom:6px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #1f2a37;padding:10px;text-align:left;font-size:14px}
+  th{color:#b6c2cf;font-weight:600}
+  .right{text-align:right}
+  .summary{display:flex;flex-wrap:wrap;gap:12px}
+  .pill{background:#0b1320;border:1px solid #1f2a37;padding:10px 12px;border-radius:10px;min-width:140px}
+  .muted{color:#93a4b4}
+  .tag{padding:4px 8px;border-radius:999px;font-size:12px;display:inline-block}
+  .tag-win{background:#083d24;color:#22c55e}
+  .tag-loss{background:#3b0a0a;color:#f87171}
+  .tag-pending{background:#17324a;color:#60a5fa}
+  .tag-void{background:#2f2f2f;color:#cbd5e1}
+  .badge{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid #334155;background:#0f1720}
+  .ok{color:#22c55e;border-color:#195a39}
+  .warn{color:#fbbf24;border-color:#996a00}
+
+  /* Accordion list (per månad + per spel) */
+  .list-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap}
+  .accord-month{border:1px solid #1f2a37;border-radius:12px;background:#0f1720}
+  summary.month-hdr{list-style:none;cursor:pointer;padding:12px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+  summary.month-hdr::-webkit-details-marker{display:none}
+  .month-title{font-weight:700}
+  .month-meta{display:flex;gap:12px;color:#93a4b4;font-size:13px}
+  .month-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px;border-top:1px solid #1f2a37}
+
+  details.bet{border:1px solid #1f2a37;border-radius:10px;background:#0b1320}
+  summary.bet-hdr{list-style:none;cursor:pointer;padding:10px 12px;display:grid;grid-template-columns:140px 1fr 110px 110px 90px;gap:10px;align-items:center}
+  summary.bet-hdr::-webkit-details-marker{display:none}
+  .hdr-small{font-size:12px;color:#93a4b4}
+  .hdr-strong{font-weight:600}
+  .bet-body{padding:12px;border-top:1px solid #1f2a37;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .bet-field{background:#0b1320;border:1px solid #1f2a37;border-radius:8px;padding:10px}
+  .bet-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;grid-column:1/-1}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+  @media (max-width:1200px){ .grid{grid-template-columns:repeat(3,1fr)} summary.bet-hdr{grid-template-columns:120px 1fr 100px 100px 80px} }
+  @media (max-width:800px){ summary.bet-hdr{grid-template-columns:1fr 100px 90px} .hdr-small-hide{display:none} .bet-body{grid-template-columns:1fr} }
+</style>
 </head>
 <body>
-  <h1>BetSpread – Supabase demo</h1>
-
-  <div class="card">
-    <h2>Autentisering</h2>
-    <input id="email" type="email" placeholder="Email">
-    <input id="password" type="password" placeholder="Lösenord">
-    <button onclick="signup()">Skapa konto</button>
-    <button onclick="login()">Logga in</button>
-    <button onclick="logout()">Logga ut</button>
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <h1>BetSpread</h1>
+      <span id="modeBadge" class="badge warn">Läge: Lokal (inte inloggad)</span>
+    </div>
+    <div class="projbox" id="authBox">
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Lösenord">
+      <button type="button" class="btn-outline" id="signupBtn">Skapa konto</button>
+      <button type="button" class="btn" id="loginBtn">Logga in</button>
+      <button type="button" class="btn-outline" id="logoutBtn" style="display:none">Logga ut</button>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Projekt</h2>
-    <input id="projname" placeholder="Projektnamn">
-    <button onclick="createProject()">Skapa projekt</button>
-    <h3>Mina projekt:</h3>
-    <ul id="projects"></ul>
+  <div class="topbar card" style="align-items:flex-end">
+    <div class="projbox">
+      <label for="projectSelect" style="margin:0">Projekt:</label>
+      <select id="projectSelect"></select>
+      <button type="button" class="btn" id="newProjectBtn">Nytt projekt</button>
+      <button type="button" class="btn-outline" id="renameProjectBtn">Byt namn</button>
+      <button type="button" class="btn-outline" id="deleteProjectBtn">Radera</button>
+    </div>
+    <div class="muted" id="userInfo" style="text-align:right"></div>
   </div>
 
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script>
-    const SUPABASE_URL = "https://updpywjfxeahtjpelbku.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_GB6f7XXePLTeIVIJYGjODg_rRlKqi4B";
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  <div class="tabs">
+    <div class="tab active" data-tab="register">Registrera spel</div>
+    <div class="tab" data-tab="summary">Månadssummering</div>
+    <div class="tab" data-tab="list">Spel</div>
+  </div>
 
-    async function signup() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) alert("Fel: " + error.message);
-      else alert("Konto skapat! Kolla din mail för verifiering (om aktiverat).");
-    }
+  <!-- REGISTRERA -->
+  <section id="tab-register" class="card">
+    <div class="grid">
+      <div>
+        <label>Utskick (datum)</label>
+        <input type="date" id="sentDate">
+      </div>
+      <div>
+        <label>Matchdag</label>
+        <input type="date" id="matchDate">
+      </div>
+      <div>
+        <label>Match</label>
+        <input type="text" id="match" placeholder="Arsenal – Chelsea">
+      </div>
+      <div>
+        <label>Marknad</label>
+        <input type="text" id="market" placeholder="Över 8.5 frisparkar">
+      </div>
+      <div>
+        <label>Oddset</label>
+        <input type="number" step="0.01" id="odds" placeholder="1.85">
+      </div>
+      <div>
+        <label>Insats</label>
+        <input type="number" step="0.01" id="stake" placeholder="200">
+      </div>
+    </div>
 
-    async function login() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert("Fel: " + error.message);
-      else {
-        alert("Inloggad!");
-        loadProjects();
-      }
-    }
+    <div class="grid-4" style="margin-top:12px">
+      <div>
+        <label>Spelbolag</label>
+        <input type="text" id="bookie" placeholder="Bet365">
+      </div>
+      <div>
+        <label>Resultat</label>
+        <select id="result">
+          <option value="PENDING">Pending</option>
+          <option value="WIN">Vinst</option>
+          <option value="LOSS">Förlust</option>
+          <option value="VOID">Void</option>
+        </select>
+      </div>
+      <div>
+        <label>Notering</label>
+        <input type="text" id="note" placeholder="Ex. sent mål, cashout, etc.">
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button type="button" class="btn" id="addBtn">Lägg till spel</button>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <button type="button" class="btn-outline" id="clearBtn" title="Raderar allt i detta projekt">Nollställ projekt</button>
+    </div>
+  </section>
 
-    async function logout() {
-      await supabase.auth.signOut();
-      alert("Utloggad!");
-      document.getElementById("projects").innerHTML = "";
-    }
+  <!-- MÅNADSSUMMERING -->
+  <section id="tab-summary" class="card" style="display:none">
+    <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div>
+          <label>Månad (matchdag)</label>
+          <select id="monthFilterSummary"></select>
+        </div>
+      </div>
+      <div class="summary" id="summaryBoxes"></div>
+    </div>
+    <div style="margin-top:12px">
+      <table id="summaryTable">
+        <thead>
+          <tr>
+            <th>Månad</th>
+            <th class="right">Spel (avgjorda)</th>
+            <th class="right">Win</th>
+            <th class="right">Loss</th>
+            <th class="right">Pending</th>
+            <th class="right">Total insats</th>
+            <th class="right">Profit</th>
+            <th class="right">ROI</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
 
-    async function createProject() {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user) { alert("Du måste vara inloggad för att skapa projekt."); return; }
-      const name = document.getElementById("projname").value;
-      if (!name) { alert("Fyll i projektnamn."); return; }
-      const { error } = await supabase.from("projects").insert({ user_id: user.id, name });
-      if (error) alert("Fel: " + error.message);
-      else {
-        alert("Projekt skapat!");
-        document.getElementById("projname").value = "";
-        loadProjects();
-      }
-    }
+  <!-- SPEL (MÅNADSVISA RULLGARDINER) -->
+  <section id="tab-list" class="card" style="display:none">
+    <div class="list-toolbar">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div>
+          <label>Månad (matchdag)</label>
+          <select id="monthFilterList"></select>
+        </div>
+        <div>
+          <label>Sök</label>
+          <input type="text" id="search" placeholder="Match/marknad/spelbolag...">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" class="btn-outline" id="expandAllBtn">Expandera alla</button>
+        <button type="button" class="btn-outline" id="collapseAllBtn">Fäll ihop alla</button>
+        <button type="button" class="btn-outline" id="exportBtn" title="Ladda ner CSV">Export CSV</button>
+        <input type="file" id="importFile" accept=".csv,text/csv" style="display:none" />
+        <button type="button" class="btn-outline" id="importBtn" title="Importera från CSV">Import CSV</button>
+      </div>
+    </div>
 
-    async function loadProjects() {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data, error } = await supabase.from("projects").select("*").eq("user_id", user.id);
-      if (error) { alert("Fel: " + error.message); return; }
-      const list = document.getElementById("projects");
-      list.innerHTML = data.map(p => `<li>${p.name} (ID: ${p.id})</li>`).join("");
-    }
+    <div class="summary" id="listSummary" style="margin-bottom:12px"></div>
+    <div id="monthContainer" class="month-list"></div>
+  </section>
 
-    // Håll användarrollen uppdaterad
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (session) loadProjects();
-      else document.getElementById("projects").innerHTML = "";
-    });
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+/* ================= Supabase init ================= */
+const SUPABASE_URL = "https://updpywjfxeahtjpelbku.supabase.co";
+const SUPABASE_KEY = "sb_publishable_GB6f7XXePLTeIVIJYGjODg_rRlKqi4B";
+const SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Om redan inloggad
-    supabase.auth.getSession().then(res => {
-      if (res.data.session) loadProjects();
-    });
-  </script>
+/* ================= Helpers & UI refs ================= */
+const $ = (id)=>document.getElementById(id);
+const tabs = document.querySelectorAll('.tab');
+const sections = { register: $('tab-register'), summary: $('tab-summary'), list: $('tab-list') };
+const modeBadge = $('modeBadge'); const userInfo = $('userInfo');
+
+const form = {
+  sentDate: $('sentDate'), matchDate: $('matchDate'), match: $('match'), market: $('market'),
+  odds: $('odds'), stake: $('stake'), bookie: $('bookie'), result: $('result'), note: $('note'),
+  addBtn: $('addBtn'), clearBtn: $('clearBtn'),
+};
+const listUI = {
+  monthFilter: $('monthFilterList'), search: $('search'), summary: $('listSummary'),
+  monthContainer: $('monthContainer'), expandAllBtn: $('expandAllBtn'), collapseAllBtn: $('collapseAllBtn'),
+  exportBtn: $('exportBtn'), importBtn: $('importBtn'), importFile: $('importFile'),
+};
+const sumUI = { monthFilter: $('monthFilterSummary'), boxes: $('summaryBoxes'),
+  tableBody: document.querySelector('#summaryTable tbody') };
+const projSelect = $('projectSelect');
+
+const MONTHS_SV = ["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
+const formatMoney = (n)=> (Number(n)||0).toFixed(2);
+const payout = (b)=> b.result==='WIN' ? b.stake*b.odds : (b.result==='VOID' ? b.stake : 0);
+const profit = (b)=> b.result==='WIN' ? b.stake*(b.odds-1) : (b.result==='LOSS' ? -b.stake : 0);
+const tag = (s)=>{ const m={WIN:'tag-win',LOSS:'tag-loss',PENDING:'tag-pending',VOID:'tag-void'};
+  const l={WIN:'Vinst',LOSS:'Förlust',PENDING:'Pending',VOID:'Void'}[s]||s;
+  return `<span class="tag ${m[s]||'tag-pending'}">${l}</span>`; };
+const yyyymm = (d)=>{ const dt=new Date(d); if(isNaN(dt)) return ''; return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,'0'); };
+const monthNameWithYear = (ym)=>{ const y=Number(ym.slice(0,4)), m=Number(ym.slice(5))-1; if(!y||m<0) return ym; return `${MONTHS_SV[m]} ${y}`; };
+const today = new Date().toISOString().slice(0,10);
+
+/* ================= Mode: local vs supabase ================= */
+const STORE_PROJECTS = "betspread-projects-v1";
+const STORE_CURRENT_PREFIX = "betspread-current-project-v1-"; // + userId or "local"
+const DATA_PREFIX    = "betspread-data-";
+const canStore = (()=>{ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true;}catch{ return false; } })();
+const readJSON = (k, fallback)=>{ if(!canStore) return fallback; try{ const v=localStorage.getItem(k); return v?JSON.parse(v):fallback; }catch{ return fallback; } };
+const writeJSON = (k, v)=>{ if(!canStore) return; try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} };
+const removeKey = (k)=>{ if(!canStore) return; try{ localStorage.removeItem(k); }catch{} };
+
+let sessionUser = null;       // Supabase user eller null
+let mode = 'local';           // 'local' | 'supabase'
+let projectsCache = [];       // cache för aktuell mode
+let currentProjectId = null;  // i local: från LS, i supabase: från LS men med user-suffix
+
+const currentKey = ()=> STORE_CURRENT_PREFIX + (sessionUser?.id || 'local');
+
+/* ================= Auth UI ================= */
+$('signupBtn').addEventListener('click', async ()=>{
+  const email = ($('email').value||'').trim(); const password = $('password').value;
+  if(!email || !password){ alert('Fyll i email och lösenord'); return; }
+  const { error } = await SB.auth.signUp({ email, password });
+  if(error) alert(error.message); else alert('Konto skapat! Verifiera din mail (om påslaget).');
+});
+$('loginBtn').addEventListener('click', async ()=>{
+  const email = ($('email').value||'').trim(); const password = $('password').value;
+  if(!email || !password){ alert('Fyll i email och lösenord'); return; }
+  const { data, error } = await SB.auth.signInWithPassword({ email, password });
+  if(error) alert(error.message);
+});
+$('logoutBtn').addEventListener('click', async ()=>{ await SB.auth.signOut(); });
+
+SB.auth.onAuthStateChange(async (_evt, s)=>{
+  sessionUser = s?.user || null;
+  if(sessionUser){
+    mode = 'supabase';
+    $('logoutBtn').style.display = '';
+    $('loginBtn').style.display = 'none';
+    $('signupBtn').style.display = 'none';
+    $('email').style.display = 'none';
+    $('password').style.display = 'none';
+    userInfo.textContent = `Inloggad som ${sessionUser.email}`;
+    modeBadge.textContent = 'Läge: Moln (Supabase)'; modeBadge.classList.remove('warn'); modeBadge.classList.add('ok');
+  }else{
+    mode = 'local';
+    $('logoutBtn').style.display = 'none';
+    $('loginBtn').style.display = '';
+    $('signupBtn').style.display = '';
+    $('email').style.display = '';
+    $('password').style.display = '';
+    userInfo.textContent = '';
+    modeBadge.textContent = 'Läge: Lokal (inte inloggad)'; modeBadge.classList.add('warn'); modeBadge.classList.remove('ok');
+  }
+  await loadProjectsInitial();
+  renderAll();
+});
+
+/* ================= Projects: local storage ================= */
+function ls_listProjects(){
+  let prjs = readJSON(STORE_PROJECTS, []);
+  if(prjs.length===0){
+    prjs = [{ id: crypto.randomUUID?.() || String(Date.now()), name:"Bet365" }];
+    writeJSON(STORE_PROJECTS, prjs);
+  }
+  return prjs;
+}
+function ls_saveProjects(arr){ writeJSON(STORE_PROJECTS, arr); }
+function ls_dataKey(pid){ return DATA_PREFIX + pid; }
+function ls_loadBets(pid){ return readJSON(ls_dataKey(pid), []); }
+function ls_saveBets(pid, bets){ writeJSON(ls_dataKey(pid), bets); }
+function ls_clearBets(pid){ writeJSON(ls_dataKey(pid), []); }
+
+/* ================= Projects: supabase ================= */
+async function sb_listProjects(){
+  const { data, error } = await SB.from('projects').select('*').eq('user_id', sessionUser.id).order('created_at', { ascending:false });
+  if(error){ console.error(error); return []; }
+  return data;
+}
+async function sb_createProject(name){
+  const { error } = await SB.from('projects').insert({ user_id: sessionUser.id, name });
+  if(error) alert(error.message);
+}
+async function sb_renameProject(id, name){
+  const { error } = await SB.from('projects').update({ name }).eq('id', id);
+  if(error) alert(error.message);
+}
+async function sb_deleteProject(id){
+  const { error } = await SB.from('projects').delete().eq('id', id);
+  if(error) alert(error.message);
+}
+async function sb_loadBets(pid){
+  const { data, error } = await SB.from('bets').select('*').eq('project_id', pid).order('created_at', { ascending:false });
+  if(error){ console.error(error); return []; }
+  return data || [];
+}
+async function sb_addBet(pid, b){
+  const row = { ...b, project_id: pid };
+  const { error } = await SB.from('bets').insert(row);
+  if(error) alert(error.message);
+}
+async function sb_updateBet(id, fields){
+  const { error } = await SB.from('bets').update(fields).eq('id', id);
+  if(error) alert(error.message);
+}
+async function sb_deleteBet(id){
+  const { error } = await SB.from('bets').delete().eq('id', id);
+  if(error) alert(error.message);
+}
+async function sb_clearBets(pid){
+  const { error } = await SB.from('bets').delete().eq('project_id', pid);
+  if(error) alert(error.message);
+}
+
+/* ================= Mode-agnostic wrappers ================= */
+async function loadProjectsInitial(){
+  projectsCache = (mode==='supabase') ? (await sb_listProjects()) : ls_listProjects();
+  // välj current
+  currentProjectId = readJSON(currentKey(), projectsCache[0]?.id || null);
+  if(!currentProjectId && projectsCache[0]) currentProjectId = projectsCache[0].id;
+  // om supabase och inga projekt: skapa ett default
+  if(mode==='supabase' && projectsCache.length===0){
+    await sb_createProject('Mitt första projekt');
+    projectsCache = await sb_listProjects();
+    currentProjectId = projectsCache[0]?.id || null;
+  }
+  writeJSON(currentKey(), currentProjectId);
+  refreshProjectSelect();
+}
+
+function refreshProjectSelect(){
+  projSelect.innerHTML = (projectsCache||[]).map(p=>`<option value="${p.id}" ${p.id===currentProjectId?'selected':''}>${p.name}</option>`).join('');
+}
+
+projSelect.addEventListener('change', ()=>{
+  currentProjectId = projSelect.value; writeJSON(currentKey(), currentProjectId); renderAll();
+});
+
+$('newProjectBtn').addEventListener('click', async ()=>{
+  const name = (prompt("Namn på nytt projekt:", "Nytt projekt")||'').trim();
+  if(!name) return;
+  if(mode==='supabase'){ await sb_createProject(name); projectsCache = await sb_listProjects(); }
+  else { const id = crypto.randomUUID?.() || String(Date.now()); projectsCache.push({id,name}); ls_saveProjects(projectsCache); }
+  currentProjectId = projectsCache[0] ? projectsCache[0].id : currentProjectId; writeJSON(currentKey(), currentProjectId);
+  refreshProjectSelect(); renderAll();
+});
+$('renameProjectBtn').addEventListener('click', async ()=>{
+  const p = projectsCache.find(x=>x.id===currentProjectId); if(!p) return;
+  const name = (prompt("Nytt namn:", p.name)||'').trim(); if(!name) return;
+  if(mode==='supabase'){ await sb_renameProject(p.id, name); projectsCache = await sb_listProjects(); }
+  else { p.name=name; ls_saveProjects(projectsCache); }
+  refreshProjectSelect(); renderAll();
+});
+$('deleteProjectBtn').addEventListener('click', async ()=>{
+  if(projectsCache.length<=1){ alert("Du måste ha minst ett projekt."); return; }
+  const p = projectsCache.find(x=>x.id===currentProjectId); if(!p) return;
+  if(!confirm(`Radera projekt "${p.name}" och alla dess spel?`)) return;
+  if(mode==='supabase'){ await sb_deleteProject(p.id); projectsCache = await sb_listProjects(); }
+  else { removeKey(DATA_PREFIX + p.id); projectsCache = projectsCache.filter(x=>x.id!==p.id); ls_saveProjects(projectsCache); }
+  currentProjectId = projectsCache[0]?.id || null; writeJSON(currentKey(), currentProjectId);
+  refreshProjectSelect(); renderAll();
+});
+
+/* ================= Bets load/save (mode aware) ================= */
+async function loadBets(){
+  if(!currentProjectId) return [];
+  return (mode==='supabase') ? await sb_loadBets(currentProjectId) : ls_loadBets(currentProjectId);
+}
+async function addBet(b){
+  if(!currentProjectId) return;
+  if(mode==='supabase'){ await sb_addBet(currentProjectId, b); }
+  else { const bets = ls_loadBets(currentProjectId); bets.unshift(b); ls_saveBets(currentProjectId, bets); }
+}
+async function deleteBetById(id){
+  if(mode==='supabase'){ await sb_deleteBet(id); }
+  else { const bets = ls_loadBets(currentProjectId).filter(b=>b.id!==id); ls_saveBets(currentProjectId, bets); }
+}
+async function updateBetById(id, fields){
+  if(mode==='supabase'){ await sb_updateBet(id, fields); }
+  else {
+    const bets = ls_loadBets(currentProjectId).map(b=> b.id===id? {...b, ...fields}: b);
+    ls_saveBets(currentProjectId, bets);
+  }
+}
+async function clearAllBets(){
+  if(!currentProjectId) return;
+  if(mode==='supabase'){ await sb_clearBets(currentProjectId); }
+  else { ls_clearBets(currentProjectId); }
+}
+
+/* ================= Tabs ================= */
+tabs.forEach(t=>{
+  t.addEventListener('click', ()=>{
+    tabs.forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    Object.values(sections).forEach(s=>s.style.display='none');
+    sections[t.dataset.tab].style.display='block';
+  });
+});
+
+/* ================= Register form ================= */
+$('addBtn').addEventListener('click', async ()=>{
+  const bet = {
+    id: crypto.randomUUID?.() || String(Date.now()),
+    sent_date: form.sentDate.value || today,
+    match_date: form.matchDate.value || form.sentDate.value || today,
+    match: (form.match.value||'').trim(),
+    market: (form.market.value||'').trim(),
+    odds: Number(form.odds.value),
+    stake: Number(form.stake.value),
+    bookie: (form.bookie.value||'').trim(),
+    result: form.result.value,
+    note: (form.note.value||'').trim(),
+  };
+  if(!bet.match || !bet.market || !bet.odds || !bet.stake){ alert("Fyll i minst Match, Marknad, Odds och Insats."); return; }
+  await addBet(bet);
+  form.match.value=form.market.value=form.note.value=''; form.odds.value=''; form.stake.value=''; form.result.value='PENDING';
+  await renderAll();
+});
+$('clearBtn').addEventListener('click', async ()=>{
+  if(!confirm("Detta raderar ALLA spel i detta projekt. Fortsätt?")) return;
+  await clearAllBets(); await renderAll();
+});
+
+/* ================= Filters ================= */
+$('monthFilterList').addEventListener('change', renderList);
+$('search').addEventListener('input', renderList);
+$('monthFilterSummary').addEventListener('change', renderSummary);
+
+/* ================= CSV export/import ================= */
+listUI.exportBtn.addEventListener('click', async ()=>{
+  const bets = await loadBets();
+  const headers = ["id","sent_date","match_date","match","market","odds","stake","bookie","result","note"];
+  const esc = (v)=>{ const s=(v===undefined||v===null)?"":String(v); return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s; };
+  const rows = [headers.join(",")].concat(bets.map(b=>headers.map(h=>esc(b[h])).join(","))).join("\n");
+  const blob = new Blob([rows], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement('a');
+  const projName = (projectsCache.find(p=>p.id===currentProjectId)?.name || 'projekt').replace(/[^a-z0-9_-]/gi,'_');
+  a.href = URL.createObjectURL(blob); a.download = `betspread_${projName}_${today}.csv`; a.click();
+});
+listUI.importBtn.addEventListener('click', ()=> listUI.importFile.click());
+listUI.importFile.addEventListener('change', async (e)=>{
+  const file = e.target.files?.[0]; if(!file) return;
+  const txt = await file.text();
+  const records = parseCSV(txt);
+  if(!records.length){ alert("Inga rader hittades i filen."); return; }
+  for(const r of records){
+    const b = {
+      id: r.id || (crypto.randomUUID?.() || String(Date.now())),
+      sent_date: r.sent_date || r.match_date || today,
+      match_date: r.match_date || r.sent_date || today,
+      match: r.match || '', market: r.market || '', odds: Number(r.odds||0), stake: Number(r.stake||0),
+      bookie: r.bookie || '', result: r.result || 'PENDING', note: r.note || ''
+    };
+    await addBet(b);
+  }
+  alert(`Import klart: ${records.length} rader tillagda.`); e.target.value = ""; await renderAll();
+});
+function parseCSV(text){
+  const t = /;/.test(text) && !/,/.test(text.split("\n")[0]) ? text.replace(/;/g, ",") : text;
+  const lines = []; let cur="", row=[], inQ=false;
+  for(let i=0;i<t.length;i++){ const ch=t[i];
+    if(inQ){ if(ch=='"' && t[i+1]=='"'){cur+='"';i++;} else if(ch=='"'){inQ=false;} else cur+=ch; }
+    else { if(ch=='"'){inQ=true;} else if(ch==','){row.push(cur);cur="";} else if(ch=='\n'){row.push(cur);lines.push(row);row=[];cur="";} else if(ch!='\r'){cur+=ch;} }
+  }
+  if(cur.length||row.length){row.push(cur);lines.push(row);}
+  if(!lines.length) return [];
+  const headers = lines[0].map(h=>h.trim());
+  return lines.slice(1).filter(r=>r.some(c=>c.trim()!=="")).map(cols=>{const o={}; headers.forEach((h,i)=>o[h]=cols[i]??""); return o;});
+}
+
+/* ================= Renderers ================= */
+async function renderAll(){
+  // prefill dates
+  if(!form.sentDate.value) form.sentDate.value = today;
+  if(!form.matchDate.value) form.matchDate.value = today;
+
+  refreshProjectSelect();
+  await renderMonthFilters();
+  await renderList();
+  await renderSummary();
+}
+
+async function renderMonthFilters(){
+  const bets = await loadBets();
+  const months = new Set(bets.map(b=>yyyymm(b.match_date)).filter(Boolean));
+  const sorted = Array.from(months).sort().reverse();
+  const options = [`<option value="ALL">Alla månader</option>`]
+    .concat(sorted.map(k=>`<option value="${k}">${monthNameWithYear(k)}</option>`));
+  $('monthFilterList').innerHTML = options.join('');
+  $('monthFilterSummary').innerHTML  = options.join('');
+}
+
+function buildBetDetails(b){
+  const hdr = `
+    <div class="hdr-small mono">${b.match_date||''}</div>
+    <div class="hdr-strong">${(b.match||'') || '(ingen match)'} <span class="muted hdr-small-hide">· ${b.market||''}</span></div>
+    <div class="hdr-small-hide right mono">Insats ${formatMoney(b.stake)}</div>
+    <div class="hdr-small-hide right mono">Profit ${formatMoney(profit(b))}</div>
+    <div class="right">${tag(b.result)}</div>
+  `;
+  const body = `
+    <div class="bet-field"><div class="muted">Utskick</div><div class="mono">${b.sent_date||''}</div></div>
+    <div class="bet-field"><div class="muted">Spelbolag</div><div>${b.bookie||''}</div></div>
+    <div class="bet-field"><div class="muted">Odds</div><div class="mono">${formatMoney(b.odds)}</div></div>
+    <div class="bet-field"><div class="muted">Insats</div><div class="mono">${formatMoney(b.stake)}</div></div>
+    <div class="bet-field"><div class="muted">Utbetalning</div><div class="mono">${formatMoney(payout(b))}</div></div>
+    <div class="bet-field"><div class="muted">Profit</div><div class="mono">${formatMoney(profit(b))}</div></div>
+    <div class="bet-field" style="grid-column:1/-1"><div class="muted">Marknad</div><div>${b.market||''}</div></div>
+    <div class="bet-field" style="grid-column:1/-1"><div class="muted">Notering</div><div>${b.note||'—'}</div></div>
+
+    <div class="bet-actions">
+      <span class="muted" style="margin-right:auto">Snabbstatus:</span>
+      <button type="button" class="btn-mini btn-win" onclick="setResult('${b.id}','WIN')">Win</button>
+      <button type="button" class="btn-mini btn-loss" onclick="setResult('${b.id}','LOSS')">Loss</button>
+      <button type="button" class="btn-mini btn-pending" onclick="setResult('${b.id}','PENDING')">Pending</button>
+      <button type="button" class="btn-mini btn-void" onclick="setResult('${b.id}','VOID')">Void</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn-outline" onclick="editBet('${b.id}')">Ändra</button>
+      <button type="button" class="btn-outline" onclick="deleteBet('${b.id}')">Ta bort</button>
+    </div>
+  `;
+  return `<details class="bet"><summary class="bet-hdr">${hdr}</summary><div class="bet-body">${body}</div></details>`;
+}
+
+async function renderList(){
+  const bets = await loadBets();
+  const k = $('monthFilterList').value || 'ALL';
+  const q = ($('search').value||'').toLowerCase();
+
+  const filtered = bets.filter(b=>{
+    const okMonth = k==='ALL' || yyyymm(b.match_date)===k;
+    const hay = [b.match,b.market,b.bookie,b.note].join(' ').toLowerCase();
+    const okQ = !q || hay.includes(q);
+    return okMonth && okQ;
+  });
+
+  const settled = filtered.filter(b=>b.result!=='PENDING');
+  const totalStake = settled.reduce((s,b)=>s + (b.stake||0), 0);
+  const totalProfit = settled.reduce((s,b)=>s + profit(b), 0);
+  const wins = settled.filter(b=>b.result==='WIN').length;
+  const losses = settled.filter(b=>b.result==='LOSS').length;
+  const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
+  listUI.summary.innerHTML = `
+    <div class="pill"><div class="muted">Spel (avgjorda)</div><div><strong>${settled.length}</strong> (Win ${wins} / Loss ${losses})</div></div>
+    <div class="pill"><div class="muted">Pending</div><div><strong>${filtered.filter(b=>b.result==='PENDING').length}</strong></div></div>
+    <div class="pill"><div class="muted">Total insats</div><div><strong>${formatMoney(totalStake)}</strong></div></div>
+    <div class="pill"><div class="muted">Profit</div><div><strong>${formatMoney(totalProfit)}</strong></div></div>
+    <div class="pill"><div class="muted">ROI</div><div><strong>${formatMoney(roi)}%</strong></div></div>
+  `;
+
+  const groups = {};
+  for(const b of filtered){
+    const key = yyyymm(b.match_date)||'Okänd';
+    (groups[key] ||= []).push(b);
+  }
+  const keys = Object.keys(groups).sort().reverse();
+
+  $('monthContainer').innerHTML = keys.map(key=>{
+    const arr = groups[key];
+    arr.sort((a,b)=> (b.match_date||'').localeCompare(a.match_date||''));
+    const wins = arr.filter(x=>x.result==='WIN').length;
+    const losses = arr.filter(x=>x.result==='LOSS').length;
+    const pend = arr.filter(x=>x.result==='PENDING').length;
+    const ttlSettled = arr.filter(x=>x.result!=='PENDING');
+    const stake = ttlSettled.reduce((s,x)=>s+(x.stake||0),0);
+    const prof  = ttlSettled.reduce((s,x)=>s+profit(x),0);
+    const roiM  = stake>0 ? (prof/stake)*100 : 0;
+
+    const monthHdr = `
+      <span class="month-title">${key==='Okänd'?'Okänd månad':monthNameWithYear(key)}</span>
+      <span class="month-meta">
+        <span>${arr.length} spel</span>
+        <span>Win ${wins}</span>
+        <span>Loss ${losses}</span>
+        <span>Pending ${pend}</span>
+        <span>ROI ${formatMoney(roiM)}%</span>
+      </span>
+    `;
+    const betsHTML = arr.map(buildBetDetails).join('');
+    return `
+      <details class="accord-month">
+        <summary class="month-hdr">${monthHdr}</summary>
+        <div class="month-body">${betsHTML || '<div class="muted">Inga spel denna månad.</div>'}</div>
+      </details>
+    `;
+  }).join('') || `<div class="muted">Inga spel ännu.</div>`;
+}
+
+async function renderSummary(){
+  const bets = await loadBets();
+  const k = sumUI.monthFilter.value || 'ALL';
+
+  const groups = {};
+  for(const b of bets){
+    const key = yyyymm(b.match_date);
+    if(!key) continue;
+    (groups[key] ||= []).push(b);
+  }
+  const keys = Object.keys(groups).sort().reverse();
+
+  const rows = [];
+  for(const key of keys){
+    if(k!=='ALL' && key!==k) continue;
+    const arr = groups[key];
+    const settled = arr.filter(x=>x.result!=='PENDING');
+    const wins = arr.filter(x=>x.result==='WIN').length;
+    const losses = arr.filter(x=>x.result==='LOSS').length;
+    const pend = arr.filter(x=>x.result==='PENDING').length;
+    const totalStake = settled.reduce((s,x)=>s+(x.stake||0),0);
+    const totalProfit = settled.reduce((s,x)=>s+profit(x),0);
+    const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
+
+    rows.push(`
+      <tr>
+        <td>${monthNameWithYear(key)}</td>
+        <td class="right">${settled.length}</td>
+        <td class="right">${wins}</td>
+        <td class="right">${losses}</td>
+        <td class="right">${pend}</td>
+        <td class="right">${formatMoney(totalStake)}</td>
+        <td class="right">${formatMoney(totalProfit)}</td>
+        <td class="right">${formatMoney(roi)}%</td>
+      </tr>
+    `);
+  }
+  sumUI.tableBody.innerHTML = rows.join('') || `<tr><td colspan="8" class="muted">Inga data ännu.</td></tr>`;
+
+  const filteredAll = (k==='ALL') ? bets : bets.filter(b=>yyyymm(b.match_date)===k);
+  const settled = filteredAll.filter(b=>b.result!=='PENDING');
+  const totalStake = settled.reduce((s,b)=>s+(b.stake||0),0);
+  const totalProfit = settled.reduce((s,b)=>s+profit(b),0);
+  const wins = settled.filter(b=>b.result==='WIN').length;
+  const losses = settled.filter(b=>b.result==='LOSS').length;
+  const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
+  sumUI.boxes.innerHTML = `
+    <div class="pill"><div class="muted">Spel (avgjorda)</div><div><strong>${settled.length}</strong> (Win ${wins} / Loss ${losses})</div></div>
+    <div class="pill"><div class="muted">Pending</div><div><strong>${filteredAll.filter(b=>b.result==='PENDING').length}</strong></div></div>
+    <div class="pill"><div class="muted">Total insats</div><div><strong>${formatMoney(totalStake)}</strong></div></div>
+    <div class="pill"><div class="muted">Profit</div><div><strong>${formatMoney(totalProfit)}</strong></div></div>
+    <div class="pill"><div class="muted">ROI</div><div><strong>${formatMoney(roi)}%</strong></div></div>
+  `;
+}
+
+/* ============ Global actions for rows (edit/delete/setResult) ============ */
+window.deleteBet = async function(id){ if(!confirm('Ta bort raden?')) return; await deleteBetById(id); await renderAll(); };
+window.setResult = async function(id, status){ await updateBetById(id, { result: status }); await renderAll(); };
+window.editBet = async function(id){
+  const bets = await loadBets();
+  const b = bets.find(x=>x.id===id); if(!b) return;
+  form.sentDate.value = b.sent_date || '';
+  form.matchDate.value = b.match_date || '';
+  form.match.value = b.match || '';
+  form.market.value = b.market || '';
+  form.odds.value = b.odds || '';
+  form.stake.value = b.stake || '';
+  form.bookie.value = b.bookie || '';
+  form.result.value = b.result || 'PENDING';
+  form.note.value = b.note || '';
+  await deleteBetById(id);
+  await renderAll();
+  document.querySelector('.tab[data-tab="register"]').click();
+};
+
+/* ============ Expand/collapse ============ */
+$('expandAllBtn').addEventListener('click', ()=>{
+  document.querySelectorAll('#monthContainer details.accord-month').forEach(d=>d.open=true);
+});
+$('collapseAllBtn').addEventListener('click', ()=>{
+  document.querySelectorAll('#monthContainer details.accord-month').forEach(d=>d.open=false);
+});
+
+/* ============ Init ============ */
+(async function init(){
+  form.sentDate.value = today; form.matchDate.value = today;
+  const sess = await SB.auth.getSession(); sessionUser = sess.data.session?.user || null;
+  if(sessionUser){ mode='supabase'; $('logoutBtn').style.display=''; $('loginBtn').style.display='none'; $('signupBtn').style.display='none'; $('email').style.display='none'; $('password').style.display='none'; userInfo.textContent=`Inloggad som ${sessionUser.email}`; modeBadge.textContent='Läge: Moln (Supabase)'; modeBadge.classList.remove('warn'); modeBadge.classList.add('ok'); }
+  await loadProjectsInitial();
+  await renderAll();
+})();
+</script>
 </body>
 </html>
