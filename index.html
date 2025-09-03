@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BetSpread – Enkel</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 24px; background:#0b1116; color:#e7eef5; }
+    h1 { margin: 0 0 12px 0; font-size: 20px; }
+    .card { background:#0f1720; border:1px solid #1f2a37; border-radius:12px; padding:16px; margin-bottom:16px; }
+    label { font-size:12px; color:#b6c2cf; display:block; margin-bottom:6px; }
+    input, select { width:100%; padding:10px; border-radius:8px; border:1px solid #243244; background:#0b1320; color:#e7eef5; }
+    .grid { display:grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap:12px; }
+    .grid-4 { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; }
+    button { padding:10px 14px; border:0; border-radius:8px; cursor:pointer; }
+    .btn { background:#22c55e; color:#0b1116; font-weight:600; }
+    .btn-outline { background:transparent; border:1px solid #334155; color:#e7eef5; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #1f2a37; padding:10px; text-align:left; font-size:14px; }
+    th { color:#b6c2cf; font-weight:600; }
+    .tag { padding:4px 8px; border-radius:999px; font-size:12px; display:inline-block; }
+    .tag-win { background:#083d24; color:#22c55e; }
+    .tag-loss{ background:#3b0a0a; color:#f87171; }
+    .tag-pending{ background:#17324a; color:#60a5fa; }
+    .tag-void{ background:#2f2f2f; color:#cbd5e1; }
+    .row-actions { display:flex; gap:6px; }
+    .muted { color:#93a4b4; }
+    .summary { display:flex; flex-wrap:wrap; gap:12px; }
+    .pill { background:#0b1320; border:1px solid #1f2a37; padding:10px 12px; border-radius:10px; min-width:140px; }
+    .right { text-align:right; }
+    @media (max-width: 1200px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 700px)  { .grid { grid-template-columns: repeat(2, 1fr); } .grid-4{ grid-template-columns: repeat(2,1fr);} }
+  </style>
+</head>
+<body>
+
+  <h1>BetSpread – Enkel (LocalStorage)</h1>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label>Datum</label>
+        <input type="date" id="date">
+      </div>
+      <div>
+        <label>Match</label>
+        <input type="text" id="match" placeholder="Arsenal – Chelsea">
+      </div>
+      <div>
+        <label>Marknad</label>
+        <input type="text" id="market" placeholder="Över 8.5 frisparkar">
+      </div>
+      <div>
+        <label>Oddset</label>
+        <input type="number" step="0.01" id="odds" placeholder="1.85">
+      </div>
+      <div>
+        <label>Insats</label>
+        <input type="number" step="0.01" id="stake" placeholder="200">
+      </div>
+      <div>
+        <label>Spelbolag</label>
+        <input type="text" id="bookie" placeholder="Bet365">
+      </div>
+    </div>
+
+    <div class="grid-4" style="margin-top:12px;">
+      <div>
+        <label>Resultat</label>
+        <select id="result">
+          <option value="PENDING">Pending</option>
+          <option value="WIN">Vinst</option>
+          <option value="LOSS">Förlust</option>
+          <option value="VOID">Void</option>
+        </select>
+      </div>
+      <div>
+        <label>Notering</label>
+        <input type="text" id="note" placeholder="Ex. sent mål, cashout, etc.">
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button class="btn" id="addBtn">Lägg till spel</button>
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button class="btn-outline" id="clearBtn" title="Raderar allt">Nollställ allt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+      <div style="display:flex; gap:12px; align-items:center;">
+        <div>
+          <label>Månadsfilter</label>
+          <select id="monthFilter"></select>
+        </div>
+        <div>
+          <label>Sök</label>
+          <input type="text" id="search" placeholder="Match/marknad/spelbolag...">
+        </div>
+      </div>
+      <div class="summary" id="summary"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <table id="betsTable">
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Match</th>
+          <th>Marknad</th>
+          <th>Spelbolag</th>
+          <th class="right">Odds</th>
+          <th class="right">Insats</th>
+          <th>Status</th>
+          <th class="right">Utbetalning</th>
+          <th class="right">Profit</th>
+          <th class="right">ROI</th>
+          <th>Åtg.</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="muted" style="margin-top:8px;">Obs: ROI och profit beräknas endast på **avgjorda** spel (WIN/LOSS/VOID). Pending tas inte med i ROI.</p>
+  </div>
+
+<script>
+(function(){
+  const LS_KEY = "betspread-lite-v1";
+
+  const els = {
+    date: document.getElementById('date'),
+    match: document.getElementById('match'),
+    market: document.getElementById('market'),
+    odds: document.getElementById('odds'),
+    stake: document.getElementById('stake'),
+    bookie: document.getElementById('bookie'),
+    result: document.getElementById('result'),
+    note: document.getElementById('note'),
+    addBtn: document.getElementById('addBtn'),
+    clearBtn: document.getElementById('clearBtn'),
+    tableBody: document.querySelector('#betsTable tbody'),
+    monthFilter: document.getElementById('monthFilter'),
+    search: document.getElementById('search'),
+    summary: document.getElementById('summary'),
+  };
+
+  /*** State ***/
+  let bets = load();
+
+  /*** Utils ***/
+  function load(){
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+    catch { return []; }
+  }
+  function save(){ localStorage.setItem(LS_KEY, JSON.stringify(bets)); }
+  function formatMoney(n){ return (Number(n)||0).toFixed(2); }
+  function toMonthKey(d){ const dt=new Date(d); return isNaN(dt)?'': dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,'0'); }
+  function tag(status){
+    const map = {WIN:'tag-win', LOSS:'tag-loss', PENDING:'tag-pending', VOID:'tag-void'};
+    return `<span class="tag ${map[status]||'tag-pending'}">${label(status)}</span>`;
+  }
+  function label(s){
+    return ({WIN:'Vinst', LOSS:'Förlust', PENDING:'Pending', VOID:'Void'})[s] || s;
+  }
+  function calcPayout(b){
+    if(b.result==='WIN') return Number(b.stake) * Number(b.odds);
+    if(b.result==='LOSS') return 0;
+    if(b.result==='VOID') return Number(b.stake);
+    return 0; // pending
+  }
+  function calcProfit(b){
+    if(b.result==='WIN') return Number(b.stake)*(Number(b.odds)-1);
+    if(b.result==='LOSS') return -Number(b.stake);
+    if(b.result==='VOID') return 0;
+    return 0;
+  }
+
+  /*** Render ***/
+  function renderMonthFilter(){
+    const opts = new Set(bets.map(b=>toMonthKey(b.date)).filter(Boolean));
+    const sorted = Array.from(opts).sort().reverse();
+    els.monthFilter.innerHTML = `<option value="ALL">Alla månader</option>` +
+      sorted.map(k=>`<option value="${k}">${k}</option>`).join('');
+  }
+
+  function render(){
+    // Filters
+    const month = els.monthFilter.value || 'ALL';
+    const q = (els.search.value||'').toLowerCase();
+
+    const filtered = bets.filter(b=>{
+      const okMonth = month==='ALL' || toMonthKey(b.date)===month;
+      const hay = [b.match, b.market, b.bookie, b.note].join(' ').toLowerCase();
+      const okQuery = !q || hay.includes(q);
+      return okMonth && okQuery;
+    });
+
+    // Table
+    els.tableBody.innerHTML = filtered.map((b, idx)=>{
+      const payout = calcPayout(b);
+      const profit = calcProfit(b);
+      const roi = profit !== 0 && b.stake>0 && (b.result==='WIN' || b.result==='LOSS') ?
+                  (profit / Number(b.stake))*100 : 0;
+      return `<tr>
+        <td>${b.date||''}</td>
+        <td>${b.match||''}</td>
+        <td>${b.market||''}</td>
+        <td>${b.bookie||''}</td>
+        <td class="right">${formatMoney(b.odds)}</td>
+        <td class="right">${formatMoney(b.stake)}</td>
+        <td>${tag(b.result)}</td>
+        <td class="right">${formatMoney(payout)}</td>
+        <td class="right">${formatMoney(profit)}</td>
+        <td class="right">${(b.result==='WIN'||b.result==='LOSS')?formatMoney(roi)+'%':'—'}</td>
+        <td class="row-actions">
+          <button class="btn-outline" onclick="editBet('${b.id}')">Ändra</button>
+          <button class="btn-outline" onclick="deleteBet('${b.id}')">Ta bort</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    // Summary (settled only)
+    const settled = filtered.filter(b=>b.result!=='PENDING');
+    const totalStake = settled.reduce((s,b)=>s+Number(b.stake||0),0);
+    const totalProfit = settled.reduce((s,b)=>s+calcProfit(b),0);
+    const wins = settled.filter(b=>b.result==='WIN').length;
+    const losses = settled.filter(b=>b.result==='LOSS').length;
+    const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
+
+    els.summary.innerHTML = `
+      <div class="pill"><div class="muted">Spel (avgjorda)</div><div><strong>${settled.length}</strong> (Win ${wins} / Loss ${losses})</div></div>
+      <div class="pill"><div class="muted">Pending</div><div><strong>${filtered.filter(b=>b.result==='PENDING').length}</strong></div></div>
+      <div class="pill"><div class="muted">Total insats</div><div><strong>${formatMoney(totalStake)}</strong></div></div>
+      <div class="pill"><div class="muted">Profit</div><div><strong>${formatMoney(totalProfit)}</strong></div></div>
+      <div class="pill"><div class="muted">ROI</div><div><strong>${formatMoney(roi)}%</strong></div></div>
+    `;
+  }
+
+  /*** Actions ***/
+  function addBet(){
+    const b = {
+      id: crypto.randomUUID(),
+      date: els.date.value || new Date().toISOString().slice(0,10),
+      match: els.match.value.trim(),
+      market: els.market.value.trim(),
+      odds: Number(els.odds.value),
+      stake: Number(els.stake.value),
+      bookie: els.bookie.value.trim(),
+      result: els.result.value,
+      note: els.note.value.trim()
+    };
+    if(!b.match || !b.market || !b.odds || !b.stake){
+      alert('Fyll i minst Match, Marknad, Odds och Insats.');
+      return;
+    }
+    bets.unshift(b);
+    save();
+    renderMonthFilter();
+    render();
+    // reset a few fields
+    els.match.value = '';
+    els.market.value = '';
+    els.odds.value = '';
+    els.stake.value = '';
+    els.note.value = '';
+    els.result.value = 'PENDING';
+  }
+
+  window.deleteBet = function(id){
+    if(!confirm('Ta bort raden?')) return;
+    bets = bets.filter(b=>b.id!==id);
+    save(); renderMonthFilter(); render();
+  };
+
+  window.editBet = function(id){
+    const b = bets.find(x=>x.id===id);
+    if(!b) return;
+    // preload
+    els.date.value = b.date;
+    els.match.value = b.match;
+    els.market.value = b.market;
+    els.odds.value = b.odds;
+    els.stake.value = b.stake;
+    els.bookie.value = b.bookie;
+    els.result.value = b.result;
+    els.note.value = b.note;
+    // remove old and wait for user to press "Lägg till spel"
+    bets = bets.filter(x=>x.id!==id);
+    save(); renderMonthFilter(); render();
+  };
+
+  function clearAll(){
+    if(!confirm('Detta raderar ALLA spel i webbläsaren. Fortsätt?')) return;
+    bets = []; save(); renderMonthFilter(); render();
+  }
+
+  /*** Bind ***/
+  els.addBtn.addEventListener('click', addBet);
+  els.clearBtn.addEventListener('click', clearAll);
+  els.monthFilter.addEventListener('change', render);
+  els.search.addEventListener('input', render);
+
+  // Defaults
+  if(!els.date.value) els.date.value = new Date().toISOString().slice(0,10);
+
+  renderMonthFilter();
+  render();
+})();
+</script>
+</body>
+</html>
