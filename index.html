@@ -11,6 +11,7 @@
   .hidden{display:none}
 
   /* ===== LANDING ===== */
+  .landing-topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #1f2a37;background:#0f1720;position:sticky;top:0;z-index:5}
   .landing-hero{min-height:72svh;display:grid;place-items:center;padding:24px;background:radial-gradient(1000px 500px at 80% -10%,#132033,transparent),#0b1116}
   .landing-card{max-width:1100px;width:92vw;display:grid;grid-template-columns:1.2fr 1fr;gap:24px;align-items:center}
   .landing-card h1{font-size:40px;line-height:1.1;margin:0 0 10px}
@@ -21,7 +22,6 @@
   .btn-ghost{background:transparent;border:1px solid #334155;color:#e7eef5}
   .feature-grid{max-width:1100px;margin:0 auto 30px;padding:0 4vw;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
   .feature{background:#0f1720;border:1px solid #1f2a37;border-radius:12px;padding:16px}
-  .landing-topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #1f2a37;background:#0f1720;position:sticky;top:0;z-index:5}
   .landing-footer{padding:20px;color:#93a4b4;border-top:1px solid #1f2a37;background:#0f1720;text-align:center}
 
   /* ===== Auth (login) ===== */
@@ -89,13 +89,12 @@
 </head>
 <body>
 
-<!-- =================== LANDING (public via #/landing) =================== -->
-<div id="landingView" class="hidden">
+<!-- =================== LANDING (default) =================== -->
+<div id="landingView">
   <div class="landing-topbar">
     <div class="brand"><strong>BetSpread</strong></div>
     <div style="display:flex;gap:10px;align-items:center">
-      <a href="/#/landing" class="btn-ghost" style="padding:8px 12px;border-radius:10px;border:1px solid #334155">Hem</a>
-      <a href="/" class="btn" style="padding:8px 12px;border-radius:10px;background:#22c55e;color:#0b1116;border:0">Logga in</a>
+      <a href="#/login" class="btn-ghost" style="padding:8px 12px;border-radius:10px">Logga in</a>
     </div>
   </div>
   <section class="landing-hero">
@@ -104,8 +103,7 @@
         <h1>Spreadsheets för spel – snabbt, snyggt och enkelt</h1>
         <p>Logga dina spel, följ ROI per månad och lås upp obegränsat med Premium. För hobbybettare och syndikat.</p>
         <div class="cta-row">
-          <a href="/" class="btn btn-primary">Kom igång gratis</a>
-          <a href="/" class="btn btn-ghost">Logga in</a>
+          <a href="#/login" class="btn btn-primary">Kom igång gratis</a>
         </div>
         <p class="muted" style="margin-top:8px">De första 20 spelen är gratis. Inga kort krävs.</p>
       </div>
@@ -128,8 +126,8 @@
   <div class="landing-footer">© <span id="yearNow"></span> BetSpread</div>
 </div>
 
-<!-- =================== LOGIN VIEW (default route) =================== -->
-<div id="loginView" class="center">
+<!-- =================== LOGIN VIEW (egen sida via #/login) =================== -->
+<div id="loginView" class="center hidden">
   <div class="card">
     <h1>BetSpread</h1>
     <p class="muted">Logga in eller skapa konto för att komma åt tjänsten.</p>
@@ -157,13 +155,14 @@
       <div id="signupInfo" class="ok"></div>
       <div id="signupErr" class="err"></div>
     </div>
+
     <div class="row" style="margin-top:10px">
-      <a href="/#/landing" class="btn-outline" style="padding:8px 12px;border-radius:10px">Till landningssidan</a>
+      <a href="#/landing" class="btn-outline" style="padding:8px 12px;border-radius:10px">Till landningssidan</a>
     </div>
   </div>
 </div>
 
-<!-- =================== APP (logged in) =================== -->
+<!-- =================== APP (syns endast när inloggad) =================== -->
 <div id="appView" class="hidden">
   <div class="topbar">
     <div class="brand">
@@ -291,39 +290,53 @@ const appView  = $('appView');
 $('yearNow').textContent = new Date().getFullYear();
 
 /* ================= Router ================= */
-/*  Routes:
-    - "#/landing" → landingView
-    - default     → loginView (or appView if logged in)
+/* Routes:
+   - "#/landing" eller tom hash → landing
+   - "#/login" → login/signup
+   - "#/app"   → app (kräver inloggning)
 */
 let sessionUser=null, userProfile=null, projectsCache=[], currentProjectId=null, totalBetsCount=0;
 const FREE_LIMIT=20;
 
+function go(path){ if(location.hash!==path){ location.hash=path; } else { renderRoute(); } }
+
 function renderRoute(){
-  const hash = window.location.hash;
-  if(hash === '#/landing'){
+  const h = location.hash || '#/landing';
+  if(h==='#/landing'){
     show(landingView); hide(loginView); hide(appView);
-  }else{
-    hide(landingView);
-    // show login by default; auth listener will flip to app if logged in
-    SB.auth.getSession().then(({data})=>{
-      if(data.session?.user){ show(appView); hide(loginView); startApp(data.session.user); }
-      else { show(loginView); hide(appView); }
-    });
+    return;
   }
+  if(h==='#/login'){
+    show(loginView); hide(landingView); hide(appView);
+    return;
+  }
+  if(h==='#/app'){
+    // kräver inloggning
+    SB.auth.getSession().then(({data})=>{
+      if(data.session?.user){ hide(landingView); hide(loginView); show(appView); startApp(data.session.user); }
+      else{ go('#/login'); }
+    });
+    return;
+  }
+  // fallback
+  go('#/landing');
 }
 window.addEventListener('hashchange', renderRoute);
 
 /* ================= Auth listeners ================= */
 SB.auth.onAuthStateChange((_evt, session)=>{
-  if(window.location.hash==='#/landing'){ show(landingView); hide(loginView); hide(appView); return; }
   const user = session?.user || null;
-  if(user){ hide(loginView); show(appView); startApp(user); }
-  else { show(loginView); hide(appView); }
+  if(user){
+    // efter lyckad login, gå till app
+    go('#/app');
+  }else{
+    // efter logout, tillbaka till landing
+    go('#/landing');
+  }
 });
 SB.auth.getSession().then(({data})=>{
-  if(window.location.hash==='#/landing'){ show(landingView); hide(loginView); hide(appView); }
-  else if(data.session?.user){ hide(loginView); show(appView); startApp(data.session.user); }
-  else { show(loginView); hide(appView); }
+  if(!location.hash){ go('#/landing'); }
+  else renderRoute();
 });
 
 /* ================= Auth form handlers ================= */
@@ -376,7 +389,11 @@ function wireOnce(){
       $('tab-'+t.dataset.tab).classList.remove('hidden');
     });
   });
-  $('logoutBtn').onclick = async ()=>{ await SB.auth.signOut(); renderRoute(); };
+  $('logoutBtn').onclick = async ()=>{
+    await SB.auth.signOut();
+    // onAuthStateChange tar oss till #/landing, men säkerställ direkt:
+    go('#/landing');
+  };
   $('upgradeBtn').onclick = ()=>{ alert('Stripe-integration kommer här 🎯'); };
   $('manageBillingBtn').onclick = ()=>{ alert('Stripe-portal kommer här 🎯'); };
   $('newProjectBtn').onclick = async ()=>{
@@ -629,9 +646,6 @@ window.editBet = async function(id){
   $('matchDate').value=b.match_date||''; $('match').value=b.match||''; $('market').value=b.market||''; $('odds').value=b.odds||''; $('stake').value=b.stake??'1'; $('bookie').value=b.bookie||''; $('result').value=b.result||'PENDING'; $('note').value=b.note||'';
   await sb_deleteBet(id); await refreshFreeState(); await renderAll(); document.querySelector('.tab[data-tab="register"]').click();
 };
-
-/* Kick router once on load */
-renderRoute();
 </script>
 </body>
 </html>
