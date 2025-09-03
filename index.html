@@ -3,40 +3,45 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BetSpread – Inloggning krävs</title>
+<title>BetSpread – Inloggning, Publik profil & Utforska</title>
 <style>
   :root { font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
   body { margin:0; background:#0b1116; color:#e7eef5; }
-  a { color:#93c5fd; }
-  /* Auth page */
+  a { color:#93c5fd; text-decoration:none }
+  .hidden{display:none}
+
+  /* Cards / layout */
   .center { min-height:100svh; display:grid; place-items:center; padding:24px; }
   .card { width:min(560px, 92vw); background:#0f1720; border:1px solid #1f2a37; border-radius:16px; padding:24px; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+  .card-app{background:#0f1720;border:1px solid #1f2a37;border-radius:12px;padding:16px;margin-bottom:16px}
   h1 { margin:0 0 6px; font-size:22px; }
+  h3 { margin:0 0 8px; }
   p.muted { margin:0 0 16px; color:#94a3b8; }
   label { font-size:12px; color:#b6c2cf; display:block; margin:14px 0 6px; }
-  input { width:100%; padding:12px; border-radius:10px; border:1px solid #243244; background:#0b1320; color:#e7eef5; }
+  input, textarea { width:100%; padding:12px; border-radius:10px; border:1px solid #243244; background:#0b1320; color:#e7eef5; }
+  select, input[type="text"], input[type="number"], input[type="date"] { padding:10px;border-radius:8px;border:1px solid #243244;background:#0b1320;color:#e7eef5 }
   .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
   button { padding:12px 14px; border-radius:10px; border:1px solid #334155; background:#0b1320; color:#e7eef5; cursor:pointer; }
   .btn { background:#22c55e; color:#0b1116; border:0; font-weight:700; }
   .btn-ghost { background:transparent; }
+  .btn-outline{ background:transparent; border:1px solid #334155 }
+  .badge{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid #334155;background:#0f1720}
   .err { background:#3b0a0a; border:1px solid #6b1212; color:#fecaca; padding:10px 12px; border-radius:10px; margin-top:12px; display:none }
   .ok { background:#083d24; border:1px solid #195a39; color:#bbf7d0; padding:10px 12px; border-radius:10px; margin-top:12px; display:none }
 
-  /* App */
+  /* Topbar & wrappers */
   .topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #1f2a37;background:#0f1720;position:sticky;top:0;z-index:10}
   .brand{display:flex;gap:12px;align-items:center}
-  .badge{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid #334155;background:#0f1720}
-  .btn-out{padding:8px 12px;border-radius:10px;border:1px solid #334155;background:transparent;color:#e7eef5;cursor:pointer}
   .wrap{max-width:1200px;margin:20px auto;padding:0 20px}
-  select, .btn, .btn-outline, input[type="text"], input[type="number"], input[type="date"] { padding:10px;border-radius:8px;border:1px solid #243244;background:#0b1320;color:#e7eef5 }
-  .btn-outline{background:transparent;border:1px solid #334155}
+  .public-header{padding:16px 20px;border-bottom:1px solid #1f2a37;background:#0f1720;display:flex;justify-content:space-between;align-items:center}
+  .public-wrap{max-width:1200px;margin:20px auto;padding:0 20px}
+
+  /* Tabs */
   .tabs{display:flex;gap:6px;margin:12px 0}
   .tab{padding:8px 12px;border:1px solid #334155;border-bottom:0;border-radius:8px 8px 0 0;background:#0f1720;cursor:pointer}
   .tab.active{background:#17212e;font-weight:700}
-  .card-app{background:#0f1720;border:1px solid #1f2a37;border-radius:12px;padding:16px;margin-bottom:16px}
-  .grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
-  .grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-  label.app{font-size:12px;color:#b6c2cf;display:block;margin-bottom:6px}
+
+  /* Bets list */
   table{width:100%;border-collapse:collapse}
   th,td{border-bottom:1px solid #1f2a37;padding:10px;text-align:left;font-size:14px}
   th{color:#b6c2cf;font-weight:600}
@@ -71,14 +76,73 @@
   .btn-pending{background:#17324a;color:#93c5fd;border:1px solid #244a6e}
   .btn-void{background:#2f2f2f;color:#cbd5e1;border:1px solid #475569}
 
-  @media (max-width:1200px){ .grid{grid-template-columns:repeat(3,1fr)} summary.bet-hdr{grid-template-columns:120px 1fr 100px 100px 80px} }
-  @media (max-width:800px){ summary.bet-hdr{grid-template-columns:1fr 100px 90px} .hdr-small-hide{display:none} .bet-body{grid-template-columns:1fr} }
+  .paywall {background:#3b0a0a;border:1px solid #6b1212;color:#fecaca;padding:12px;border-radius:10px;margin:8px 0;display:none}
+  .pay-ok {background:#083d24;border:1px solid #195a39;color:#bbf7d0;padding:12px;border-radius:10px;margin:8px 0;display:none}
+
+  /* Explore list */
+  .grid-explore{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .card-hit{background:#0f1720;border:1px solid #1f2a37;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .hit-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .hit-meta{color:#93a4b4;font-size:12px}
+  @media (max-width:1000px){ .grid-explore{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:700px){ .grid-explore{grid-template-columns:1fr} summary.bet-hdr{grid-template-columns:1fr 100px 90px} .bet-body{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
 
-<!-- =============== AUTH START PAGE (logged out) =============== -->
-<div id="authView" class="center" style="display:grid">
+<!-- =================== PUBLIC PROFILE VIEW =================== -->
+<div id="publicView" class="hidden">
+  <div class="public-header">
+    <div class="brand">
+      <h1 style="margin:0">BetSpread – Publik profil</h1>
+      <span id="publicUserLabel" class="badge">Profil</span>
+    </div>
+    <a href="/" class="btn-ghost" title="Till startsidan">← Till startsidan</a>
+  </div>
+  <div class="public-wrap">
+    <div class="card-app">
+      <div class="list-toolbar">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div><label class="app">Månad (matchdag)</label><select id="pubMonthFilter"></select></div>
+          <div><label class="app">Sök</label><input type="text" id="pubSearch" placeholder="Match/marknad/spelbolag..."></div>
+        </div>
+      </div>
+      <div id="publicProjectsContainer"></div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== EXPLORE VIEW (search public) =================== -->
+<div id="exploreView" class="hidden">
+  <div class="public-header">
+    <div class="brand">
+      <h1 style="margin:0">Utforska publika spreadsheets</h1>
+      <span class="badge">Explore</span>
+    </div>
+    <a href="/" class="btn-ghost" title="Till startsidan">← Till startsidan</a>
+  </div>
+  <div class="public-wrap">
+    <div class="card-app">
+      <div class="list-toolbar" style="gap:12px">
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div>
+            <label class="app">Sök (användare/projekt)</label>
+            <input id="exploreQuery" type="text" placeholder="t.ex. 'Anders' eller 'Bet365'">
+          </div>
+          <div>
+            <label class="app">&nbsp;</label>
+            <button id="exploreBtn" class="btn">Sök</button>
+          </div>
+        </div>
+        <div class="muted" id="exploreInfo"></div>
+      </div>
+      <div id="exploreResults" class="grid-explore"></div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== AUTH =================== -->
+<div id="authView" class="center">
   <div class="card">
     <h1>BetSpread</h1>
     <p class="muted">Logga in eller skapa konto för att använda tjänsten.</p>
@@ -93,35 +157,33 @@
       <input id="loginEmail" type="email" placeholder="din@mail.se" autocomplete="email" />
       <label for="loginPassword">Lösenord</label>
       <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
-      <div class="row">
-        <button id="loginBtn" class="btn">Logga in</button>
-      </div>
+      <div class="row"><button id="loginBtn" class="btn">Logga in</button></div>
       <div id="loginErr" class="err"></div>
     </div>
 
-    <div id="signupForm" style="display:none;margin-top:10px">
+    <div id="signupForm" class="hidden" style="margin-top:10px">
       <label for="signupEmail">E-post</label>
       <input id="signupEmail" type="email" placeholder="din@mail.se" autocomplete="email" />
       <label for="signupPassword">Lösenord</label>
       <input id="signupPassword" type="password" placeholder="Minst 6 tecken" autocomplete="new-password" />
-      <div class="row">
-        <button id="signupBtn" class="btn">Skapa konto</button>
-      </div>
+      <div class="row"><button id="signupBtn" class="btn">Skapa konto</button></div>
       <div id="signupInfo" class="ok"></div>
       <div id="signupErr" class="err"></div>
     </div>
   </div>
 </div>
 
-<!-- =============== APP (logged in) =============== -->
-<div id="appView" style="display:none">
+<!-- =================== APP (logged in) =================== -->
+<div id="appView" class="hidden">
   <div class="topbar">
     <div class="brand">
       <h1 style="margin:0">BetSpread</h1>
       <span id="modeBadge" class="badge">Moln (Supabase)</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
+      <button id="goExploreBtn" class="btn-outline" title="Utforska publika spreadsheets">Utforska</button>
       <span id="userInfo" class="muted"></span>
+      <button id="copyPublicLinkBtn" class="btn-outline" title="Kopiera länk till din publika profil">Kopiera publik länk</button>
       <button id="logoutBtn" class="btn-out">Logga ut</button>
     </div>
   </div>
@@ -135,6 +197,18 @@
         <button type="button" class="btn-outline" id="renameProjectBtn">Byt namn</button>
         <button type="button" class="btn-outline" id="deleteProjectBtn">Radera</button>
       </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label class="app" for="publicToggle" style="margin:0">Publikt:</label>
+        <input id="publicToggle" type="checkbox" />
+        <button type="button" class="btn-outline" id="savePublicBtn">Spara synlighet</button>
+      </div>
+    </div>
+
+    <div id="freeBanner" class="paywall"></div>
+    <div id="premiumBanner" class="pay-ok"></div>
+    <div id="upgradeRow" class="row hidden">
+      <button id="upgradeBtn" class="btn">Uppgradera (test)</button>
+      <span class="muted">Fejk-knapp: sätter ditt konto till Premium i databasen.</span>
     </div>
 
     <div class="tabs">
@@ -169,7 +243,7 @@
     </section>
 
     <!-- MÅNADSSUMMERING -->
-    <section id="tab-summary" class="card-app" style="display:none">
+    <section id="tab-summary" class="card-app hidden">
       <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
         <div><label class="app">Månad (matchdag)</label><select id="monthFilterSummary"></select></div>
         <div class="summary" id="summaryBoxes"></div>
@@ -186,7 +260,7 @@
     </section>
 
     <!-- SPEL -->
-    <section id="tab-list" class="card-app" style="display:none">
+    <section id="tab-list" class="card-app hidden">
       <div class="list-toolbar">
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
           <div><label class="app">Månad (matchdag)</label><select id="monthFilterList"></select></div>
@@ -210,63 +284,11 @@ const SUPABASE_URL = "https://updpywjfxeahtjpelbku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_GB6f7XXePLTeIVIJYGjODg_rRlKqi4B";
 const SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* ================= Auth page logic ================= */
-const authView = document.getElementById('authView');
-const appView  = document.getElementById('appView');
-const loginForm = document.getElementById('loginForm');
-const signupForm = document.getElementById('signupForm');
-const loginErr = document.getElementById('loginErr');
-const signupErr = document.getElementById('signupErr');
-const signupInfo = document.getElementById('signupInfo');
-
-document.getElementById('tabLogin').onclick = ()=>{ loginForm.style.display='block'; signupForm.style.display='none'; };
-document.getElementById('tabSignup').onclick = ()=>{ loginForm.style.display='none'; signupForm.style.display='block'; };
-
-document.getElementById('loginBtn').onclick = async ()=>{
-  loginErr.style.display='none';
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  if(!email || !password){ loginErr.textContent='Fyll i e-post och lösenord.'; loginErr.style.display='block'; return; }
-  const { error } = await SB.auth.signInWithPassword({ email, password });
-  if(error){ loginErr.textContent = error.message; loginErr.style.display='block'; return; }
-};
-
-document.getElementById('signupBtn').onclick = async ()=>{
-  signupErr.style.display='none'; signupInfo.style.display='none';
-  const email = document.getElementById('signupEmail').value.trim();
-  const password = document.getElementById('signupPassword').value;
-  if(!email || !password){ signupErr.textContent='Fyll i e-post och lösenord.'; signupErr.style.display='block'; return; }
-  const { data, error } = await SB.auth.signUp({
-    email, password,
-    options:{ emailRedirectTo: window.location.origin }
-  });
-  if(error){ signupErr.textContent = error.message; signupErr.style.display='block'; return; }
-  signupInfo.textContent = 'Konto skapat.';
-  signupInfo.style.display='block';
-};
-
-/* ================= Auth session gate ================= */
-SB.auth.onAuthStateChange((_evt, session)=>{
-  const user = session?.user || null;
-  if(user){
-    authView.style.display='none';
-    appView.style.display='block';
-    startApp(user);
-  }else{
-    appView.style.display='none';
-    authView.style.display='grid';
-  }
-});
-SB.auth.getSession().then(({data})=>{
-  const user = data.session?.user || null;
-  if(user){ authView.style.display='none'; appView.style.display='block'; startApp(user); }
-});
-
-/* ======================== APP CODE ======================== */
+/* ================= Helpers ================= */
 const $ = (id)=>document.getElementById(id);
-const tabs = document.querySelectorAll('.tab');
-const sections = { register: $('tab-register'), summary: $('tab-summary'), list: $('tab-list') };
-const modeBadge = $('modeBadge'); const userInfo = $('userInfo');
+const qs = (sel)=>document.querySelector(sel);
+const show = (el)=>el.classList.remove('hidden');
+const hide = (el)=>el.classList.add('hidden');
 
 const MONTHS_SV = ["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
 const formatMoney = (n)=> (Number(n)||0).toFixed(2);
@@ -278,348 +300,319 @@ const tag = (s)=>{ const m={WIN:'tag-win',LOSS:'tag-loss',PENDING:'tag-pending',
 const yyyymm = (d)=>{ const dt=new Date(d); if(isNaN(dt)) return ''; return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,'0'); };
 const monthNameWithYear = (ym)=>{ const y=Number(ym.slice(0,4)), m=Number(ym.slice(5))-1; if(!y||m<0) return ym; return `${MONTHS_SV[m]} ${y}`; };
 const today = new Date().toISOString().slice(0,10);
+const copyToClipboard = async (text)=>{ try{ await navigator.clipboard.writeText(text); alert('Länk kopierad!'); }catch{ prompt('Kopiera länk:', text); } };
 
-/* ---------- UI refs ---------- */
-const projSelect = $('projectSelect');
-const form = {
-  matchDate: $('matchDate'), match: $('match'), market: $('market'),
-  odds: $('odds'), stake: $('stake'), bookie: $('bookie'), result: $('result'), note: $('note'),
-  addBtn: $('addBtn'), clearBtn: $('clearBtn'),
-};
-const listUI = {
-  monthFilter: $('monthFilterList'), search: $('search'),
-  monthContainer: $('monthContainer'), expandAllBtn: $('expandAllBtn'), collapseAllBtn: $('collapseAllBtn'),
-};
-const sumUI = { monthFilter: $('monthFilterSummary'), boxes: $('summaryBoxes'),
-  tableBody: document.querySelector('#summaryTable tbody') };
+/* ================= Views ================= */
+const authView = $('authView');
+const appView  = $('appView');
+const publicView = $('publicView');
+const exploreView = $('exploreView');
 
-/* ---------- App state ---------- */
-let sessionUser = null;
-let projectsCache = [];
-let currentProjectId = null;
+/* ================= Router ================= */
+const url = new URL(window.location.href);
+const profileId = url.searchParams.get('profile');
+const isExplore = url.searchParams.get('explore');
 
-/* ---------- Supabase helpers ---------- */
-async function sb_listProjects(){
-  const { data, error } = await SB.from('projects').select('*').eq('user_id', sessionUser.id).order('created_at',{ascending:false});
-  if(error){ console.error(error); return []; }
-  return data||[];
-}
-async function sb_createProject(name){
-  const { error } = await SB.from('projects').insert({ user_id: sessionUser.id, name });
-  if(error) alert(error.message);
-}
-async function sb_renameProject(id, name){
-  const { error } = await SB.from('projects').update({ name }).eq('id', id);
-  if(error) alert(error.message);
-}
-async function sb_deleteProject(id){
-  const { error } = await SB.from('projects').delete().eq('id', id);
-  if(error) alert(error.message);
-}
-async function sb_loadBets(pid){
-  const { data, error } = await SB.from('bets').select('*').eq('project_id', pid).order('created_at',{ascending:false});
-  if(error){ console.error(error); return []; }
-  return data||[];
-}
-async function sb_addBet(pid, b){
-  const row = { ...b, project_id: pid };
-  const { error } = await SB.from('bets').insert(row);
-  if(error) alert(error.message);
-}
-async function sb_updateBet(id, fields){
-  const { error } = await SB.from('bets').update(fields).eq('id', id);
-  if(error) alert(error.message);
-}
-async function sb_deleteBet(id){
-  const { error } = await SB.from('bets').delete().eq('id', id);
-  if(error) alert(error.message);
-}
-async function sb_clearBets(pid){
-  const { error } = await SB.from('bets').delete().eq('project_id', pid);
-  if(error) alert(error.message);
-}
+if(profileId){ hide(authView); hide(appView); hide(exploreView); show(publicView); bootPublicProfile(profileId); }
+else if(isExplore){ hide(authView); hide(appView); hide(publicView); show(exploreView); bootExplore(); }
+else { bootAuth(); }
 
-/* ---------- Start app after login ---------- */
-async function startApp(user){
-  sessionUser = user;
-  userInfo.textContent = user.email || '';
-  modeBadge.textContent = 'Moln (Supabase)';
-  await loadProjectsInitial();
-  await renderAll();
-  wireOnce();
-}
+/* ================= PUBLIC PROFILE (unchanged core) ================= */
+async function bootPublicProfile(userId){
+  try{
+    const { data: userRow } = await SB.from('users').select('display_name, id').eq('id', userId).maybeSingle();
+    $('publicUserLabel').textContent = userRow?.display_name ? `Profil: ${userRow.display_name}` : `Profil: ${userId.slice(0,8)}…`;
+  }catch{}
+  const { data: projects, error } = await SB.from('projects').select('id,name,is_public').eq('user_id', userId).eq('is_public', true).order('created_at', {ascending:false});
+  if(error){ console.error(error); $('publicProjectsContainer').innerHTML = '<div class="muted">Kunde inte läsa publika projekt.</div>'; return; }
+  if(!projects || projects.length===0){ $('publicProjectsContainer').innerHTML = '<div class="muted">Inga publika projekt.</div>'; return; }
 
-function wireOnce(){
-  if(wireOnce.did) return; wireOnce.did = true;
-
-  // Tabs
-  document.querySelectorAll('.tab').forEach(t=>{
-    t.addEventListener('click', ()=>{
-      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-      t.classList.add('active');
-      Object.values(sections).forEach(s=>s.style.display='none');
-      sections[t.dataset.tab].style.display='block';
-    });
-  });
-
-  // Auth logout
-  document.getElementById('logoutBtn').onclick = async ()=>{ await SB.auth.signOut(); };
-
-  // Projects
-  document.getElementById('newProjectBtn').onclick = async ()=>{
-    const name = (prompt("Namn på nytt projekt:", "Nytt projekt")||'').trim(); if(!name) return;
-    await sb_createProject(name); projectsCache = await sb_listProjects(); currentProjectId = projectsCache[0]?.id || null;
-    refreshProjectSelect(); await renderAll();
-  };
-  document.getElementById('renameProjectBtn').onclick = async ()=>{
-    const p = projectsCache.find(x=>x.id===currentProjectId); if(!p) return;
-    const name = (prompt("Nytt namn:", p.name)||'').trim(); if(!name) return;
-    await sb_renameProject(p.id, name); projectsCache = await sb_listProjects(); refreshProjectSelect();
-  };
-  document.getElementById('deleteProjectBtn').onclick = async ()=>{
-    if(projectsCache.length<=1){ alert("Du måste ha minst ett projekt."); return; }
-    const p = projectsCache.find(x=>x.id===currentProjectId); if(!p) return;
-    if(!confirm(`Radera projekt "${p.name}" och alla dess spel?`)) return;
-    await sb_deleteProject(p.id); projectsCache = await sb_listProjects(); currentProjectId = projectsCache[0]?.id || null;
-    refreshProjectSelect(); await renderAll();
-  };
-  projSelect.addEventListener('change', async ()=>{ currentProjectId = projSelect.value; await renderAll(); });
-
-  // Register
-  form.addBtn.addEventListener('click', async ()=>{
-    const bet = {
-      id: crypto.randomUUID?.() || String(Date.now()),
-      match_date: form.matchDate.value || today,
-      match: (form.match.value||'').trim(),
-      market: (form.market.value||'').trim(),
-      odds: Number(form.odds.value),
-      stake: Number(form.stake.value || 1),
-      bookie: (form.bookie.value||'').trim(),
-      result: form.result.value,
-      note: (form.note.value||'').trim(),
-      // sent_date tas bort (lagras ej)
-    };
-    if(!bet.match || !bet.market || !bet.odds || !bet.stake){ alert("Fyll i minst Match, Marknad, Odds och Insats."); return; }
-    await sb_addBet(currentProjectId, bet);
-    form.match.value=form.market.value=form.note.value=''; form.odds.value=''; form.stake.value='1'; form.result.value='PENDING';
-    await renderAll();
-  });
-  form.clearBtn.addEventListener('click', async ()=>{
-    if(!confirm("Detta raderar ALLA spel i detta projekt. Fortsätt?")) return;
-    await sb_clearBets(currentProjectId); await renderAll();
-  });
-
-  // Filters
-  document.getElementById('monthFilterList').addEventListener('change', renderList);
-  document.getElementById('search').addEventListener('input', renderList);
-  document.getElementById('monthFilterSummary').addEventListener('change', renderSummary);
-
-  // Expand/Collapse
-  document.getElementById('expandAllBtn').addEventListener('click', ()=>{
-    document.querySelectorAll('#monthContainer details.accord-month').forEach(d=>d.open=true);
-  });
-  document.getElementById('collapseAllBtn').addEventListener('click', ()=>{
-    document.querySelectorAll('#monthContainer details.accord-month').forEach(d=>d.open=false);
-  });
-}
-
-/* ---------- Projects init & render ---------- */
-async function loadProjectsInitial(){
-  projectsCache = await sb_listProjects();
-  if(projectsCache.length===0){
-    await sb_createProject('Mitt första projekt');
-    projectsCache = await sb_listProjects();
+  const allBetsByProject = {};
+  for(const p of projects){
+    const { data: bets } = await SB.from('bets').select('*').eq('project_id', p.id).order('match_date', {ascending:false});
+    allBetsByProject[p.id] = bets || [];
   }
-  currentProjectId = projectsCache[0]?.id || null;
-  refreshProjectSelect();
-}
-function refreshProjectSelect(){
-  projSelect.innerHTML = (projectsCache||[]).map(p=>`<option value="${p.id}" ${p.id===currentProjectId?'selected':''}>${p.name}</option>`).join('');
+  const pubMonthFilter = $('pubMonthFilter');
+  const pubSearch = $('pubSearch');
+
+  function renderPublic(){
+    const months = new Set();
+    for(const p of projects){ for(const b of (allBetsByProject[p.id]||[])){ const k = yyyymm(b.match_date); if(k) months.add(k); } }
+    const sortedMonths = Array.from(months).sort().reverse();
+    pubMonthFilter.innerHTML = ['<option value="ALL">Alla månader</option>'].concat(sortedMonths.map(k=>`<option value="${k}">${monthNameWithYear(k)}</option>`)).join('');
+
+    const sel = pubMonthFilter.value || 'ALL';
+    const q = (pubSearch.value||'').toLowerCase();
+    const container = $('publicProjectsContainer');
+    container.innerHTML = projects.map(p=>{
+      const bets = (allBetsByProject[p.id]||[]).filter(b=>{
+        const okMonth = sel==='ALL' || yyyymm(b.match_date)===sel;
+        const hay = [b.match,b.market,b.bookie,b.note].join(' ').toLowerCase();
+        const okQ = !q || hay.includes(q);
+        return okMonth && okQ;
+      });
+      const groups = {};
+      for(const b of bets){ const k = yyyymm(b.match_date)||'Okänd'; (groups[k] ||= []).push(b); }
+      const keys = Object.keys(groups).sort().reverse();
+
+      const monthBlocks = keys.map(k=>{
+        const arr = groups[k];
+        const wins = arr.filter(x=>x.result==='WIN').length;
+        const losses = arr.filter(x=>x.result==='LOSS').length;
+        const pend = arr.filter(x=>x.result==='PENDING').length;
+        const settled = arr.filter(x=>x.result!=='PENDING');
+        const stake = settled.reduce((s,x)=>s+(x.stake||0),0);
+        const prof  = settled.reduce((s,x)=>s+profit(x),0);
+        const roiM  = stake>0 ? (prof/stake)*100 : 0;
+
+        const list = arr.map(b=>{
+          const hdr = `
+            <div class="hdr-small mono">${b.match_date||''}</div>
+            <div class="hdr-strong">${(b.match||'')} <span class="muted hdr-small-hide">· ${b.market||''}</span></div>
+            <div class="hdr-small-hide right mono">Insats ${formatMoney(b.stake)}</div>
+            <div class="hdr-small-hide right mono">Profit ${formatMoney(profit(b))}</div>
+            <div class="right">${tag(b.result)}</div>
+          `;
+          const body = `
+            <div class="bet-field"><div class="muted">Spelbolag</div><div>${b.bookie||''}</div></div>
+            <div class="bet-field"><div class="muted">Odds</div><div class="mono">${formatMoney(b.odds)}</div></div>
+            <div class="bet-field"><div class="muted">Utbetalning</div><div class="mono">${formatMoney(payout(b))}</div></div>
+            <div class="bet-field" style="grid-column:1/-1"><div class="muted">Notering</div><div>${b.note||'—'}</div></div>
+          `;
+          return `<details class="bet"><summary class="bet-hdr">${hdr}</summary><div class="bet-body">${body}</div></details>`;
+        }).join('');
+
+        return `
+          <details class="accord-month">
+            <summary class="month-hdr">
+              <span class="month-title">${k==='Okänd'?'Okänd månad':monthNameWithYear(k)}</span>
+              <span class="month-meta">
+                <span>${arr.length} spel</span><span>Win ${wins}</span><span>Loss ${losses}</span><span>Pending ${pend}</span>
+                <span>ROI ${formatMoney(roiM)}%</span>
+              </span>
+            </summary>
+            <div class="month-body">${list || '<div class="muted">Inga spel.</div>'}</div>
+          </details>
+        `;
+      }).join('') || `<div class="muted">Inga spel i detta projekt.</div>`;
+
+      return `
+        <div class="card-app">
+          <h3 style="margin:0 0 8px">${p.name} <span class="badge">Publikt</span></h3>
+          ${monthBlocks}
+        </div>
+      `;
+    }).join('');
+  }
+
+  pubMonthFilter.addEventListener('change', renderPublic);
+  pubSearch.addEventListener('input', renderPublic);
+  renderPublic();
 }
 
-/* ---------- Renders ---------- */
-async function renderAll(){
-  if(!form.matchDate.value) form.matchDate.value = today;
-  if(!form.stake.value) form.stake.value = '1';
+/* ================= EXPLORE (search public projects/users) ================= */
+function bootExplore(){
+  const qInput = $('exploreQuery');
+  const btn = $('exploreBtn');
+  const info = $('exploreInfo');
+  const results = $('exploreResults');
 
-  await renderMonthFilters();
-  await renderList();
-  await renderSummary();
+  async function search(){
+    const q = (qInput.value||'').trim();
+    info.textContent = 'Söker...';
+    results.innerHTML = '';
+
+    // Basfråga: alla publika projekt + användare
+    let req = SB.from('projects')
+      .select('id,name,is_public,user_id, users:users!inner(id,display_name)')
+      .eq('is_public', true)
+      .order('created_at', { ascending:false })
+      .limit(100);
+
+    if(q){
+      // matcha projektnamn ELLER användarnamn (display_name)
+      req = req.or(`name.ilike.%${q}%,users.display_name.ilike.%${q}%`);
+    }
+
+    const { data, error } = await req;
+    if(error){ info.textContent = 'Fel vid sökning.'; console.error(error); return; }
+    info.textContent = `${data.length} träffar`;
+
+    results.innerHTML = data.map(row=>{
+      const u = row.users;
+      const userName = u?.display_name || (u?.id ? u.id.slice(0,8)+'…' : 'Okänd');
+      const profileLink = `${window.location.origin}?profile=${u?.id}`;
+      return `
+        <div class="card-hit">
+          <div class="hit-head">
+            <div>
+              <div><strong>${row.name}</strong></div>
+              <div class="hit-meta">Användare: ${userName}</div>
+            </div>
+            <span class="badge">Publikt</span>
+          </div>
+          <div class="row">
+            <button class="btn-ghost" onclick="window.location.href='${profileLink}'">Öppna profil</button>
+            <button class="btn-outline" onclick="copyToClipboard('${profileLink}')">Kopiera länk</button>
+          </div>
+        </div>
+      `;
+    }).join('') || `<div class="muted">Inga träffar – prova ett annat sökord.</div>`;
+  }
+
+  btn.addEventListener('click', search);
+  qInput.addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
+
+  // Förifyll ev. q från URL: ?explore=1&q=...
+  const urlQ = new URL(window.location.href).searchParams.get('q');
+  if(urlQ){ qInput.value = urlQ; }
+  search();
 }
+
+/* ================= AUTH & APP (samma som tidigare + goExplore) ================= */
+function bootAuth(){
+  const loginForm = $('loginForm');
+  const signupForm = $('signupForm');
+  const loginErr = $('loginErr');
+  const signupErr = $('signupErr');
+  const signupInfo = $('signupInfo');
+
+  $('tabLogin').onclick = ()=>{ loginForm.classList.remove('hidden'); signupForm.classList.add('hidden'); };
+  $('tabSignup').onclick = ()=>{ signupForm.classList.remove('hidden'); loginForm.classList.add('hidden'); };
+
+  $('loginBtn').onclick = async ()=>{
+    loginErr.style.display='none';
+    const email = $('loginEmail').value.trim();
+    const password = $('loginPassword').value;
+    if(!email || !password){ loginErr.textContent='Fyll i e-post och lösenord.'; loginErr.style.display='block'; return; }
+    const { error } = await SB.auth.signInWithPassword({ email, password });
+    if(error){ loginErr.textContent = error.message; loginErr.style.display='block'; return; }
+  };
+
+  $('signupBtn').onclick = async ()=>{
+    signupErr.style.display='none'; signupInfo.style.display='none';
+    const email = $('signupEmail').value.trim();
+    const password = $('signupPassword').value;
+    if(!email || !password){ signupErr.textContent='Fyll i e-post och lösenord.'; signupErr.style.display='block'; return; }
+    const { data, error } = await SB.auth.signUp({ email, password, options:{ emailRedirectTo: window.location.origin } });
+    if(error){ signupErr.textContent = error.message; signupErr.style.display='block'; return; }
+    signupInfo.textContent = 'Konto skapat.'; signupInfo.style.display='block';
+  };
+
+  SB.auth.onAuthStateChange((_evt, session)=>{
+    const user = session?.user || null;
+    if(user){ hide(authView); hide(publicView); hide(exploreView); show(appView); startApp(user); }
+    else { show(authView); hide(appView); }
+  });
+  SB.auth.getSession().then(({data})=>{
+    const user = data.session?.user || null;
+    if(user){ hide(authView); hide(publicView); hide(exploreView); show(appView); startApp(user); }
+  });
+}
+
+/* ======================== APP CODE (kortad där det går) ======================== */
+const modeBadge = $('modeBadge'); const userInfo = $('userInfo');
+const projSelect = $('projectSelect');
+const publicToggle = $('publicToggle');
+const savePublicBtn = $('savePublicBtn');
+const freeBanner = $('freeBanner');
+const premiumBanner = $('premiumBanner');
+const upgradeRow = $('upgradeRow');
+const upgradeBtn = $('upgradeBtn');
+let sessionUser=null, userProfile=null, projectsCache=[], currentProjectId=null, totalBetsCount=0;
+const FREE_LIMIT=20;
+
+async function ensureUserRow(){
+  const { data } = await SB.from('users').select('id').eq('id', sessionUser.id).maybeSingle();
+  if(!data){ await SB.from('users').insert({ id: sessionUser.id, display_name: sessionUser.email, is_premium: false }); }
+}
+async function sb_getUserProfile(){ const { data } = await SB.from('users').select('id,display_name,is_premium').eq('id', sessionUser.id).maybeSingle(); return data||null; }
+async function sb_upgradeSelfPremium(){ const { error } = await SB.from('users').update({ is_premium: true }).eq('id', sessionUser.id); if(error){ alert(error.message); return false;} return true; }
+async function sb_listProjects(){ const { data } = await SB.from('projects').select('*').eq('user_id', sessionUser.id).order('created_at',{ascending:false}); return data||[]; }
+async function sb_createProject(name){ const { error } = await SB.from('projects').insert({ user_id: sessionUser.id, name, is_public:false }); if(error) alert(error.message); }
+async function sb_updateProject(id, fields){ const { error } = await SB.from('projects').update(fields).eq('id', id); if(error) alert(error.message); }
+async function sb_deleteProject(id){ const { error } = await SB.from('projects').delete().eq('id', id); if(error) alert(error.message); }
+async function sb_loadBets(pid){ const { data, error } = await SB.from('bets').select('*').eq('project_id', pid).order('created_at',{ascending:false}); if(error){ console.error(error); return []; } return data||[]; }
+async function sb_addBet(pid,b){ const { error } = await SB.from('bets').insert({ ...b, project_id: pid }); if(error) alert(error.message); }
+async function sb_updateBet(id,fields){ const { error } = await SB.from('bets').update(fields).eq('id', id); if(error) alert(error.message); }
+async function sb_deleteBet(id){ const { error } = await SB.from('bets').delete().eq('id', id); if(error) alert(error.message); }
+async function sb_clearBets(pid){ const { error } = await SB.from('bets').delete().eq('project_id', pid); if(error) alert(error.message); }
+async function sb_countAllBetsForUser(){ const ids=projectsCache.map(p=>p.id); if(!ids.length) return 0; const { count }=await SB.from('bets').select('id',{count:'exact',head:true}).in('project_id',ids); return count||0; }
+
+async function startApp(user){
+  sessionUser=user; userInfo.textContent=user.email||''; await ensureUserRow(); userProfile=await sb_getUserProfile();
+  projectsCache=await sb_listProjects(); if(projectsCache.length===0){ await sb_createProject('Mitt första projekt'); projectsCache=await sb_listProjects(); }
+  currentProjectId=projectsCache[0]?.id||null; refreshProjectSelect(); syncPublicToggle(); await refreshFreeState();
+  $('copyPublicLinkBtn').onclick=()=>copyToClipboard(`${window.location.origin}?profile=${sessionUser.id}`);
+  $('goExploreBtn').onclick=()=>{ window.location.href='/?explore=1'; };
+  wireOnce(); await renderAll();
+}
+function wireOnce(){ if(wireOnce.did) return; wireOnce.did=true;
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click', ()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); ['register','summary','list'].forEach(k=>$('tab-'+k).classList.add('hidden')); $('tab-'+t.dataset.tab).classList.remove('hidden'); }));
+  $('logoutBtn').onclick=async()=>{ await SB.auth.signOut(); };
+  $('newProjectBtn').onclick=async()=>{ const name=(prompt("Namn på nytt projekt:","Nytt projekt")||'').trim(); if(!name) return; await sb_createProject(name); projectsCache=await sb_listProjects(); currentProjectId=projectsCache[0]?.id||null; refreshProjectSelect(); syncPublicToggle(); await renderAll(); };
+  $('renameProjectBtn').onclick=async()=>{ const p=projectsCache.find(x=>x.id===currentProjectId); if(!p) return; const name=(prompt("Nytt namn:",p.name)||'').trim(); if(!name) return; await sb_updateProject(p.id,{name}); projectsCache=await sb_listProjects(); refreshProjectSelect(); };
+  $('deleteProjectBtn').onclick=async()=>{ if(projectsCache.length<=1){ alert("Du måste ha minst ett projekt."); return; } const p=projectsCache.find(x=>x.id===currentProjectId); if(!p) return; if(!confirm(`Radera projekt "${p.name}" och alla dess spel?`)) return; await sb_deleteProject(p.id); projectsCache=await sb_listProjects(); currentProjectId=projectsCache[0]?.id||null; refreshProjectSelect(); syncPublicToggle(); await refreshFreeState(); await renderAll(); };
+  projSelect.addEventListener('change',async()=>{ currentProjectId=projSelect.value; syncPublicToggle(); await renderAll(); });
+  $('savePublicBtn').addEventListener('click',async()=>{ const p=projectsCache.find(x=>x.id===currentProjectId); if(!p) return; await sb_updateProject(p.id,{is_public:$('publicToggle').checked}); projectsCache=await sb_listProjects(); syncPublicToggle(); });
+  $('upgradeBtn').addEventListener('click', async()=>{ if(!confirm("Sätt ditt konto till Premium? (test)")) return; const ok=await sb_upgradeSelfPremium(); if(ok){ userProfile=await sb_getUserProfile(); await refreshFreeState(); alert("Ditt konto är nu Premium (test)."); } });
+  $('addBtn').addEventListener('click', async()=>{
+    if(!(userProfile?.is_premium)){ await refreshFreeState(); if(totalBetsCount>=FREE_LIMIT){ alert("Gräns nådd. Uppgradera för att fortsätta."); return; } }
+    const bet={ id:crypto.randomUUID?.()||String(Date.now()), match_date:$('matchDate').value||today, match:($('match').value||'').trim(), market:($('market').value||'').trim(), odds:Number($('odds').value), stake:Number($('stake').value||1), bookie:($('bookie').value||'').trim(), result:$('result').value, note:($('note').value||'').trim() };
+    if(!bet.match||!bet.market||!bet.odds||!bet.stake){ alert("Fyll i minst Match, Marknad, Odds och Insats."); return; }
+    await sb_addBet(currentProjectId,bet); $('match').value=$('market').value=$('note').value=''; $('odds').value=''; $('stake').value='1'; $('result').value='PENDING'; await refreshFreeState(); await renderAll();
+  });
+  $('clearBtn').addEventListener('click', async()=>{ if(!confirm("Detta raderar ALLA spel i detta projekt. Fortsätt?")) return; await sb_clearBets(currentProjectId); await refreshFreeState(); await renderAll(); });
+  $('expandAllBtn').addEventListener('click', ()=>{ document.querySelectorAll('#monthContainer details.accord-month').forEach(d=>d.open=true); });
+  $('collapseAllBtn').addEventListener('click', ()=>{ document.querySelectorAll('#monthContainer details.accord-month').forEach(d=>d.open=false); });
+}
+function refreshProjectSelect(){ projSelect.innerHTML=(projectsCache||[]).map(p=>`<option value="${p.id}" ${p.id===currentProjectId?'selected':''}>${p.name}</option>`).join(''); }
+function syncPublicToggle(){ const p=projectsCache.find(x=>x.id===currentProjectId); if(!p) return; $('publicToggle').checked=!!p.is_public; }
+async function refreshFreeState(){
+  totalBetsCount=await sb_countAllBetsForUser(); const used=totalBetsCount; const left=Math.max(0,FREE_LIMIT-used); const isPrem=!!(userProfile&&userProfile.is_premium);
+  freeBanner.style.display='none'; premiumBanner.style.display='none'; hide(upgradeRow);
+  if(isPrem){ premiumBanner.textContent='Premium aktivt – inga begränsningar.'; premiumBanner.style.display='block'; $('addBtn').disabled=false; }
+  else{ show(upgradeRow); if(used<FREE_LIMIT){ freeBanner.textContent=`Gratisläge: ${used}/${FREE_LIMIT} spel använda. Du har ${left} kvar.`; freeBanner.style.display='block'; $('addBtn').disabled=false; } else { freeBanner.textContent=`Gräns nådd: ${used}/${FREE_LIMIT} spel. Klicka Uppgradera (test) för att fortsätta.`; freeBanner.style.display='block'; $('addBtn').disabled=true; } }
+}
+
+/* ---------- Renders (förkortat) ---------- */
+async function renderAll(){ if(!$('matchDate').value) $('matchDate').value=today; if(!$('stake').value) $('stake').value='1'; await renderMonthFilters(); await renderList(); await renderSummary(); }
 async function loadBets(){ return await sb_loadBets(currentProjectId); }
-
-async function renderMonthFilters(){
-  const bets = await loadBets();
-  const months = new Set(bets.map(b=>yyyymm(b.match_date)).filter(Boolean));
-  const sorted = Array.from(months).sort().reverse();
-  const options = [`<option value="ALL">Alla månader</option>`].concat(sorted.map(k=>`<option value="${k}">${monthNameWithYear(k)}</option>`));
-  $('monthFilterList').innerHTML = options.join('');
-  $('monthFilterSummary').innerHTML  = options.join('');
-}
-
+async function renderMonthFilters(){ const bets=await loadBets(); const months=new Set(bets.map(b=>yyyymm(b.match_date)).filter(Boolean)); const sorted=Array.from(months).sort().reverse(); const opts=['<option value="ALL">Alla månader</option>'].concat(sorted.map(k=>`<option value="${k}">${monthNameWithYear(k)}</option>`)); $('monthFilterList').innerHTML=opts.join(''); $('monthFilterSummary').innerHTML=opts.join(''); }
 function buildBetDetails(b){
-  const hdr = `
-    <div class="hdr-small mono">${b.match_date||''}</div>
-    <div class="hdr-strong">${(b.match||'') || '(ingen match)'} <span class="muted hdr-small-hide">· ${b.market||''}</span></div>
-    <div class="hdr-small-hide right mono">Insats ${formatMoney(b.stake)}</div>
-    <div class="hdr-small-hide right mono">Profit ${formatMoney(profit(b))}</div>
-    <div class="right">${tag(b.result)}</div>
-  `;
-  const body = `
-    <div class="bet-field"><div class="muted">Spelbolag</div><div>${b.bookie||''}</div></div>
-    <div class="bet-field"><div class="muted">Odds</div><div class="mono">${formatMoney(b.odds)}</div></div>
-    <div class="bet-field"><div class="muted">Utbetalning</div><div class="mono">${formatMoney(payout(b))}</div></div>
-    <div class="bet-field" style="grid-column:1/-1"><div class="muted">Notering</div><div>${b.note||'—'}</div></div>
-    <div class="bet-actions">
-      <span class="muted" style="margin-right:auto">Snabbstatus:</span>
-      <button type="button" class="btn-mini btn-win" onclick="setResult('${b.id}','WIN')">Win</button>
-      <button type="button" class="btn-mini btn-loss" onclick="setResult('${b.id}','LOSS')">Loss</button>
-      <button type="button" class="btn-mini btn-pending" onclick="setResult('${b.id}','PENDING')">Pending</button>
-      <button type="button" class="btn-mini btn-void" onclick="setResult('${b.id}','VOID')">Void</button>
-      <span style="flex:1"></span>
-      <button type="button" class="btn-outline" onclick="editBet('${b.id}')">Ändra</button>
-      <button type="button" class="btn-outline" onclick="deleteBet('${b.id}')">Ta bort</button>
-    </div>
-  `;
+  const hdr=`<div class="hdr-small mono">${b.match_date||''}</div><div class="hdr-strong">${(b.match||'')||'(ingen match)'} <span class="muted hdr-small-hide">· ${b.market||''}</span></div><div class="hdr-small-hide right mono">Insats ${formatMoney(b.stake)}</div><div class="hdr-small-hide right mono">Profit ${formatMoney(profit(b))}</div><div class="right">${tag(b.result)}</div>`;
+  const body=`<div class="bet-field"><div class="muted">Spelbolag</div><div>${b.bookie||''}</div></div><div class="bet-field"><div class="muted">Odds</div><div class="mono">${formatMoney(b.odds)}</div></div><div class="bet-field"><div class="muted">Utbetalning</div><div class="mono">${formatMoney(payout(b))}</div></div><div class="bet-field" style="grid-column:1/-1"><div class="muted">Notering</div><div>${b.note||'—'}</div></div><div class="bet-actions"><span class="muted" style="margin-right:auto">Snabbstatus:</span><button type="button" class="btn-mini btn-win" onclick="setResult('${b.id}','WIN')">Win</button><button type="button" class="btn-mini btn-loss" onclick="setResult('${b.id}','LOSS')">Loss</button><button type="button" class="btn-mini btn-pending" onclick="setResult('${b.id}','PENDING')">Pending</button><button type="button" class="btn-mini btn-void" onclick="setResult('${b.id}','VOID')">Void</button><span style="flex:1"></span><button type="button" class="btn-outline" onclick="editBet('${b.id}')">Ändra</button><button type="button" class="btn-outline" onclick="deleteBet('${b.id}')">Ta bort</button></div>`;
   return `<details class="bet"><summary class="bet-hdr">${hdr}</summary><div class="bet-body">${body}</div></details>`;
 }
-
 async function renderList(){
-  const bets = await loadBets();
-  const k = document.getElementById('monthFilterList').value || 'ALL';
-  const q = (document.getElementById('search').value||'').toLowerCase();
-
-  const filtered = bets.filter(b=>{
-    const okMonth = k==='ALL' || yyyymm(b.match_date)===k;
-    const hay = [b.match,b.market,b.bookie,b.note].join(' ').toLowerCase();
-    const okQ = !q || hay.includes(q);
-    return okMonth && okQ;
-  });
-
-  const settled = filtered.filter(b=>b.result!=='PENDING');
-  const totalStake = settled.reduce((s,b)=>s + (b.stake||0), 0);
-  const totalProfit = settled.reduce((s,b)=>s + profit(b), 0);
-  const wins = settled.filter(b=>b.result==='WIN').length;
-  const losses = settled.filter(b=>b.result==='LOSS').length;
-  const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
-  document.getElementById('listSummary').innerHTML = `
-    <div class="pill"><div class="muted">Spel (avgjorda)</div><div><strong>${settled.length}</strong> (Win ${wins} / Loss ${losses})</div></div>
-    <div class="pill"><div class="muted">Pending</div><div><strong>${filtered.filter(b=>b.result==='PENDING').length}</strong></div></div>
-    <div class="pill"><div class="muted">Total insats</div><div><strong>${formatMoney(totalStake)}</strong></div></div>
-    <div class="pill"><div class="muted">Profit</div><div><strong>${formatMoney(totalProfit)}</strong></div></div>
-    <div class="pill"><div class="muted">ROI</div><div><strong>${formatMoney(roi)}%</strong></div></div>
-  `;
-
-  const groups = {};
-  for(const b of filtered){
-    const key = yyyymm(b.match_date)||'Okänd';
-    (groups[key] ||= []).push(b);
-  }
-  const keys = Object.keys(groups).sort().reverse();
-
-  document.getElementById('monthContainer').innerHTML = keys.map(key=>{
-    const arr = groups[key];
-    arr.sort((a,b)=> (b.match_date||'').localeCompare(a.match_date||''));
-    const wins = arr.filter(x=>x.result==='WIN').length;
-    const losses = arr.filter(x=>x.result==='LOSS').length;
-    const pend = arr.filter(x=>x.result==='PENDING').length;
-    const ttlSettled = arr.filter(x=>x.result!=='PENDING');
-    const stake = ttlSettled.reduce((s,x)=>s+(x.stake||0),0);
-    const prof  = ttlSettled.reduce((s,x)=>s+profit(x),0);
-    const roiM  = stake>0 ? (prof/stake)*100 : 0;
-
-    const monthHdr = `
-      <span class="month-title">${key==='Okänd'?'Okänd månad':monthNameWithYear(key)}</span>
-      <span class="month-meta">
-        <span>${arr.length} spel</span>
-        <span>Win ${wins}</span>
-        <span>Loss ${losses}</span>
-        <span>Pending ${pend}</span>
-        <span>ROI ${formatMoney(roiM)}%</span>
-      </span>
-    `;
-    const betsHTML = arr.map(buildBetDetails).join('');
-    return `
-      <details class="accord-month">
-        <summary class="month-hdr">${monthHdr}</summary>
-        <div class="month-body">${betsHTML || '<div class="muted">Inga spel denna månad.</div>'}</div>
-      </details>
-    `;
+  const bets=await loadBets(); const k=$('monthFilterList').value||'ALL'; const q=($('search').value||'').toLowerCase();
+  const filtered=bets.filter(b=>{ const okMonth=k==='ALL'||yyyymm(b.match_date)===k; const hay=[b.match,b.market,b.bookie,b.note].join(' ').toLowerCase(); const okQ=!q||hay.includes(q); return okMonth&&okQ; });
+  const settled=filtered.filter(b=>b.result!=='PENDING'); const totalStake=settled.reduce((s,b)=>s+(b.stake||0),0); const totalProfit=settled.reduce((s,b)=>s+profit(b),0); const wins=settled.filter(b=>b.result==='WIN').length; const losses=settled.filter(b=>b.result==='LOSS').length; const roi=totalStake>0?(totalProfit/totalStake)*100:0;
+  $('listSummary').innerHTML=`<div class="pill"><div class="muted">Spel (avgjorda)</div><div><strong>${settled.length}</strong> (Win ${wins} / Loss ${losses})</div></div><div class="pill"><div class="muted">Pending</div><div><strong>${filtered.filter(b=>b.result==='PENDING').length}</strong></div></div><div class="pill"><div class="muted">Total insats</div><div><strong>${formatMoney(totalStake)}</strong></div></div><div class="pill"><div class="muted">Profit</div><div><strong>${formatMoney(totalProfit)}</strong></div></div><div class="pill"><div class="muted">ROI</div><div><strong>${formatMoney(roi)}%</strong></div></div>`;
+  const groups={}; for(const b of filtered){ const key=yyyymm(b.match_date)||'Okänd'; (groups[key] ||= []).push(b); } const keys=Object.keys(groups).sort().reverse();
+  $('monthContainer').innerHTML=keys.map(key=>{ const arr=groups[key]; arr.sort((a,b)=> (b.match_date||'').localeCompare(a.match_date||'')); const wins=arr.filter(x=>x.result==='WIN').length; const losses=arr.filter(x=>x.result==='LOSS').length; const pend=arr.filter(x=>x.result==='PENDING').length; const ttlSettled=arr.filter(x=>x.result!=='PENDING'); const stake=ttlSettled.reduce((s,x)=>s+(x.stake||0),0); const prof=ttlSettled.reduce((s,x)=>s+profit(x),0); const roiM=stake>0?(prof/stake)*100:0;
+    const monthHdr=`<span class="month-title">${key==='Okänd'?'Okänd månad':monthNameWithYear(key)}</span><span class="month-meta"><span>${arr.length*1} spel</span><span>Win ${wins}</span><span>Loss ${losses}</span><span>Pending ${pend}</span><span>ROI ${formatMoney(roiM)}%</span></span>`;
+    const betsHTML=arr.map(buildBetDetails).join('');
+    return `<details class="accord-month"><summary class="month-hdr">${monthHdr}</summary><div class="month-body">${betsHTML || '<div class="muted">Inga spel denna månad.</div>'}</div></details>`;
   }).join('') || `<div class="muted">Inga spel ännu.</div>`;
 }
-
 async function renderSummary(){
-  const bets = await loadBets();
-  const k = document.getElementById('monthFilterSummary').value || 'ALL';
-
-  const groups = {};
-  for(const b of bets){
-    const key = yyyymm(b.match_date);
-    if(!key) continue;
-    (groups[key] ||= []).push(b);
-  }
-  const keys = Object.keys(groups).sort().reverse();
-
-  const rows = [];
-  for(const key of keys){
-    if(k!=='ALL' && key!==k) continue;
-    const arr = groups[key];
-    const settled = arr.filter(x=>x.result!=='PENDING');
-    const wins = arr.filter(x=>x.result==='WIN').length;
-    const losses = arr.filter(x=>x.result==='LOSS').length;
-    const pend = arr.filter(x=>x.result==='PENDING').length;
-    const totalStake = settled.reduce((s,x)=>s+(x.stake||0),0);
-    const totalProfit = settled.reduce((s,x)=>s+profit(x),0);
-    const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
-
-    rows.push(`
-      <tr>
-        <td>${monthNameWithYear(key)}</td>
-        <td class="right">${settled.length}</td>
-        <td class="right">${wins}</td>
-        <td class="right">${losses}</td>
-        <td class="right">${pend}</td>
-        <td class="right">${formatMoney(totalStake)}</td>
-        <td class="right">${formatMoney(totalProfit)}</td>
-        <td class="right">${formatMoney(roi)}%</td>
-      </tr>
-    `);
-  }
-  document.querySelector('#summaryTable tbody').innerHTML = rows.join('') || `<tr><td colspan="8" class="muted">Inga data ännu.</td></tr>`;
-
-  const filteredAll = (k==='ALL') ? bets : bets.filter(b=>yyyymm(b.match_date)===k);
-  const settled = filteredAll.filter(b=>b.result!=='PENDING');
-  const totalStake = settled.reduce((s,b)=>s+(b.stake||0),0);
-  const totalProfit = settled.reduce((s,b)=>s+profit(b),0);
-  const wins = settled.filter(b=>b.result==='WIN').length;
-  const losses = settled.filter(b=>b.result==='LOSS').length;
-  const roi = totalStake>0 ? (totalProfit/totalStake)*100 : 0;
-  document.getElementById('summaryBoxes').innerHTML = `
-    <div class="pill"><div class="muted">Spel (avgjorda)</div><div><strong>${settled.length}</strong> (Win ${wins} / Loss ${losses})</div></div>
-    <div class="pill"><div class="muted">Pending</div><div><strong>${filteredAll.filter(b=>b.result==='PENDING').length}</strong></div></div>
-    <div class="pill"><div class="muted">Total insats</div><div><strong>${formatMoney(totalStake)}</strong></div></div>
-    <div class="pill"><div class="muted">Profit</div><div><strong>${formatMoney(totalProfit)}</strong></div></div>
-    <div class="pill"><div class="muted">ROI</div><div><strong>${formatMoney(roi)}%</strong></div></div>
-  `;
+  const bets=await loadBets(); const k=$('monthFilterSummary').value||'ALL';
+  const groups={}; for(const b of bets){ const key=yyyymm(b.match_date); if(!key) continue; (groups[key] ||= []).push(b); } const keys=Object.keys(groups).sort().reverse();
+  const rows=[]; for(const key of keys){ if(k!=='ALL'&&key!==k) continue; const arr=groups[key]; const settled=arr.filter(x=>x.result!=='PENDING'); const wins=arr.filter(x=>x.result==='WIN').length; const losses=arr.filter(x=>x.result==='LOSS').length; const pend=arr.filter(x=>x.result==='PENDING').length; const totalStake=settled.reduce((s,x)=>s+(x.stake||0),0); const totalProfit=settled.reduce((s,x)=>s+profit(x),0); const roi=totalStake>0?(totalProfit/totalStake)*100:0;
+    rows.push(`<tr><td>${monthNameWithYear(key)}</td><td class="right">${settled.length}</td><td class="right">${wins}</td><td class="right">${losses}</td><td class="right">${pend}</td><td class="right">${formatMoney(totalStake)}</td><td class="right">${formatMoney(totalProfit)}</td><td class="right">${formatMoney(roi)}%</td></tr>`); }
+  qs('#summaryTable tbody').innerHTML=rows.join('') || `<tr><td colspan="8" class="muted">Inga data ännu.</td></tr>`;
+  const filteredAll=(k==='ALL')?bets:bets.filter(b=>yyyymm(b.match_date)===k); const settled=filteredAll.filter(b=>b.result!=='PENDING'); const totalStake=settled.reduce((s,b)=>s+(b.stake||0),0); const totalProfit=settled.reduce((s,b)=>s+profit(b),0); const wins=settled.filter(b=>b.result==='WIN').length; const losses=settled.filter(b=>b.result==='LOSS').length; const roi=totalStake>0?(totalProfit/totalStake)*100:0;
+  $('summaryBoxes').innerHTML=`<div class="pill"><div class="muted">Spel (avgjorda)</div><div><strong>${settled.length}</strong> (Win ${wins} / Loss ${losses})</div></div><div class="pill"><div class="muted">Pending</div><div><strong>${filteredAll.filter(b=>b.result==='PENDING').length}</strong></div></div><div class="pill"><div class="muted">Total insats</div><div><strong>${formatMoney(totalStake)}</strong></div></div><div class="pill"><div class="muted">Profit</div><div><strong>${formatMoney(totalProfit)}</strong></div></div><div class="pill"><div class="muted">ROI</div><div><strong>${formatMoney(roi)}%</strong></div></div>`;
 }
 
 /* ---------- Row actions ---------- */
-window.deleteBet = async function(id){ if(!confirm('Ta bort raden?')) return; await sb_deleteBet(id); await renderAll(); };
+window.deleteBet = async function(id){ await sb_deleteBet(id); await refreshFreeState(); await renderAll(); };
 window.setResult = async function(id, status){ await sb_updateBet(id, { result: status }); await renderAll(); };
 window.editBet = async function(id){
-  const bets = await loadBets();
-  const b = bets.find(x=>x.id===id); if(!b) return;
-  form.matchDate.value = b.match_date || '';
-  form.match.value = b.match || '';
-  form.market.value = b.market || '';
-  form.odds.value = b.odds || '';
-  form.stake.value = b.stake ?? '1';
-  form.bookie.value = b.bookie || '';
-  form.result.value = b.result || 'PENDING';
-  form.note.value = b.note || '';
-  await sb_deleteBet(id);
-  await renderAll();
-  document.querySelector('.tab[data-tab="register"]').click();
+  const bets=await loadBets(); const b=bets.find(x=>x.id===id); if(!b) return;
+  $('matchDate').value=b.match_date||''; $('match').value=b.match||''; $('market').value=b.market||''; $('odds').value=b.odds||''; $('stake').value=b.stake??'1'; $('bookie').value=b.bookie||''; $('result').value=b.result||'PENDING'; $('note').value=b.note||'';
+  await sb_deleteBet(id); await refreshFreeState(); await renderAll(); document.querySelector('.tab[data-tab="register"]').click();
 };
 </script>
 </body>
