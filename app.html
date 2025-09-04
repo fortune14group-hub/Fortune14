@@ -4,211 +4,523 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>BetSpread – App</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    body{background:#0b1324;color:#e6eefc;font-family:sans-serif;margin:0}
-    header{background:#0d1528;padding:10px;display:flex;align-items:center;gap:10px}
-    .btn{padding:6px 12px;border-radius:6px;border:1px solid #2a3955;background:#1f2937;color:#fff;cursor:pointer}
-    .btn-green{background:#16a34a;border-color:#16a34a}
-    .btn-red{background:#7f1d1d;border-color:#7f1d1d}
+    :root{
+      --bg:#0b1324; --panel:#0d1528; --ink:#e6eefc; --muted:#9fb0c9;
+      --line:#1f2c49; --btn:#1f2937; --btn2:#233146; --green:#16a34a;
+      --green-2:#149244; --danger:#7f1d1d; --danger-2:#6a1717;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    header{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:1px solid var(--line)}
+    .bar{max-width:1120px;margin:0 auto;display:flex;gap:10px;align-items:center;padding:14px 16px}
+    .logo{font-weight:800;font-size:20px;letter-spacing:.2px}
+    .grow{flex:1}
+    .btn{background:var(--btn);border:1px solid #2a3955;color:#dbe3f2;border-radius:10px;padding:10px 14px;cursor:pointer}
+    .btn:hover{background:var(--btn2)}
+    .btn-green{background:var(--green);border-color:var(--green);color:#fff}
+    .btn-green:hover{background:var(--green-2)}
+    .btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+    .btn-danger:hover{background:var(--danger-2)}
+    .container{max-width:1120px;margin:22px auto;padding:0 16px}
+    .card{background:linear-gradient(180deg,#0d1528,#0a1020);border:1px solid var(--line);border-radius:14px;padding:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .field{display:flex;flex-direction:column;gap:6px;min-width:160px;flex:1}
+    .field input,.field select,.field textarea{background:#0d1524;border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:#e7eefc}
+    .tabs{display:flex;gap:8px;margin:14px 0}
+    .tab{padding:10px 14px;border:1px solid #243142;border-bottom:0;border-top-left-radius:8px;border-top-right-radius:8px;background:#0d1528;cursor:pointer}
+    .tab.active{background:#12203d;font-weight:600}
+    .panel{display:none;border:1px solid #243142;border-radius:0 10px 10px 10px;padding:16px;background:#0d1528}
+    .panel.active{display:block}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #1d2a44;text-align:left;font-size:14px}
+    .banner{background:#3b0d0d;border:1px solid #5f1a1a;color:#ffd2d2;border-radius:10px;padding:10px 12px;margin:12px 0}
+    .kpi{display:flex;gap:14px;flex-wrap:wrap}
+    .kpi .box{background:#0d1528;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+    details.month{border:1px solid #1d2a44;border-radius:10px;margin:10px 0;background:#0c1427}
+    details summary{cursor:pointer;padding:10px 12px;font-weight:600}
+    .right{display:flex;gap:8px;align-items:center}
+    .muted{color:var(--muted)}
     .hidden{display:none}
-    .container{padding:20px}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{border-bottom:1px solid #22314a;padding:6px;text-align:left}
-    .quick button{margin-right:4px;padding:4px 6px;font-size:12px;border-radius:4px}
-    .quick .win{background:#14532d;color:#fff;border:0}
-    .quick .loss{background:#7f1d1d;color:#fff;border:0}
-    .quick .pending{background:#1e3a8a;color:#fff;border:0}
-    .quick .void{background:#374151;color:#fff;border:0}
+    .tag{font-size:12px;border:1px solid #314263;border-radius:999px;padding:2px 8px;color:#c9d6ec}
+    .quick button{margin-right:6px;border-radius:7px;padding:6px 8px;font-size:12px;border:1px solid #2a3955;background:#132039;color:#cfe3ff;cursor:pointer}
+    .quick button:hover{background:#17284a}
+    .quick .win{background:#154a2a;border-color:#1f6b3d}
+    .quick .win:hover{background:#175a32}
+    .quick .loss{background:#4a1720;border-color:#6b2230}
+    .quick .loss:hover{background:#591a28}
+    .quick .void{background:#3a364a;border-color:#544f6a}
+    .quick .void:hover{background:#474060}
   </style>
 </head>
 <body>
 <header>
-  <span id="userEmail"></span>
-  <button id="upgradeBtn" class="btn btn-green">Uppgradera</button>
-  <button id="manageBillingBtn" class="btn hidden">Hantera betalning</button>
-  <button id="logoutBtn" class="btn">Logga ut</button>
+  <div class="bar">
+    <div class="logo">BetSpread</div>
+    <div class="grow"></div>
+    <button id="upgradeBtn" class="btn btn-green">Uppgradera</button>
+    <button id="manageBillingBtn" class="btn hidden">Hantera betalning</button>
+    <span id="userEmail" class="muted"></span>
+    <button id="logoutBtn" class="btn">Logga ut</button>
+  </div>
 </header>
 
 <main class="container">
-  <h2>Dina projekt</h2>
-  <select id="projectSelect"></select>
-  <button id="newProjectBtn" class="btn">Nytt projekt</button>
-  <button id="deleteProjectBtn" class="btn btn-red">Ta bort projekt</button>
+  <!-- Projektkontroller -->
+  <div class="card row" style="align-items:center">
+    <div class="field" style="max-width:280px">
+      <label>Projekt</label>
+      <select id="projectSelect"></select>
+    </div>
+    <button id="newProjectBtn" class="btn">Nytt projekt</button>
+    <button id="renameProjectBtn" class="btn">Byt namn</button>
+    <button id="deleteProjectBtn" class="btn btn-danger">Radera</button>
+    <div class="grow"></div>
+    <div id="freeBanner" class="banner hidden">
+      Gratisläge: <b id="usedCount">0</b>/20 spel använda. Du har <b id="leftCount">20</b> kvar.
+    </div>
+  </div>
 
-  <h2>Registrera spel</h2>
-  <input type="date" id="dateInput">
-  <input type="text" id="matchInput" placeholder="Match">
-  <input type="text" id="marketInput" placeholder="Marknad">
-  <input type="number" id="oddsInput" placeholder="Odds" step="0.01">
-  <input type="number" id="stakeInput" placeholder="Insats" value="1" step="0.01">
-  <button id="addBetBtn" class="btn btn-green">Lägg till</button>
-  <div id="freeBanner" class="hidden">Gratisläge: <b id="usedCount">0</b>/20 spel använda</div>
+  <!-- Flikar -->
+  <div class="tabs">
+    <button class="tab active" data-tab="reg">Registrera spel</button>
+    <button class="tab" data-tab="sum">Månadssummering</button>
+    <button class="tab" data-tab="list">Spel</button>
+  </div>
 
-  <h2>Summering per månad</h2>
-  <table>
-    <thead><tr><th>Månad</th><th>Spel</th><th>Wins</th><th>Loss</th><th>Insats</th><th>Profit</th><th>ROI</th></tr></thead>
-    <tbody id="summaryTable"></tbody>
-  </table>
+  <!-- Panel: Registrera spel -->
+  <section id="panel-reg" class="panel active">
+    <div class="row">
+      <div class="field"><label>Matchdag</label><input type="date" id="dateInput"></div>
+      <div class="field"><label>Match</label><input id="matchInput" placeholder="Arsenal — Chelsea"></div>
+      <div class="field"><label>Marknad</label><input id="marketInput" placeholder="Över 8.5 frisparkar"></div>
+      <div class="field"><label>Oddset</label><input id="oddsInput" type="number" step="0.01" placeholder="1.85"></div>
+      <div class="field"><label>Insats</label><input id="stakeInput" type="number" step="0.01" value="1"></div>
+      <div class="field"><label>Spelbolag</label><input id="bookInput" placeholder="Bet365"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field" style="max-width:200px">
+        <label>Resultat</label>
+        <select id="resultInput">
+          <option>Pending</option>
+          <option>Win</option>
+          <option>Loss</option>
+          <option>Void</option>
+        </select>
+      </div>
+      <div class="field" style="flex:2">
+        <label>Notering</label>
+        <input id="noteInput" placeholder="Ex. sent mål, cashout, etc.">
+      </div>
+      <div class="right" style="align-items:flex-end">
+        <button id="addBetBtn" class="btn btn-green">Lägg till spel</button>
+        <button id="resetProjectBtn" class="btn btn-danger">Nollställ projekt</button>
+      </div>
+    </div>
+  </section>
 
-  <h2>Spel</h2>
-  <table>
-    <thead><tr><th>Datum</th><th>Match</th><th>Marknad</th><th>Odds</th><th>Insats</th><th>Resultat</th><th>Snabb</th><th></th></tr></thead>
-    <tbody id="betsTable"></tbody>
-  </table>
+  <!-- Panel: Månadssummering -->
+  <section id="panel-sum" class="panel">
+    <div class="row">
+      <div class="field" style="max-width:240px">
+        <label>Månad (matchdag)</label>
+        <select id="monthFilter">
+          <option value="all">Alla månader</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="kpi" style="margin-top:12px">
+      <div class="box">Spel (avgjorda): <b id="kpiSett">0</b> (<span id="kpiWL">Win 0 / Loss 0</span>)</div>
+      <div class="box">Total insats: <b id="kpiStakes">0.00</b></div>
+      <div class="box">Profit: <b id="kpiProfit">0.00</b></div>
+      <div class="box">ROI: <b id="kpiROI">0.00%</b></div>
+    </div>
+
+    <div style="margin-top:12px">
+      <table>
+        <thead><tr><th>Månad</th><th>Spel (avgjorda)</th><th>Win</th><th>Loss</th><th>Insats</th><th>Profit</th><th>ROI</th></tr></thead>
+        <tbody id="monthTable"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Panel: Spel -->
+  <section id="panel-list" class="panel">
+    <div id="betsByMonth"></div>
+  </section>
 </main>
 
 <script>
-const supabase = window.supabase.createClient(
+/* ------------ Supabase client ------------ */
+const SB = supabase.createClient(
   "https://updpywjfxeahtjpelbku.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZHB5d2pmeGVhaHRqcGVsYmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MjQzOTcsImV4cCI6MjA3MjUwMDM5N30.i1ztG8dkcHFLq8WEn_uVrgCBk0_Wf5gZb_OQQuaSGgo"
 );
 
-let user=null, currentProject=null, isPremium=false;
+/* ------------ Utils ------------ */
+const $ = s => document.querySelector(s);
+const monthSV = ["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
+const ymKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+const toNiceMonth = ym => { const [y,m]=ym.split("-").map(Number); return `${monthSV[m-1]} ${y}`; };
+const fmt = (n, d=2) => (Number(n||0)).toFixed(d);
+const esc = s => (s||"").replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
+/* ------------ State ------------ */
+let user=null, isPremium=false;
+let projects=[], currentProjectId=null;
+let bets=[], usedTotal=0;
+
+/* ------------ Boot ------------ */
 document.addEventListener("DOMContentLoaded", async () => {
-  const { data:{ session } } = await supabase.auth.getSession();
+  const { data:{ session } } = await SB.auth.getSession();
   if(!session){ location.href="login.html"; return; }
   user=session.user;
-  document.getElementById("userEmail").textContent=user.email;
+  $("#userEmail").textContent = user.email || "";
 
-  await loadUser();
+  await ensureUserRow();
   await loadProjects();
-
-  document.getElementById("newProjectBtn").onclick=createProject;
-  document.getElementById("deleteProjectBtn").onclick=deleteProject;
-  document.getElementById("addBetBtn").onclick=addBet;
-  document.getElementById("logoutBtn").onclick=logout;
-  document.getElementById("upgradeBtn").onclick=upgrade;
-  document.getElementById("manageBillingBtn").onclick=manageBilling;
+  setDefaultDate();
+  bindTopbar();
+  bindTabs();
+  bindProjectButtons();
+  bindForm();
+  await refreshAll();
 });
 
-async function loadUser(){
-  const { data } = await supabase.from("users").select("is_premium").eq("id",user.id).single();
-  if(data) isPremium=data.is_premium;
-  if(!isPremium) document.getElementById("freeBanner").classList.remove("hidden");
-  else {
-    document.getElementById("upgradeBtn").classList.add("hidden");
-    document.getElementById("manageBillingBtn").classList.remove("hidden");
+/* ensure users row exists */
+async function ensureUserRow(){
+  const { data, error } = await SB
+    .from("users")
+    .upsert({ id:user.id, email:user.email }, { onConflict:"id" })
+    .select("is_premium")
+    .single();
+  if(error){ console.error("users upsert", error); }
+  if(data) isPremium = !!data.is_premium;
+  renderPremiumUI();
+}
+
+function renderPremiumUI(){
+  if(isPremium){
+    $("#freeBanner").classList.add("hidden");
+    $("#upgradeBtn").classList.add("hidden");
+    $("#manageBillingBtn").classList.remove("hidden");
+  }else{
+    $("#upgradeBtn").classList.remove("hidden");
+    $("#manageBillingBtn").classList.add("hidden");
   }
+}
+
+/* ------------ Projects ------------ */
+function bindProjectButtons(){
+  $("#newProjectBtn").onclick = async ()=>{
+    const name = prompt("Namn på nytt projekt:", "Nytt projekt");
+    if(!name) return;
+    const { error } = await SB.from("projects").insert({ user_id:user.id, name });
+    if(error){ alert("Kunde inte skapa projekt"); console.error(error); return; }
+    await loadProjects(); await refreshAll();
+  };
+
+  $("#renameProjectBtn").onclick = async ()=>{
+    if(!currentProjectId) return;
+    const cur = projects.find(p=>p.id==currentProjectId);
+    const name = prompt("Nytt namn:", cur?.name||"Projekt");
+    if(!name) return;
+    const { error } = await SB.from("projects").update({ name }).eq("id", currentProjectId);
+    if(error){ alert("Kunde inte byta namn"); console.error(error); return; }
+    await loadProjects();
+  };
+
+  $("#deleteProjectBtn").onclick = async ()=>{
+    if(!currentProjectId) return;
+    if(!confirm("Radera projektet och alla dess spel?")) return;
+    await SB.from("bets").delete().eq("project_id", currentProjectId);
+    await SB.from("projects").delete().eq("id", currentProjectId);
+    await loadProjects(); await refreshAll();
+  };
+
+  $("#resetProjectBtn").onclick = async ()=>{
+    if(!currentProjectId) return;
+    if(!confirm("Ta bort alla spel i detta projekt?")) return;
+    await SB.from("bets").delete().eq("project_id", currentProjectId);
+    await refreshAll();
+  };
 }
 
 async function loadProjects(){
-  const { data } = await supabase.from("projects").select("id,name").eq("user_id",user.id);
-  const sel=document.getElementById("projectSelect");
-  sel.innerHTML="";
-  data.forEach(p=>{
-    const opt=document.createElement("option"); opt.value=p.id; opt.textContent=p.name; sel.appendChild(opt);
-  });
-  if(data.length){ currentProject=data[0].id; sel.value=currentProject; await loadBets(); }
-  sel.onchange=()=>{ currentProject=sel.value; loadBets(); }
-}
+  const { data, error } = await SB.from("projects")
+    .select("id,name")
+    .eq("user_id", user.id)
+    .order("created_at",{ascending:true});
+  if(error){ console.error("loadProjects", error); return; }
+  projects = data || [];
 
-async function createProject(){
-  const name=prompt("Projektets namn:","Nytt projekt"); if(!name) return;
-  await supabase.from("projects").insert({user_id:user.id,name});
-  await loadProjects();
-}
-
-async function deleteProject(){
-  if(!currentProject) return;
-  if(!confirm("Radera projektet och alla spel?")) return;
-  await supabase.from("bets").delete().eq("project_id",currentProject);
-  await supabase.from("projects").delete().eq("id",currentProject);
-  await loadProjects();
-}
-
-async function addBet(){
-  if(!currentProject) return alert("Skapa ett projekt först!");
-  if(!isPremium){
-    const { count } = await supabase.from("bets").select("*",{count:"exact",head:true}).eq("user_id",user.id);
-    if(count>=20){ alert("Gratisgräns 20 spel. Uppgradera för obegränsat!"); return; }
-    document.getElementById("usedCount").textContent=count+1;
+  if(projects.length===0){
+    const { data:created, error:e2 } = await SB.from("projects").insert({ user_id:user.id, name:"Mitt första projekt" }).select().single();
+    if(e2) console.error(e2);
+    if(created) projects = [created];
   }
-  const bet={
-    user_id:user.id, project_id:currentProject,
-    matchday:document.getElementById("dateInput").value,
-    match:document.getElementById("matchInput").value,
-    market:document.getElementById("marketInput").value,
-    odds:parseFloat(document.getElementById("oddsInput").value),
-    stake:parseFloat(document.getElementById("stakeInput").value),
-    result:"Pending"
-  };
-  await supabase.from("bets").insert(bet);
+
+  const sel=$("#projectSelect");
+  sel.innerHTML="";
+  projects.forEach(p=>{
+    const o=document.createElement("option");
+    o.value=p.id; o.textContent=p.name;
+    sel.appendChild(o);
+  });
+  currentProjectId = projects[0]?.id || null;
+  sel.value = currentProjectId;
+  sel.onchange = async ()=>{ currentProjectId = sel.value; await refreshAll(); };
+}
+
+/* ------------ Load & usage ------------ */
+async function refreshAll(){
+  await loadUsage();
   await loadBets();
+  buildMonthFilter();
+  renderSummary();
+  renderBetsGrouped();
+}
+
+async function loadUsage(){
+  const { count, error } = await SB.from("bets").select("id", { count:"exact", head:true }).eq("user_id", user.id);
+  if(error){ console.error(error); return; }
+  usedTotal = count || 0;
+  const left = Math.max(0, 20 - usedTotal);
+  $("#usedCount").textContent = usedTotal;
+  $("#leftCount").textContent = left;
+  if(!isPremium) $("#freeBanner").classList.remove("hidden");
 }
 
 async function loadBets(){
-  if(!currentProject) return;
-  const { data } = await supabase.from("bets").select("*").eq("project_id",currentProject).order("matchday",{ascending:false});
-  const tbody=document.getElementById("betsTable"); tbody.innerHTML="";
-  data.forEach(b=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td>${b.matchday}</td>
-      <td>${b.match}</td>
-      <td>${b.market}</td>
-      <td>${b.odds}</td>
-      <td>${b.stake}</td>
-      <td>${b.result}</td>
-      <td class="quick">
-        <button class="win" onclick="updateResult('${b.id}','Win')">Win</button>
-        <button class="loss" onclick="updateResult('${b.id}','Loss')">Loss</button>
-        <button class="pending" onclick="updateResult('${b.id}','Pending')">Pending</button>
-        <button class="void" onclick="updateResult('${b.id}','Void')">Void</button>
-      </td>
-      <td><button class="btn btn-red" onclick="deleteBet('${b.id}')">X</button></td>`;
-    tbody.appendChild(tr);
-  });
-  renderSummary(data);
+  if(!currentProjectId){ bets=[]; return; }
+  const { data, error } = await SB.from("bets")
+    .select("id,matchday,match,market,odds,stake,book,result,note,created_at")
+    .eq("user_id", user.id)
+    .eq("project_id", currentProjectId)
+    .order("matchday",{ascending:false});
+  if(error){ console.error("loadBets", error); return; }
+  bets = data || [];
 }
 
-function renderSummary(data){
-  const groups={};
-  data.forEach(b=>{
-    const ym=b.matchday.slice(0,7);
-    (groups[ym] ||= []).push(b);
-  });
-  const tbody=document.getElementById("summaryTable"); tbody.innerHTML="";
-  Object.entries(groups).forEach(([ym,list])=>{
-    const settled=list.filter(b=>b.result!=="Pending");
-    const stake=settled.reduce((s,b)=>s+(b.result==="Void"?0:b.stake),0);
-    const profit=settled.reduce((p,b)=>{
-      if(b.result==="Win") return p+(b.odds*b.stake-b.stake);
-      if(b.result==="Loss") return p-b.stake;
-      return p;
-    },0);
-    const w=settled.filter(b=>b.result==="Win").length;
-    const l=settled.filter(b=>b.result==="Loss").length;
-    const roi=stake>0?(profit/stake*100):0;
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${ym}</td><td>${list.length}</td><td>${w}</td><td>${l}</td><td>${stake}</td><td>${profit.toFixed(2)}</td><td>${roi.toFixed(1)}%</td>`;
-    tbody.appendChild(tr);
+/* ------------ Form (add bet) ------------ */
+function bindForm(){
+  $("#addBetBtn").onclick = async ()=>{
+    if(!currentProjectId) return alert("Skapa ett projekt först!");
+    if(!isPremium && usedTotal >= 20){
+      alert("Du har nått gränsen 20 spel i gratisläget. Uppgradera för obegränsat.");
+      return;
+    }
+    const matchday = $("#dateInput").value;
+    const match = $("#matchInput").value.trim();
+    const market = $("#marketInput").value.trim();
+    const odds = parseFloat($("#oddsInput").value || "0");
+    const stake = parseFloat($("#stakeInput").value || "1");
+    const book = $("#bookInput").value.trim();
+    const result = $("#resultInput").value;
+    const note = $("#noteInput").value.trim();
+
+    if(!matchday || !match || !market || !odds || !stake){
+      alert("Fyll i matchdag, match, marknad, odds och insats.");
+      return;
+    }
+    const { error } = await SB.from("bets").insert({
+      user_id:user.id, project_id:currentProjectId,
+      matchday, match, market, odds, stake, book, result, note
+    });
+    if(error){ console.error(error); alert("Kunde inte spara spelet."); return; }
+
+    $("#matchInput").value=""; $("#marketInput").value=""; $("#oddsInput").value="";
+    $("#stakeInput").value="1"; $("#bookInput").value=""; $("#noteInput").value="";
+    $("#resultInput").value="Pending";
+
+    await refreshAll();
+  };
+}
+
+/* ------------ Tabs ------------ */
+function bindTabs(){
+  document.querySelectorAll(".tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+      btn.classList.add("active");
+      $("#panel-"+btn.dataset.tab).classList.add("active");
+    });
   });
 }
 
-async function updateResult(id,val){
-  await supabase.from("bets").update({result:val}).eq("id",id);
-  await loadBets();
+/* ------------ List actions (quick result / delete) ------------ */
+function attachListDelegation(){
+  const wrap = $("#betsByMonth");
+  if(wrap._bound) return;
+  wrap.addEventListener("click", (e)=>{
+    const t = e.target;
+    if(!(t instanceof HTMLElement)) return;
+    const act = t.dataset.act, id = t.dataset.id;
+    if(!act || !id) return;
+    if(act==="set"){ updateResult(id, t.dataset.val); }
+    if(act==="del"){ deleteBet(id); }
+  });
+  wrap._bound = true;
+}
+
+async function updateResult(id, val){
+  const { error } = await SB.from("bets").update({ result:val }).eq("id", id);
+  if(error){ console.error(error); return; }
+  await refreshAll();
 }
 async function deleteBet(id){
-  await supabase.from("bets").delete().eq("id",id);
-  await loadBets();
+  if(!confirm("Ta bort detta spel?")) return;
+  const { error } = await SB.from("bets").delete().eq("id", id);
+  if(error){ console.error(error); return; }
+  await refreshAll();
 }
 
-async function logout(){
-  await supabase.auth.signOut();
-  location.href="index.html";
+/* ------------ Summary + month filter + grouped list ------------ */
+function buildMonthFilter(){
+  const sel=$("#monthFilter");
+  const prev=sel.value;
+  const months = [...new Set(bets.map(b=>ymKey(new Date(b.matchday))))].sort().reverse();
+  sel.innerHTML = `<option value="all">Alla månader</option>`;
+  months.forEach(m=>{ const o=document.createElement("option"); o.value=m; o.textContent=toNiceMonth(m); sel.appendChild(o); });
+  sel.value = months.includes(prev)? prev : "all";
+  sel.onchange = renderSummary;
 }
 
-async function upgrade(){
-  const res=await fetch("/api/create-checkout-session",{method:"POST"});
-  const d=await res.json(); if(d.url) location.href=d.url;
+function renderSummary(){
+  const ym = $("#monthFilter").value;
+  const list = ym==="all" ? bets : bets.filter(b=>ymKey(new Date(b.matchday))===ym);
+  const settled = list.filter(b=>b.result!=="Pending");
+
+  const stake = settled.reduce((s,b)=> s + (b.result==="Void"?0:b.stake), 0);
+  const profit = settled.reduce((p,b)=>{
+    if(b.result==="Win") return p + (b.odds*b.stake - b.stake);
+    if(b.result==="Loss") return p - b.stake;
+    return p;
+  },0);
+  const wins = settled.filter(b=>b.result==="Win").length;
+  const losses = settled.filter(b=>b.result==="Loss").length;
+  const roi = stake>0 ? (profit/stake)*100 : 0;
+
+  $("#kpiSett").textContent = settled.length;
+  $("#kpiWL").textContent = `Win ${wins} / Loss ${losses}`;
+  $("#kpiStakes").textContent = fmt(stake);
+  $("#kpiProfit").textContent = fmt(profit);
+  $("#kpiROI").textContent = fmt(roi)+"%";
+
+  const groups={};
+  bets.forEach(b=>{ const k=ymKey(new Date(b.matchday)); (groups[k] ||= []).push(b); });
+  const tbody=$("#monthTable"); tbody.innerHTML="";
+  Object.keys(groups).sort().reverse().forEach(k=>{
+    const arr = groups[k].filter(b=>b.result!=="Pending");
+    const st = arr.reduce((s,b)=> s + (b.result==="Void"?0:b.stake), 0);
+    const pr = arr.reduce((p,b)=>{
+      if(b.result==="Win") return p + (b.odds*b.stake - b.stake);
+      if(b.result==="Loss") return p - b.stake;
+      return p;
+    },0);
+    const w = arr.filter(b=>b.result==="Win").length;
+    const l = arr.filter(b=>b.result==="Loss").length;
+    const r = st>0 ? (pr/st)*100 : 0;
+
+    const tr=document.createElement("tr");
+    tr.innerHTML = `<td>${toNiceMonth(k)}</td>
+      <td>${arr.length}</td><td>${w}</td><td>${l}</td>
+      <td>${fmt(st)}</td><td>${fmt(pr)}</td><td>${fmt(r)}%</td>`;
+    tbody.appendChild(tr);
+  });
 }
-async function manageBilling(){
-  const res=await fetch("/api/create-portal-session",{method:"POST"});
-  const d=await res.json(); if(d.url) location.href=d.url;
+
+function renderBetsGrouped(){
+  const wrap = $("#betsByMonth"); wrap.innerHTML="";
+  const groups={};
+  bets.forEach(b=>{ const k=ymKey(new Date(b.matchday)); (groups[k] ||= []).push(b); });
+
+  Object.keys(groups).sort().reverse().forEach(k=>{
+    const list = groups[k];
+    const det=document.createElement("details");
+    det.className="month"; det.open=false;
+
+    const settled = list.filter(b=>b.result!=="Pending").length;
+    det.innerHTML = `<summary>${toNiceMonth(k)}
+      <span class="tag" style="margin-left:8px">${list.length} spel</span>
+      <span class="tag">${settled} avgjorda</span></summary>`;
+
+    const tbl=document.createElement("table");
+    const thead=document.createElement("thead");
+    thead.innerHTML = `<tr>
+      <th>Matchdag</th><th>Match</th><th>Marknad</th><th>Odds</th>
+      <th>Insats</th><th>Resultat</th><th>Spelbolag</th><th>Notering</th><th>Snabb</th><th></th>
+    </tr>`;
+    const tbody=document.createElement("tbody");
+
+    list.forEach(b=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML = `
+        <td>${b.matchday}</td>
+        <td>${esc(b.match)}</td>
+        <td>${esc(b.market)}</td>
+        <td>${fmt(b.odds)}</td>
+        <td>${fmt(b.stake)}</td>
+        <td>${b.result}</td>
+        <td>${esc(b.book||"")}</td>
+        <td>${esc(b.note||"")}</td>
+        <td class="quick">
+          <button class="win" data-act="set" data-id="${b.id}" data-val="Win">Win</button>
+          <button class="loss" data-act="set" data-id="${b.id}" data-val="Loss">Loss</button>
+          <button data-act="set" data-id="${b.id}" data-val="Pending">Pending</button>
+          <button class="void" data-act="set" data-id="${b.id}" data-val="Void">Void</button>
+        </td>
+        <td><button class="btn btn-danger" data-act="del" data-id="${b.id}">Ta bort</button></td>`;
+      tbody.appendChild(tr);
+    });
+
+    tbl.appendChild(thead); tbl.appendChild(tbody);
+    det.appendChild(tbl);
+    wrap.appendChild(det);
+  });
+
+  // se till att delegation binds en gång
+  attachListDelegation();
 }
+
+/* ------------ Topbar ------------ */
+function bindTopbar(){
+  $("#logoutBtn").onclick = async ()=>{
+    await SB.auth.signOut();
+    location.href="index.html";
+  };
+  $("#upgradeBtn").onclick = async ()=>{
+    try{
+      const r = await fetch("/api/create-checkout-session",{method:"POST"});
+      const d = await r.json();
+      if(d?.url) location.href=d.url; else alert(d?.error||"Kunde inte starta Stripe Checkout");
+    }catch{ alert("Nätverksfel mot Stripe"); }
+  };
+  $("#manageBillingBtn").onclick = async ()=>{
+    try{
+      const r = await fetch("/api/create-portal-session",{method:"POST"});
+      const d = await r.json();
+      if(d?.url) location.href=d.url;
+    }catch{}
+  };
+}
+
+function setDefaultDate(){
+  const d=new Date();
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+  $("#dateInput").value = `${y}-${m}-${day}`;
+}
+
+/* feedback efter checkout */
+(function(){
+  const p=new URLSearchParams(location.search);
+  if(p.get("upgrade")==="success") console.log("Betalning klar (aktiveras via webhook).");
+})();
 </script>
 </body>
 </html>
