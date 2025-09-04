@@ -4,23 +4,33 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>BetSpread – App</title>
+
+  <!-- Fonts + Supabase -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
   <style>
-    :root{--bg:#0b1324;--card:#0d1528;--muted:#9fb0c9;--text:#e5e7eb;--accent:#22c55e;--danger:#ef4444;--line:#1f2c49}
-    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--line)}
-    .bar{max-width:1100px;margin:0 auto;display:flex;gap:12px;align-items:center;padding:14px 16px}
+    :root{
+      --bg:#0b1324; --panel:#0d1528; --ink:#e6eefc; --muted:#9fb0c9;
+      --line:#1f2c49; --btn:#1f2937; --btn2:#233146; --green:#16a34a;
+      --green-2:#149244; --danger:#7f1d1d; --danger-2:#6a1717; --accent:#22c55e;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    a{color:inherit;text-decoration:none}
+    header{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:1px solid var(--line)}
+    .bar{max-width:1120px;margin:0 auto;display:flex;gap:10px;align-items:center;padding:14px 16px}
     .logo{font-weight:800;font-size:20px;letter-spacing:.2px}
-    .chip{font-size:12px;padding:2px 8px;border:1px solid #2a3955;border-radius:999px;color:#b8c3d6}
+    .chip{font-size:12px;padding:2px 8px;border:1px solid #2a3955;border-radius:999px;color:#c7d3ea}
     .grow{flex:1}
-    .btn{background:#1f2937;border:1px solid #2a3955;color:#dbe3f2;border-radius:8px;padding:10px 14px;cursor:pointer}
-    .btn:hover{background:#233146}
-    .btn-green{background:#16a34a;border-color:#16a34a;color:white}
-    .btn-green:hover{background:#149244}
-    .btn-danger{background:#7f1d1d;border-color:#7f1d1d}
-    .container{max-width:1100px;margin:24px auto;padding:0 16px}
+    .btn{background:var(--btn);border:1px solid #2a3955;color:#dbe3f2;border-radius:10px;padding:10px 14px;cursor:pointer}
+    .btn:hover{background:var(--btn2)}
+    .btn-green{background:var(--green);border-color:var(--green);color:#fff}
+    .btn-green:hover{background:var(--green-2)}
+    .btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+    .btn-danger:hover{background:var(--danger-2)}
+    .container{max-width:1120px;margin:22px auto;padding:0 16px}
     .card{background:linear-gradient(180deg,#0d1528,#0a1020);border:1px solid var(--line);border-radius:14px;padding:16px}
     .row{display:flex;gap:12px;flex-wrap:wrap}
     .field{display:flex;flex-direction:column;gap:6px;min-width:160px;flex:1}
@@ -41,36 +51,43 @@
     .muted{color:var(--muted)}
     .hidden{display:none}
     .tag{font-size:12px;border:1px solid #314263;border-radius:999px;padding:2px 8px;color:#c9d6ec}
+    .quick button{margin-right:6px;border-radius:7px;padding:6px 8px;font-size:12px;border:1px solid #2a3955;background:#132039;color:#cfe3ff;cursor:pointer}
+    .quick button:hover{background:#17284a}
+    .quick .win{background:#154a2a;border-color:#1f6b3d}
+    .quick .win:hover{background:#175a32}
+    .quick .loss{background:#4a1720;border-color:#6b2230}
+    .quick .loss:hover{background:#591a28}
+    .quick .void{background:#3a364a;border-color:#544f6a}
+    .quick .void:hover{background:#474060}
   </style>
 </head>
 <body>
 <header>
   <div class="bar">
     <div class="logo">BetSpread</div>
-    <span id="backendBadge" class="chip">Moln (Supabase)</span>
+    <span class="chip">Moln (Supabase)</span>
     <div class="grow"></div>
-
-    <div class="right">
-      <button id="upgradeBtn" class="btn btn-green">Uppgradera</button>
-      <button id="manageBillingBtn" class="btn hidden">Hantera betalning</button>
-      <span id="userEmail" class="muted"></span>
-      <button id="logoutBtn" class="btn">Logga ut</button>
-    </div>
+    <button id="upgradeBtn" class="btn btn-green">Uppgradera</button>
+    <button id="manageBillingBtn" class="btn hidden">Hantera betalning</button>
+    <span id="userEmail" class="muted"></span>
+    <button id="logoutBtn" class="btn">Logga ut</button>
   </div>
 </header>
 
 <main class="container">
   <!-- Projektkontroller -->
   <div class="card row" style="align-items:center">
-    <div class="field" style="max-width:260px">
-      <label>Projekt:</label>
+    <div class="field" style="max-width:280px">
+      <label>Projekt</label>
       <select id="projectSelect"></select>
     </div>
     <button id="newProjectBtn" class="btn">Nytt projekt</button>
     <button id="renameProjectBtn" class="btn">Byt namn</button>
     <button id="deleteProjectBtn" class="btn btn-danger">Radera</button>
     <div class="grow"></div>
-    <div id="freeBanner" class="banner hidden">Gratisläge: <b id="usedCount">0</b>/20 spel använda. Du har <b id="leftCount">20</b> kvar.</div>
+    <div id="freeBanner" class="banner hidden">
+      Gratisläge: <b id="usedCount">0</b>/20 spel använda. Du har <b id="leftCount">20</b> kvar.
+    </div>
   </div>
 
   <!-- Flikar -->
@@ -91,7 +108,7 @@
       <div class="field"><label>Spelbolag</label><input id="bookInput" placeholder="Bet365"></div>
     </div>
     <div class="row" style="margin-top:10px">
-      <div class="field" style="max-width:180px">
+      <div class="field" style="max-width:200px">
         <label>Resultat</label>
         <select id="resultInput">
           <option>Pending</option>
@@ -114,7 +131,7 @@
   <!-- Panel: Månadssummering -->
   <section id="panel-sum" class="panel">
     <div class="row">
-      <div class="field" style="max-width:220px">
+      <div class="field" style="max-width:240px">
         <label>Månad (matchdag)</label>
         <select id="monthFilter">
           <option value="all">Alla månader</option>
@@ -122,7 +139,7 @@
       </div>
     </div>
 
-    <div class="kpi" style="margin-top:10px">
+    <div class="kpi" style="margin-top:12px">
       <div class="box">Spel (avgjorda): <b id="kpiSett">0</b> (<span id="kpiWL">Win 0 / Loss 0</span>)</div>
       <div class="box">Total insats: <b id="kpiStakes">0.00</b></div>
       <div class="box">Profit: <b id="kpiProfit">0.00</b></div>
@@ -144,58 +161,53 @@
 </main>
 
 <script>
-/* ---------------- Supabase config (din URL + anon key) ---------------- */
+/* ------------ Supabase (din URL + anon key) ------------ */
 const SB = supabase.createClient(
   "https://updpywjfxeahtjpelbku.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZHB5d2pmeGVhaHRqcGVsYmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MjQzOTcsImV4cCI6MjA3MjUwMDM5N30.i1ztG8dkcHFLq8WEn_uVrgCBk0_Wf5gZb_OQQuaSGgo"
 );
 
-/* ---------------- Helpers ---------------- */
-const $ = (s)=>document.querySelector(s);
-const monthNamesSV = ["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
-const ymKey = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-const niceMonth = (ym)=>{
-  const [y,m]=ym.split("-").map(Number);
-  return `${monthNamesSV[m-1]} ${y}`;
-}
-function fmt(n,dec=2){ return (Number(n||0)).toFixed(dec); }
+/* ------------ Helpers ------------ */
+const $ = s => document.querySelector(s);
+const monthSV = ["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
+const ymKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+const toNiceMonth = ym => { const [y,m]=ym.split("-").map(Number); return `${monthSV[m-1]} ${y}`; };
+const fmt = (n, d=2) => (Number(n||0)).toFixed(d);
+const esc = s => (s||"").replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
-/* ---------------- State ---------------- */
-let user=null, profile=null;
-let projects=[];
-let currentProjectId=null;
-let bets=[];           // bets for current project
-let totalUsedCount=0;  // across all projects
-let isPremium=false;
+/* ------------ App state ------------ */
+let user=null, isPremium=false;
+let projects=[], currentProjectId=null;
+let bets=[], usedTotal=0;
 
-/* ---------------- Auth gate ---------------- */
-(async function init(){
+/* ------------ Auth gate ------------ */
+(async function start(){
   const { data:{ session } } = await SB.auth.getSession();
-  if(!session){ location.href = "login.html"; return; }
+  if(!session){ location.href="login.html"; return; }
   user = session.user;
-  $("#userEmail").textContent = user.email||"";
+  $("#userEmail").textContent = user.email || "";
+
   await ensureUserRow();
   await loadProjects();
+  setDefaultDate();
   bindUI();
-  setToday();
   await refreshAll();
 })();
 
-/* Ensure users-row exists */
+/* Ensure user exists in public.users */
 async function ensureUserRow(){
-  // upsert by id
-  const { data, error } = await SB.from("users")
-    .upsert({ id: user.id, email: user.email }, { onConflict: "id", ignoreDuplicates: false })
-    .select("id,is_premium")
+  const { data, error } = await SB
+    .from("users")
+    .upsert({ id:user.id, email:user.email }, { onConflict:"id" })
+    .select("is_premium")
     .single();
   if(!error && data){ isPremium = !!data.is_premium; }
-  updatePremiumUI();
+  renderPremiumUI();
 }
 
-function updatePremiumUI(){
-  const banner = $("#freeBanner");
+function renderPremiumUI(){
   if(isPremium){
-    banner.classList.add("hidden");
+    $("#freeBanner").classList.add("hidden");
     $("#upgradeBtn").classList.add("hidden");
     $("#manageBillingBtn").classList.remove("hidden");
   }else{
@@ -204,48 +216,66 @@ function updatePremiumUI(){
   }
 }
 
-/* ---------------- Projects ---------------- */
+/* ------------ Projects ------------ */
 async function loadProjects(){
-  const { data, error } = await SB.from("projects").select("id,name").order("created_at",{ascending:true}).eq("user_id", user.id);
+  const { data, error } = await SB.from("projects")
+    .select("id,name")
+    .eq("user_id", user.id)
+    .order("created_at",{ascending:true});
   if(error){ console.error(error); return; }
-  projects = data||[];
-  if(projects.length===0){
-    const { data:created } = await SB.from("projects").insert({ user_id:user.id, name:"Mitt första projekt" }).select().single();
+  projects = data || [];
+
+  if(projects.length === 0){
+    const { data:created } = await SB.from("projects")
+      .insert({ user_id:user.id, name:"Mitt första projekt" })
+      .select().single();
     projects = [created];
   }
-  // fill select
+
   const sel = $("#projectSelect");
-  sel.innerHTML="";
+  sel.innerHTML = "";
   projects.forEach(p=>{
     const opt=document.createElement("option");
     opt.value=p.id; opt.textContent=p.name;
     sel.appendChild(opt);
   });
-  currentProjectId = sel.value = projects[0].id;
-  sel.onchange = async ()=>{ currentProjectId = sel.value; await refreshAll(); };
+  currentProjectId = projects[0].id;
+  sel.value = currentProjectId;
+  sel.onchange = async () => {
+    currentProjectId = sel.value;
+    await refreshAll();
+  };
 }
 
 $("#newProjectBtn").onclick = async ()=>{
   const name = prompt("Namn på nytt projekt:", "Nytt projekt");
   if(!name) return;
   const { data, error } = await SB.from("projects").insert({ user_id:user.id, name }).select().single();
-  if(!error){ projects.push(data); await loadProjects(); await refreshAll(); }
+  if(!error){
+    projects.push(data);
+    await loadProjects();
+    await refreshAll();
+  }
 };
+
 $("#renameProjectBtn").onclick = async ()=>{
   if(!currentProjectId) return;
   const current = projects.find(p=>p.id==currentProjectId);
-  const name = prompt("Nytt namn:", current?.name||"Projekt");
+  const name = prompt("Nytt namn:", current?.name || "Projekt");
   if(!name) return;
   const { error } = await SB.from("projects").update({ name }).eq("id", currentProjectId);
   if(!error){ await loadProjects(); }
 };
+
 $("#deleteProjectBtn").onclick = async ()=>{
   if(!currentProjectId) return;
   if(!confirm("Radera projektet och alla dess spel?")) return;
   await SB.from("bets").delete().eq("project_id", currentProjectId);
   await SB.from("projects").delete().eq("id", currentProjectId);
-  await loadProjects(); await refreshAll();
+  await loadProjects();
+  await refreshAll();
 };
+
 $("#resetProjectBtn").onclick = async ()=>{
   if(!currentProjectId) return;
   if(!confirm("Ta bort alla spel i detta projekt?")) return;
@@ -253,25 +283,22 @@ $("#resetProjectBtn").onclick = async ()=>{
   await refreshAll();
 };
 
-/* ---------------- Bets: CRUD + load ---------------- */
+/* ------------ Bets ------------ */
 async function refreshAll(){
-  await loadPremiumUsage();
+  await loadUsage();
   await loadBets();
   buildMonthFilter();
   renderSummary();
   renderBetsGrouped();
 }
 
-async function loadPremiumUsage(){
-  // count all bets for this user
-  const { count, error } = await SB.from("bets")
-    .select("id", { count:"exact", head:true })
-    .eq("user_id", user.id);
-  totalUsedCount = count||0;
-  const left = Math.max(0, 20 - totalUsedCount);
-  $("#usedCount").textContent = totalUsedCount;
+async function loadUsage(){
+  const { count } = await SB.from("bets").select("id", { count:"exact", head:true }).eq("user_id", user.id);
+  usedTotal = count || 0;
+  const left = Math.max(0, 20 - usedTotal);
+  $("#usedCount").textContent = usedTotal;
   $("#leftCount").textContent = left;
-  if(!isPremium) $("#freeBanner").classList.remove("hidden");
+  if(!isPremium){ $("#freeBanner").classList.remove("hidden"); }
 }
 
 async function loadBets(){
@@ -280,15 +307,16 @@ async function loadBets(){
     .eq("user_id", user.id)
     .eq("project_id", currentProjectId)
     .order("matchday", { ascending:false });
-  bets = data||[];
+  if(error){ console.error(error); return; }
+  bets = data || [];
 }
 
 $("#addBetBtn").onclick = async ()=>{
-  if(!isPremium && totalUsedCount >= 20){
+  if(!isPremium && usedTotal >= 20){
     alert("Du har nått gränsen 20 spel i gratisläget. Uppgradera för obegränsat.");
     return;
   }
-  const md = $("#dateInput").value;
+  const matchday = $("#dateInput").value;
   const match = $("#matchInput").value.trim();
   const market = $("#marketInput").value.trim();
   const odds = parseFloat($("#oddsInput").value||"0");
@@ -297,45 +325,61 @@ $("#addBetBtn").onclick = async ()=>{
   const result = $("#resultInput").value;
   const note = $("#noteInput").value.trim();
 
-  if(!md || !match || !market || !odds || !stake){
+  if(!matchday || !match || !market || !odds || !stake){
     alert("Fyll i matchdag, match, marknad, odds och insats.");
     return;
   }
+
   const { error } = await SB.from("bets").insert({
-    user_id: user.id,
-    project_id: currentProjectId,
-    matchday: md,
-    match, market, odds, stake, book, result, note
+    user_id:user.id, project_id:currentProjectId,
+    matchday, match, market, odds, stake, book, result, note
   });
-  if(error){ alert("Kunde inte spara spelet"); console.error(error); return; }
-  // clear small fields
-  $("#matchInput").value=""; $("#marketInput").value=""; $("#noteInput").value="";
-  $("#oddsInput").value=""; $("#stakeInput").value="1"; $("#bookInput").value="";
+  if(error){ console.error(error); alert("Kunde inte spara spelet."); return; }
+
+  // reset inputs (låt datum stå kvar)
+  $("#matchInput").value="";
+  $("#marketInput").value="";
+  $("#oddsInput").value="";
+  $("#stakeInput").value="1";
+  $("#bookInput").value="";
+  $("#noteInput").value="";
   $("#resultInput").value="Pending";
+
   await refreshAll();
 };
 
-/* ---------------- Summary + List rendering ---------------- */
+async function updateResult(id, res){
+  const { error } = await SB.from("bets").update({ result:res }).eq("id", id);
+  if(!error){ await refreshAll(); }
+}
+
+async function deleteBet(id){
+  if(!confirm("Ta bort detta spel?")) return;
+  const { error } = await SB.from("bets").delete().eq("id", id);
+  if(!error){ await refreshAll(); }
+}
+
+/* ------------ Summary & list ------------ */
 function buildMonthFilter(){
-  const sel=$("#monthFilter");
-  const prevVal = sel.value;
-  const months = Array.from(new Set(bets.map(b=>ymKey(new Date(b.matchday))))).sort().reverse();
-  sel.innerHTML='<option value="all">Alla månader</option>';
-  months.forEach(ym=>{
-    const opt=document.createElement("option");
-    opt.value=ym; opt.textContent=niceMonth(ym);
-    sel.appendChild(opt);
+  const sel = $("#monthFilter");
+  const prev = sel.value;
+  const months = [...new Set(bets.map(b=>ymKey(new Date(b.matchday))))].sort().reverse();
+  sel.innerHTML = `<option value="all">Alla månader</option>`;
+  months.forEach(m=>{
+    const o=document.createElement("option");
+    o.value=m; o.textContent=toNiceMonth(m);
+    sel.appendChild(o);
   });
-  sel.value = prevVal && Array.from(sel.options).some(o=>o.value===prevVal) ? prevVal : "all";
+  sel.value = months.includes(prev)? prev : "all";
   sel.onchange = renderSummary;
 }
 
 function renderSummary(){
   const ym = $("#monthFilter").value;
-  const filtered = ym==="all" ? bets : bets.filter(b=>ymKey(new Date(b.matchday))===ym);
-  const settled = filtered.filter(b=>b.result==="Win"||b.result==="Loss"||b.result==="Void");
+  const list = ym==="all" ? bets : bets.filter(b=>ymKey(new Date(b.matchday))===ym);
+  const settled = list.filter(b=>b.result==="Win"||b.result==="Loss"||b.result==="Void");
 
-  const stakes = settled.reduce((s,b)=>s + (b.result==="Void"?0:b.stake), 0);
+  const stake = settled.reduce((s,b)=> s + (b.result==="Void"?0:b.stake), 0);
   const profit = settled.reduce((p,b)=>{
     if(b.result==="Win") return p + (b.odds*b.stake - b.stake);
     if(b.result==="Loss") return p - b.stake;
@@ -343,24 +387,24 @@ function renderSummary(){
   },0);
   const wins = settled.filter(b=>b.result==="Win").length;
   const losses = settled.filter(b=>b.result==="Loss").length;
-  const roi = stakes>0 ? (profit/stakes)*100 : 0;
+  const roi = stake>0 ? (profit/stake)*100 : 0;
 
   $("#kpiSett").textContent = settled.length;
   $("#kpiWL").textContent = `Win ${wins} / Loss ${losses}`;
-  $("#kpiStakes").textContent = fmt(stakes);
+  $("#kpiStakes").textContent = fmt(stake);
   $("#kpiProfit").textContent = fmt(profit);
-  $("#kpiROI").textContent = fmt(roi,2)+"%";
+  $("#kpiROI").textContent = fmt(roi)+"%";
 
-  // month table (group all months regardless of filter, to give överblick)
-  const tbody=$("#monthTable"); tbody.innerHTML="";
+  // full month table (alla månader)
   const groups={};
   bets.forEach(b=>{
-    const key = ymKey(new Date(b.matchday));
-    (groups[key] ||= []).push(b);
+    const k = ymKey(new Date(b.matchday));
+    (groups[k] ||= []).push(b);
   });
-  Object.keys(groups).sort().reverse().forEach(key=>{
-    const arr = groups[key].filter(b=>b.result!=="Pending");
-    const st = arr.reduce((s,b)=>s+(b.result==="Void"?0:b.stake),0);
+  const tbody=$("#monthTable"); tbody.innerHTML="";
+  Object.keys(groups).sort().reverse().forEach(k=>{
+    const arr = groups[k].filter(b=>b.result!=="Pending");
+    const st = arr.reduce((s,b)=> s + (b.result==="Void"?0:b.stake), 0);
     const pr = arr.reduce((p,b)=>{
       if(b.result==="Win") return p + (b.odds*b.stake - b.stake);
       if(b.result==="Loss") return p - b.stake;
@@ -368,92 +412,125 @@ function renderSummary(){
     },0);
     const w = arr.filter(b=>b.result==="Win").length;
     const l = arr.filter(b=>b.result==="Loss").length;
-    const roi = st>0 ? (pr/st)*100 : 0;
+    const r = st>0 ? (pr/st)*100 : 0;
+
     const tr=document.createElement("tr");
-    tr.innerHTML = `<td>${niceMonth(key)}</td>
+    tr.innerHTML = `<td>${toNiceMonth(k)}</td>
       <td>${arr.length}</td><td>${w}</td><td>${l}</td>
-      <td>${fmt(st)}</td><td>${fmt(pr)}</td><td>${fmt(roi)}%</td>`;
+      <td>${fmt(st)}</td><td>${fmt(pr)}</td><td>${fmt(r)}%</td>`;
     tbody.appendChild(tr);
   });
 }
 
 function renderBetsGrouped(){
-  const wrap=$("#betsByMonth"); wrap.innerHTML="";
+  const wrap = $("#betsByMonth");
+  wrap.innerHTML = "";
   const groups={};
   bets.forEach(b=>{
-    const key = ymKey(new Date(b.matchday));
-    (groups[key] ||= []).push(b);
+    const k = ymKey(new Date(b.matchday));
+    (groups[k] ||= []).push(b);
   });
-  Object.keys(groups).sort().reverse().forEach(key=>{
-    const list = groups[key];
+
+  Object.keys(groups).sort().reverse().forEach(k=>{
+    const list = groups[k];
     const det=document.createElement("details");
     det.className="month"; det.open=false;
+
     const settled = list.filter(b=>b.result!=="Pending").length;
-    det.innerHTML = `<summary>${niceMonth(key)} <span class="tag" style="margin-left:8px">${list.length} spel</span> <span class="tag">${settled} avgjorda</span></summary>`;
+    det.innerHTML = `<summary>${toNiceMonth(k)}
+      <span class="tag" style="margin-left:8px">${list.length} spel</span>
+      <span class="tag">${settled} avgjorda</span></summary>`;
+
     const tbl=document.createElement("table");
     const thead=document.createElement("thead");
-    thead.innerHTML="<tr><th>Matchdag</th><th>Match</th><th>Marknad</th><th>Odds</th><th>Insats</th><th>Resultat</th><th>Spelbolag</th><th>Notering</th></tr>";
+    thead.innerHTML = `<tr>
+      <th>Matchdag</th><th>Match</th><th>Marknad</th><th>Odds</th>
+      <th>Insats</th><th>Resultat</th><th>Spelbolag</th><th>Notering</th><th>Snabb</th><th></th>
+    </tr>`;
     const tbody=document.createElement("tbody");
+
     list.forEach(b=>{
       const tr=document.createElement("tr");
-      tr.innerHTML = `<td>${b.matchday}</td><td>${escapeHtml(b.match)}</td><td>${escapeHtml(b.market)}</td>
-        <td>${fmt(b.odds,2)}</td><td>${fmt(b.stake,2)}</td><td>${b.result}</td><td>${escapeHtml(b.book||"")}</td><td>${escapeHtml(b.note||"")}</td>`;
+      tr.innerHTML = `
+        <td>${b.matchday}</td>
+        <td>${esc(b.match)}</td>
+        <td>${esc(b.market)}</td>
+        <td>${fmt(b.odds)}</td>
+        <td>${fmt(b.stake)}</td>
+        <td>${b.result}</td>
+        <td>${esc(b.book||"")}</td>
+        <td>${esc(b.note||"")}</td>
+        <td class="quick">
+          <button class="win" data-act="set" data-id="${b.id}" data-val="Win">Win</button>
+          <button class="loss" data-act="set" data-id="${b.id}" data-val="Loss">Loss</button>
+          <button data-act="set" data-id="${b.id}" data-val="Pending">Pending</button>
+          <button class="void" data-act="set" data-id="${b.id}" data-val="Void">Void</button>
+        </td>
+        <td><button class="btn btn-danger" data-act="del" data-id="${b.id}">Ta bort</button></td>`;
       tbody.appendChild(tr);
     });
+
     tbl.appendChild(thead); tbl.appendChild(tbody);
     det.appendChild(tbl);
     wrap.appendChild(det);
   });
+
+  // event delegation for quick buttons
+  wrap.onclick = (e)=>{
+    const t = e.target;
+    if(!(t instanceof HTMLElement)) return;
+    const act = t.dataset.act;
+    const id = t.dataset.id;
+    if(!act || !id) return;
+    if(act==="set"){ updateResult(id, t.dataset.val); }
+    if(act==="del"){ deleteBet(id); }
+  };
 }
 
-function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
-/* ---------------- Tabs ---------------- */
+/* ------------ Tabs ------------ */
 document.querySelectorAll(".tab").forEach(btn=>{
   btn.onclick = ()=>{
     document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
     btn.classList.add("active");
-    const id = btn.dataset.tab;
-    $("#panel-"+id).classList.add("active");
+    $("#panel-"+btn.dataset.tab).classList.add("active");
   };
 });
 
-/* ---------------- Topbar actions ---------------- */
+/* ------------ Topbar ------------ */
 $("#logoutBtn").onclick = async ()=>{
   await SB.auth.signOut();
-  location.href = "index.html"; // tillbaka till landningssidan
+  location.href="index.html";
 };
 
 $("#upgradeBtn").onclick = async ()=>{
   try{
     const res = await fetch("/api/create-checkout-session", { method:"POST" });
     const data = await res.json();
-    if(data?.url) window.location.href = data.url;
+    if(data?.url) location.href = data.url;
     else alert(data?.error || "Kunde inte starta Stripe Checkout");
-  }catch(e){ alert("Nätverksfel mot Stripe"); }
+  }catch{ alert("Nätverksfel mot Stripe"); }
 };
 
 $("#manageBillingBtn").onclick = async ()=>{
-  // (valfritt) om du skapar api/create-portal-session
   try{
     const res = await fetch("/api/create-portal-session", { method:"POST" });
     const data = await res.json();
-    if(data?.url) window.location.href = data.url;
-  }catch(e){}
+    if(data?.url) location.href = data.url;
+  }catch{}
 };
 
-/* ---------------- Misc ---------------- */
-function setToday(){
-  const t = new Date();
-  const yyyy=t.getFullYear(), mm=String(t.getMonth()+1).padStart(2,"0"), dd=String(t.getDate()).padStart(2,"0");
-  $("#dateInput").value = `${yyyy}-${mm}-${dd}`;
+/* ------------ Misc ------------ */
+function setDefaultDate(){
+  const d=new Date();
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
+  $("#dateInput").value = `${y}-${m}-${dd}`;
 }
 
-/* ---------------- URL feedback after checkout ---------------- */
+/* feedback efter checkout */
 (function(){
-  const p = new URLSearchParams(location.search);
-  if(p.get("upgrade")==="success"){ alert("Tack! Din betalning är klar. Premium aktiveras strax."); }
+  const p=new URLSearchParams(location.search);
+  if(p.get("upgrade")==="success") console.log("Tack! Betalning klar – premium aktiveras via webhook.");
 })();
 </script>
 </body>
