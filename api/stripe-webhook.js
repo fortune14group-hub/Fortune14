@@ -1,14 +1,15 @@
-// api/stripe-webhook.js
-import Stripe from 'stripe';
-import { buffer } from 'micro';
-import { supabaseAdmin } from './_supabaseAdmin.js';
+// /api/stripe-webhook.js (CommonJS)
+const Stripe = require('stripe');
+const { supabaseAdmin } = require('./_supabaseAdmin');
+const getRawBody = require('raw-body');
 
-export const config = {
-  api: { bodyParser: false } // krävs för att kunna verifiera Stripe-signaturen
-};
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2023-10-16'
+});
 
-// Vi kan börja med bara checkout.session.completed.
-// (Du kan aktivera fler events i Stripe senare – koden nedan hanterar dem också.)
+// Vercel (Node) – stäng av bodyParser
+module.exports.config = { api: { bodyParser: false } };
+
 const relevantEvents = new Set([
   'checkout.session.completed',
   'customer.subscription.created',
@@ -16,61 +17,45 @@ const relevantEvents = new Set([
   'customer.subscription.deleted'
 ]);
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-  const signature = req.headers['stripe-signature'];
 
   let event;
   try {
-    const buf = await buffer(req);
-    event = stripe.webhooks.constructEvent(
-      buf,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
+    const buf = await getRawBody(req);
+    const sig = req.headers['stripe-signature'];
+    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    console.error('❌ Webhook signature verification failed:', err.message);
+    console.error('Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  if (!relevantEvents.has(event.type)) {
-    return res.status(200).send('Ignored');
-  }
+  if (!relevantEvents.has(event.type)) return res.status(200).send('Ignored');
 
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
-        // När kunden betalat klart (subscription-mode)
         const session = event.data.object;
-        const userId = session.metadata?.user_id || null; // skickas från create-checkout-session
+        const userId = session.metadata?.user_id || null;
         const customerId = session.customer;
-
         if (userId && customerId) {
-          // Spara kund-id + markera premium
           await supabaseAdmin
             .from('users')
-            .update({ stripe_customer_id: customerId, is_premium: true })
-            .eq('id', userId);
+            .upsert({ id: userId, stripe_customer_id: customerId, is_premium: true }, { onConflict: 'id' });
         }
         break;
       }
-
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        // Håll premium-status i synk (om du lägger till dessa events i Stripe)
         const sub = event.data.object;
-        const isPremium = ['active', 'trialing'].includes(sub.status);
+        const isPremium = ['active', 'trialing', 'past_due'].includes(sub.status);
         await supabaseAdmin
           .from('users')
           .update({ is_premium: isPremium })
           .eq('stripe_customer_id', sub.customer);
         break;
       }
-
       case 'customer.subscription.deleted': {
-        // Nedgradera om abonnemanget avslutas
         const sub = event.data.object;
         await supabaseAdmin
           .from('users')
@@ -79,10 +64,9 @@ export default async function handler(req, res) {
         break;
       }
     }
-
     return res.status(200).send('OK');
   } catch (err) {
-    console.error('❌ Webhook handler failed:', err);
+    console.error('Webhook handler failed:', err);
     return res.status(500).send('Webhook handler failed');
   }
-}
+};
