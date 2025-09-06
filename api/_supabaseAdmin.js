@@ -1,8 +1,9 @@
-// Server-side Supabase-klient (service role). ALDRIG lägg denna nyckel i klientkod!
-import { createClient } from '@supabase/supabase-js';
+// /api/_supabaseAdmin.js (CommonJS)
+const { createClient } = require('@supabase/supabase-js');
 
-export const supabaseAdmin = createClient(
+const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
+  process.env.SUPABASE_SERVICE_ROLE
 );
+
+module.exports = { supabaseAdmin };
