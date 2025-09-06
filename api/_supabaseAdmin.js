@@ -1,7 +1,8 @@
-// api/_supabaseAdmin.js
-import { createClient } from "@supabase/supabase-js";
+// Server-side Supabase-klient (service role). ALDRIG lägg denna nyckel i klientkod!
+import { createClient } from '@supabase/supabase-js';
 
 export const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,          // samma URL som i appen
-  process.env.SUPABASE_SERVICE_ROLE  // Service Role (hemlig – endast på server)
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { persistSession: false } }
 );
