@@ -1,10 +1,33 @@
-// /api/create-checkout-session.js (CommonJS)
-const Stripe = require('stripe');
-const { supabaseAdmin } = require('./_supabaseAdmin');
+// /api/stripe-webhook.js
+// Kör i Node (krav för Stripe SDK + rå body)
+module.exports.config = { runtime: 'nodejs18.x' };
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2023-10-16'
-});
+const Stripe = require('stripe');
+
+// ---- Läs rå body (behövs för signaturverifiering) ----
+async function readRawBody(req) {
+  return await new Promise((resolve, reject) => {
+    try {
+      let data = [];
+      req.on('data', (chunk) => data.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(data).toString('utf8')));
+      req.on('error', reject);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+// ---- Supabase Admin-klient ----
+function getSupabaseAdmin() {
+  const { createClient } = require('@supabase/supabase-js');
+  const url = process.env.SUPABASE_URL;
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE;
+  if (!url || !serviceRole) {
+    throw new Error('Server config error: SUPABASE_URL eller SUPABASE_SERVICE_ROLE saknas');
+  }
+  return createClient(url, serviceRole, { auth: { persistSession: false } });
+}
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -12,54 +35,103 @@ module.exports = async (req, res) => {
     return res.status(405).end('Method Not Allowed');
   }
 
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+
+  if (!stripeSecret) {
+    console.error('ENV MISSING: STRIPE_SECRET_KEY');
+    return res.status(500).json({ error: 'Server config error (stripe key)' });
+  }
+  if (!webhookSecret) {
+    console.error('ENV MISSING: STRIPE_WEBHOOK_SECRET');
+    return res.status(500).json({ error: 'Server config error (webhook secret)' });
+  }
+
+  const stripe = new Stripe(stripeSecret, { apiVersion: '2023-10-16' });
+
+  let event;
   try {
-    const userId = req.headers['x-sb-user'] || '';
-    const email = req.headers['x-sb-email'] || '';
+    const rawBody = await readRawBody(req);
+    const sig = req.headers['stripe-signature'];
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+  }
 
-    if (!userId) return res.status(400).json({ error: 'Missing user id' });
-
-    // 1) Hämta ev. kund från Supabase
-    let { data: userRow, error: uErr } = await supabaseAdmin
+  // Hjälpare: uppdatera premiumflagga i Supabase
+  async function setPremiumByUserId(userId, isPremium) {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase
       .from('users')
-      .select('stripe_customer_id')
-      .eq('id', userId)
-      .single();
+      .update({ is_premium: isPremium })
+      .eq('id', userId);
+    if (error) throw error;
+  }
 
-    if (uErr && uErr.code !== 'PGRST116') {
-      console.error('supabase error', uErr);
-      return res.status(500).json({ error: 'Supabase error' });
+  async function setPremiumByEmail(email, isPremium) {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase
+      .from('users')
+      .update({ is_premium: isPremium })
+      .eq('email', email);
+    if (error) throw error;
+  }
+
+  try {
+    switch (event.type) {
+      // Betalning klar → aktivera premium
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const metaUserId = session.metadata && session.metadata.user_id;
+        const email = session.customer_details?.email || session.customer_email;
+
+        if (metaUserId) {
+          await setPremiumByUserId(metaUserId, true);
+          console.log('Premium activated (by user_id):', metaUserId);
+        } else if (email) {
+          await setPremiumByEmail(email, true);
+          console.log('Premium activated (by email):', email);
+        } else {
+          console.warn('No user reference on session; cannot set premium');
+        }
+        break;
+      }
+
+      // Prenumeration avslutad/annullerad → stäng av premium
+      case 'customer.subscription.deleted':
+      case 'invoice.payment_failed': {
+        // Försök hitta användaren via customer_email på senaste invoice/obj
+        const obj = event.data.object;
+        const email =
+          obj.customer_email ||
+          obj.customer_details?.email ||
+          obj.customer?.email ||
+          obj.customer_email_address; // fallback-varianter
+
+        if (email) {
+          await setPremiumByEmail(email, false);
+          console.log('Premium disabled (by email):', email, 'event:', event.type);
+        } else {
+          console.warn('Could not resolve email for downgrade event:', event.type);
+        }
+        break;
+      }
+
+      default:
+        // Logga men returnera 200 så Stripe inte retry:ar i onödan
+        console.log('Unhandled event type:', event.type);
     }
 
-    let customerId = userRow?.stripe_customer_id || null;
-
-    // 2) Skapa Stripe-kund om det saknas
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: email || undefined,
-        metadata: { user_id: userId }
-      });
-      customerId = customer.id;
-
-      await supabaseAdmin
-        .from('users')
-        .upsert({ id: userId, stripe_customer_id: customerId }, { onConflict: 'id' });
-    }
-
-    // 3) Skapa Checkout-session (subscription)
-    const base = process.env.PUBLIC_BASE_URL || req.headers.origin;
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      customer: customerId,
-      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-      success_url: `${base}/app.html?success=1`,
-      cancel_url: `${base}/app.html?canceled=1`,
-      metadata: { user_id: userId }
+    // Svara Stripe
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('Webhook handler failed:', {
+      message: err.message,
+      type: err.type,
+      code: err.code,
+      stack: err.stack
     });
-
-    return res.status(200).json({ url: session.url });
-  } catch (e) {
-    console.error('create-checkout-session failed', e);
-    return res.status(500).json({ error: 'Stripe error' });
+    return res.status(500).json({ error: err.message });
   }
 };
