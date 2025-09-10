@@ -1,16 +1,13 @@
 {
   "name": "betspread",
   "version": "1.0.0",
-  "description": "BetSpread app with Supabase and Stripe",
-  "main": "index.js",
-  "scripts": {
-    "start": "node app.js"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.42.0",
-    "stripe": "^12.0.0"
-  },
+  "private": true,
+  "description": "BetSpread – serverless API routes for Stripe checkout on Vercel",
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "stripe": "^14.25.0"
   }
 }
