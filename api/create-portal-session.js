@@ -1,40 +1,51 @@
-// /api/create-portal-session.js (CommonJS)
-const Stripe = require('stripe');
-const { supabaseAdmin } = require('./_supabaseAdmin');
+// /api/create-portal-session.js
+export const config = { runtime: 'nodejs18.x' };
+
+import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2023-10-16'
+  apiVersion: '2023-10-16',
 });
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE
+);
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).end('Method Not Allowed');
+    res.status(405).send('Method Not Allowed');
+    return;
   }
 
   try {
-    const userId = req.headers['x-sb-user'] || '';
-    if (!userId) return res.status(400).json({ error: 'Missing user id' });
-
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('stripe_customer_id')
-      .eq('id', userId)
-      .single();
-
-    if (error || !user?.stripe_customer_id) {
-      return res.status(404).json({ error: 'No Stripe customer for user' });
+    const { user_id } = req.body || {};
+    if (!user_id) {
+      res.status(400).json({ error: 'Missing user_id' });
+      return;
     }
 
-    const returnUrl = (process.env.PUBLIC_BASE_URL || req.headers.origin) + '/app.html';
-    const portal = await stripe.billingPortal.sessions.create({
-      customer: user.stripe_customer_id,
-      return_url: returnUrl
+    const { data: userRow, error } = await supabaseAdmin
+      .from('users')
+      .select('stripe_customer_id')
+      .eq('id', user_id)
+      .maybeSingle();
+
+    if (error || !userRow?.stripe_customer_id) {
+      res.status(400).json({ error: 'No Stripe customer for this user' });
+      return;
+    }
+
+    const returnUrl = `${req.headers.origin || 'https://www.betspread.se'}/app.html`;
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: userRow.stripe_customer_id,
+      return_url: returnUrl,
     });
 
-    return res.status(200).json({ url: portal.url });
+    res.json({ url: portalSession.url });
   } catch (e) {
-    console.error('create-portal-session failed', e);
-    return res.status(500).json({ error: 'Stripe portal error' });
+    console.error('Portal error:', e);
+    res.status(500).json({ error: 'Failed to create portal session' });
   }
-};
+}
