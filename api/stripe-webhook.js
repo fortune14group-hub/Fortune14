@@ -1,131 +1,103 @@
 // /api/stripe-webhook.js
-// Node-runtime + rå body (krävs för att verifiera Stripe-signatur)
-module.exports.config = { runtime: 'nodejs18.x' };
+// Vercel Edge/Node runtime för att läsa rå body korrekt
+export const config = { runtime: 'nodejs18.x' };
 
-const getRawBody = require('raw-body');
-const Stripe = require('stripe');
-const { createClient } = require('@supabase/supabase-js');
+import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
+import getRawBody from 'raw-body';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
 });
 
-// Supabase admin-klient (service role)
-function supabaseAdmin() {
-  const url = process.env.SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE;
-  if (!url || !serviceRole) {
-    throw new Error('SUPABASE_URL eller SUPABASE_SERVICE_ROLE saknas');
-  }
-  return createClient(url, serviceRole, { auth: { persistSession: false } });
-}
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE
+);
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).end('Method Not Allowed');
-  }
-
-  let rawBody;
-  try {
-    rawBody = await getRawBody(req);
-  } catch (e) {
-    console.error('raw-body error:', e.message);
-    return res.status(400).send(`Webhook Error: ${e.message}`);
-  }
-
-  const sig = req.headers['stripe-signature'];
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    console.error('ENV MISSING: STRIPE_WEBHOOK_SECRET');
-    return res.status(500).send('Server config error');
+    res.status(405).send('Method Not Allowed');
+    return;
   }
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    const raw = await getRawBody(req);
+    const sig = req.headers['stripe-signature'];
+    event = stripe.webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    console.error('Stripe signature verification failed:', err.message);
-    return res.status(400).send(`Webhook signature error: ${err.message}`);
+    console.error('⚠️  Webhook signature verification failed.', err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+    return;
   }
 
-  // Hantera event
   try {
-    const sb = supabaseAdmin();
-
     switch (event.type) {
       case 'checkout.session.completed': {
+        // När checkouten lyckas
         const session = event.data.object;
+        // user_id kan komma via metadata eller client_reference_id
+        const userId =
+          session.metadata?.user_id || session.client_reference_id || null;
 
-        // Vi kör prenumerationer – hämta nycklar
-        const email =
-          session.customer_details?.email ||
-          session.customer_email ||
-          null;
-        const subscriptionId =
-          typeof session.subscription === 'string'
-            ? session.subscription
-            : session.subscription?.id || null;
-        const customerId = session.customer || null;
+        // Hämta sub & kund
+        const subscriptionId = session.subscription || null;
+        let customerId = session.customer || null;
 
-        // Om du la user_id i metadata när du skapade session: session.metadata?.user_id
-        const userId = session.metadata?.user_id || null;
-
-        // Markera premium i Supabase (via user_id om vi har det, annars via email)
+        // Sätt premium i Supabase
         if (userId) {
-          await sb
+          const { error } = await supabaseAdmin
             .from('users')
             .update({
               is_premium: true,
               stripe_customer_id: customerId,
               stripe_subscription_id: subscriptionId,
-              updated_at: new Date().toISOString(),
             })
             .eq('id', userId);
-        } else if (email) {
-          await sb
-            .from('users')
-            .update({
-              is_premium: true,
-              stripe_customer_id: customerId,
-              stripe_subscription_id: subscriptionId,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('email', email);
-        } else {
-          console.warn('checkout.session.completed utan email/user_id');
+
+          if (error) console.error('Supabase update error (premium true):', error);
         }
         break;
       }
 
+      case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
-      case 'customer.subscription.updated': {
-        // vid deleted eller status=canceled → förlorar premium
+      case 'customer.subscription.paused': {
         const sub = event.data.object;
-        if (event.type === 'customer.subscription.deleted' || sub.status === 'canceled') {
-          const customerId = sub.customer;
+        const customerId = sub.customer;
+        const isActive =
+          sub.status === 'active' || sub.status === 'trialing';
 
-          // Nollställ premium baserat på kund-id
-          await sb
+        // Map kund -> user via users-tabellen
+        const { data: userRow, error: findErr } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('stripe_customer_id', customerId)
+          .maybeSingle();
+
+        if (!findErr && userRow?.id) {
+          const { error } = await supabaseAdmin
             .from('users')
             .update({
-              is_premium: false,
-              stripe_subscription_id: null,
-              updated_at: new Date().toISOString(),
+              is_premium: isActive,
+              stripe_subscription_id: sub.id,
             })
-            .eq('stripe_customer_id', customerId);
+            .eq('id', userRow.id);
+
+          if (error) console.error('Supabase update error (sub state):', error);
         }
         break;
       }
 
       default:
-        // Ignorera andra events
+        // Ignorera övriga events
         break;
     }
 
-    return res.status(200).send('ok');
+    res.json({ received: true });
   } catch (err) {
     console.error('Webhook handler error:', err);
-    return res.status(500).send('Internal webhook error');
+    res.status(500).send('Server error');
   }
-};
+}
