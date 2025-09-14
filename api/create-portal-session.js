@@ -1,5 +1,5 @@
 // /api/create-portal-session.js
-export const config = { runtime: 'nodejs18.x' };
+export const config = { runtime: 'nodejs' };
 
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
