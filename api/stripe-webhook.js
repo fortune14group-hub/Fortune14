@@ -14,7 +14,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
-function isActiveSubscription(status) {
+export function isActiveSubscription(status) {
   // De statusar där vi betraktar användaren som premium
   return ["trialing", "active", "past_due", "unpaid"].includes(status);
 }
@@ -90,12 +90,12 @@ export default async function handler(req, res) {
           if (user_id) {
             await supabaseAdmin
               .from("users")
-              .update({
+              .upsert({
+                id: user_id,
                 stripe_customer_id: customerId,
                 stripe_subscription_id: sub.id,
                 is_premium: isActiveSubscription(status),
-              })
-              .eq("id", user_id);
+              }, { onConflict: "id" });
           }
         } else {
           await supabaseAdmin
@@ -117,7 +117,7 @@ export default async function handler(req, res) {
           .from("users")
           .select("id")
           .eq("stripe_customer_id", customerId)
-          .single();
+          .maybeSingle();
 
         if (userRow?.id) {
           await supabaseAdmin
