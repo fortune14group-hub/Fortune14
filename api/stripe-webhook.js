@@ -14,6 +14,27 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
+function handleSupabaseError(eventType, userId, error) {
+  const resolvedUserId = userId ?? "unknown";
+  const errorMessage = error?.message || String(error);
+
+  console.error(
+    `Stripe webhook Supabase error - event: ${eventType}, user: ${resolvedUserId}, message: ${errorMessage}`
+  );
+
+  const monitoringService = globalThis?.monitoringService;
+  if (
+    monitoringService &&
+    typeof monitoringService.captureException === "function"
+  ) {
+    monitoringService.captureException(error, {
+      eventType,
+      userId: userId ?? null,
+      message: errorMessage,
+    });
+  }
+}
+
 export function isActiveSubscription(status) {
   // De statusar där vi betraktar användaren som premium
   return ["trialing", "active", "past_due", "unpaid"].includes(status);
@@ -56,25 +77,30 @@ export default async function handler(req, res) {
         // Säkra kund-id
         const customerId = session.customer;
 
-        if (user_id) {
-          const update = {
-            stripe_customer_id: customerId,
-          };
-          if (subscriptionId) update.stripe_subscription_id = subscriptionId;
+        try {
+          if (user_id) {
+            const update = {
+              stripe_customer_id: customerId,
+            };
+            if (subscriptionId) update.stripe_subscription_id = subscriptionId;
 
-          const { error } = await supabaseAdmin
-            .from("users")
-            .update(update)
-            .eq("id", user_id);
-          if (error) throw error;
-
-          if (subscriptionId) {
-            const { error: premiumError } = await supabaseAdmin
+            const { error } = await supabaseAdmin
               .from("users")
-              .update({ is_premium: true })
+              .update(update)
               .eq("id", user_id);
-            if (premiumError) throw premiumError;
+            if (error) throw error;
+
+            if (subscriptionId) {
+              const { error: premiumError } = await supabaseAdmin
+                .from("users")
+                .update({ is_premium: true })
+                .eq("id", user_id);
+              if (premiumError) throw premiumError;
+            }
           }
+        } catch (error) {
+          handleSupabaseError(event.type, user_id, error);
+          throw error;
         }
         break;
       }
@@ -84,35 +110,53 @@ export default async function handler(req, res) {
         const sub = event.data.object;
         const customerId = sub.customer;
         const status = sub.status;
+        const metadataUserId = sub.metadata?.user_id || null;
+        let logUserId = metadataUserId;
 
-        // Försök hitta user via kund-id
-        const { data: userRow, error: findErr } = await supabaseAdmin
-          .from("users")
-          .select("id")
-          .eq("stripe_customer_id", customerId)
-          .single();
+        try {
+          // Försök hitta user via kund-id
+          const { data: userRow, error: findErr } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .single();
 
-        if (findErr) {
-          // Om inte hittad: som fallback, försök via metadata.user_id om finns
-          const user_id = sub.metadata?.user_id || null;
-          if (user_id) {
-            await supabaseAdmin
+          if (userRow?.id) {
+            logUserId = userRow.id;
+          }
+
+          if (findErr && findErr.code !== "PGRST116") {
+            throw findErr;
+          }
+
+          if (!findErr && userRow?.id) {
+            const { error: updateError } = await supabaseAdmin
               .from("users")
-              .upsert({
-                id: user_id,
-                stripe_customer_id: customerId,
+              .update({
                 stripe_subscription_id: sub.id,
                 is_premium: isActiveSubscription(status),
-              }, { onConflict: "id" });
+              })
+              .eq("id", userRow.id);
+
+            if (updateError) throw updateError;
+          } else if (metadataUserId) {
+            const { error: upsertError } = await supabaseAdmin
+              .from("users")
+              .upsert(
+                {
+                  id: metadataUserId,
+                  stripe_customer_id: customerId,
+                  stripe_subscription_id: sub.id,
+                  is_premium: isActiveSubscription(status),
+                },
+                { onConflict: "id" }
+              );
+
+            if (upsertError) throw upsertError;
           }
-        } else {
-          await supabaseAdmin
-            .from("users")
-            .update({
-              stripe_subscription_id: sub.id,
-              is_premium: isActiveSubscription(status),
-            })
-            .eq("id", userRow.id);
+        } catch (error) {
+          handleSupabaseError(event.type, logUserId, error);
+          throw error;
         }
         break;
       }
@@ -120,18 +164,30 @@ export default async function handler(req, res) {
       case "customer.subscription.deleted": {
         const sub = event.data.object;
         const customerId = sub.customer;
+        let logUserId = null;
 
-        const { data: userRow } = await supabaseAdmin
-          .from("users")
-          .select("id")
-          .eq("stripe_customer_id", customerId)
-          .maybeSingle();
-
-        if (userRow?.id) {
-          await supabaseAdmin
+        try {
+          const { data: userRow, error: selectError } = await supabaseAdmin
             .from("users")
-            .update({ is_premium: false, stripe_subscription_id: null })
-            .eq("id", userRow.id);
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .maybeSingle();
+
+          if (selectError) throw selectError;
+
+          if (userRow?.id) {
+            logUserId = userRow.id;
+
+            const { error: updateError } = await supabaseAdmin
+              .from("users")
+              .update({ is_premium: false, stripe_subscription_id: null })
+              .eq("id", userRow.id);
+
+            if (updateError) throw updateError;
+          }
+        } catch (error) {
+          handleSupabaseError(event.type, logUserId, error);
+          throw error;
         }
         break;
       }
