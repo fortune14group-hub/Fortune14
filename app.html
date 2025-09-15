@@ -56,7 +56,7 @@
       <div class="brand">BetSpread</div>
       <div class="right-actions">
         <span id="userEmail" class="badge">…</span>
-        <button id="manageBillingBtn" title="Hantera abonnemang">Hantera</button>
+        <button id="manageBillingBtn" title="Hantera abonnemang" class="hide">Hantera</button>
         <button id="upgradeBtn" class="btn-green">Uppgradera</button>
         <button id="logoutBtn" class="btn-red">Logga ut</button>
       </div>
@@ -227,7 +227,10 @@
 
   // ======= DATA =======
   async function loadProjects(){
-    const { data, error } = await SB.from("projects").select("id,name").order("created_at",{ascending:true});
+    const { data, error } = await SB.from("projects")
+      .select("id,name")
+      .eq("user_id", currentUser.id)
+      .order("created_at",{ascending:true});
     if(error){ console.error(error); return; }
     projects = data||[];
     renderProjectSelect();
@@ -259,7 +262,10 @@
   $("#newProjectBtn").onclick = async ()=>{
     const name = prompt("Namn på nytt projekt:", "Nytt projekt");
     if(!name) return;
-    const { data, error } = await SB.from("projects").insert({ name }).select("id,name").single();
+    const { data, error } = await SB.from("projects")
+      .insert({ name, user_id: currentUser.id })
+      .select("id,name")
+      .single();
     if(error){ alert("Kunde inte skapa projekt"); return; }
     projects.push(data);
     currentProject = data;
@@ -271,7 +277,10 @@
     if(!currentProject) return;
     const name = prompt("Nytt namn:", currentProject.name);
     if(!name) return;
-    const { error } = await SB.from("projects").update({ name }).eq("id", currentProject.id);
+    const { error } = await SB.from("projects")
+      .update({ name })
+      .eq("id", currentProject.id)
+      .eq("user_id", currentUser.id);
     if(error){ alert("Kunde inte byta namn"); return; }
     currentProject.name = name;
     renderProjectSelect();
@@ -280,7 +289,10 @@
   $("#deleteProjectBtn").onclick = async ()=>{
     if(!currentProject) return;
     if(!confirm("Radera projektet och alla spel?")) return;
-    const { error } = await SB.from("projects").delete().eq("id", currentProject.id);
+    const { error } = await SB.from("projects")
+      .delete()
+      .eq("id", currentProject.id)
+      .eq("user_id", currentUser.id);
     if(error){ alert("Kunde inte radera"); return; }
     projects = projects.filter(p=>p.id!==currentProject.id);
     currentProject = projects[0] || null;
@@ -291,7 +303,10 @@
   $("#resetProjectBtn").onclick = async ()=>{
     if(!currentProject) return;
     if(!confirm("Ta bort alla spel i projektet?")) return;
-    const { error } = await SB.from("bets").delete().eq("project_id", currentProject.id);
+    const { error } = await SB.from("bets")
+      .delete()
+      .eq("project_id", currentProject.id)
+      .eq("user_id", currentUser.id);
     if(error){ alert("Kunde inte nollställa"); return; }
     await loadBets();
   };
@@ -301,6 +316,7 @@
     const { data, error } = await SB.from("bets")
       .select("*")
       .eq("project_id", currentProject.id)
+      .eq("user_id", currentUser.id)
       .order("matchday",{ascending:false})
       .order("created_at",{ascending:false});
     if(error){ console.error(error); return; }
@@ -315,7 +331,9 @@
     // Hämta antal totalt
     SB.from("users").select("is_premium").eq("id", currentUser.id).single().then(async ({data})=>{
       const premium = !!data?.is_premium;
-      const { count } = await SB.from("bets").select("*",{count:"exact",head:true});
+      const { count } = await SB.from("bets")
+        .select("id",{count:"exact",head:true})
+        .eq("user_id", currentUser.id);
       if(premium){
         $("#freeBanner").classList.add("hide");
         $("#upgradeBtn").classList.add("hide");
@@ -347,8 +365,14 @@
 
     if(!d || !match || !market || !odds || !stake) return alert("Fyll i alla fält.");
 
+    if($("#addBetBtn").disabled){
+      alert("Du har använt alla 20 gratis spel. Uppgradera för fler.");
+      return;
+    }
+
     const { error } = await SB.from("bets").insert({
       project_id: currentProject.id,
+      user_id: currentUser.id,
       matchday: d,
       match, market, odds, stake, book, result, note
     });
@@ -464,6 +488,7 @@
     $("#iDate").valueAsDate = new Date();
 
     await loadProjects();
+    if(!currentProject) updateFreeBanner();
   })();
 </script>
 </body>
