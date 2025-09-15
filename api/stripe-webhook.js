@@ -67,6 +67,14 @@ export default async function handler(req, res) {
             .update(update)
             .eq("id", user_id);
           if (error) throw error;
+
+          if (subscriptionId) {
+            const { error: premiumError } = await supabaseAdmin
+              .from("users")
+              .update({ is_premium: true })
+              .eq("id", user_id);
+            if (premiumError) throw premiumError;
+          }
         }
         break;
       }
