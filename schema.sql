@@ -40,6 +40,7 @@ alter table public.bets enable row level security;
 -- Users policies
 create policy "Users can view own" on public.users for select using (auth.uid() = id);
 create policy "Users can update own" on public.users for update using (auth.uid() = id);
+create policy "Users can insert own" on public.users for insert with check (auth.uid() = id);
 
 -- Projects policies
 create policy "Projects view" on public.projects for select using (auth.uid() = user_id);

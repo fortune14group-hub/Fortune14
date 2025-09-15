@@ -186,11 +186,27 @@
   $$(".tab").forEach(t => t.addEventListener("click",()=>setTab(t.dataset.tab)));
 
   // ======= AUTH =======
+  async function ensureProfileRow(){
+    if(!currentUser) return;
+    try{
+      const payload = { id: currentUser.id };
+      if(currentUser.email) payload.email = currentUser.email;
+      const { error } = await SB.from("users").upsert(payload, { onConflict: "id" });
+      if(error) console.error("Kunde inte skapa/uppdatera användarrad", error);
+    }catch(err){
+      console.error("ensureProfileRow fel", err);
+    }
+  }
+
   async function ensureAuth(){
     const { data: { session } } = await SB.auth.getSession();
-    if(!session){ location.href = "/login.html"; return; }
+    if(!session){
+      location.href = "/login.html";
+      throw new Error("NOT_AUTHENTICATED");
+    }
     currentUser = session.user;
-    $("#userEmail").textContent = currentUser.email;
+    $("#userEmail").textContent = currentUser.email || "Ingen e-post";
+    await ensureProfileRow();
   }
 
   $("#logoutBtn").onclick = async () => { await SB.auth.signOut(); location.href="/"; };
@@ -200,6 +216,12 @@
     try{
       const { data: { session } } = await SB.auth.getSession();
       const u = session?.user;
+      if(!u?.id){
+        alert("Sessionen är ogiltig. Logga in igen.");
+        return;
+      }
+      currentUser = u;
+      await ensureProfileRow();
       const r = await fetch("/api/create-checkout-session", {
         method:"POST",
         headers:{ "Content-Type": "application/json" },
@@ -213,6 +235,12 @@
     try{
       const { data: { session } } = await SB.auth.getSession();
       const u = session?.user;
+      if(!u?.id){
+        alert("Sessionen är ogiltig. Logga in igen.");
+        return;
+      }
+      currentUser = u;
+      await ensureProfileRow();
       const r = await fetch("/api/create-portal-session", {
         method:"POST",
         headers:{ "Content-Type": "application/json" },
@@ -312,7 +340,11 @@
   };
 
   async function loadBets(){
-    if(!currentProject){ $("#playsContainer").innerHTML=""; return; }
+    if(!currentProject){
+      $("#playsContainer").innerHTML="";
+      await updateFreeBanner();
+      return;
+    }
     const { data, error } = await SB.from("bets")
       .select("*")
       .eq("project_id", currentProject.id)
@@ -323,32 +355,53 @@
     bets = data||[];
     renderBets();
     renderSummary();
-    updateFreeBanner();
+    await updateFreeBanner();
   }
 
-  function updateFreeBanner(){
-    // Gratisgräns: 20 registrerade spel totalt (alla projekt) om inte premium.
-    // Hämta antal totalt
-    SB.from("users").select("is_premium").eq("id", currentUser.id).single().then(async ({data})=>{
-      const premium = !!data?.is_premium;
-      const { count } = await SB.from("bets")
-        .select("id",{count:"exact",head:true})
-        .eq("user_id", currentUser.id);
+  async function updateFreeBanner(){
+    if(!currentUser) return;
+    try{
+      const addBtn = $("#addBetBtn");
+      const { data: profile, error: profileErr } = await SB
+        .from("users")
+        .select("is_premium")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+      if(profileErr) throw profileErr;
+      if(!profile){
+        await ensureProfileRow();
+      }
+
+      const premium = !!profile?.is_premium;
       if(premium){
         $("#freeBanner").classList.add("hide");
         $("#upgradeBtn").classList.add("hide");
         $("#manageBillingBtn").classList.remove("hide");
-      }else{
-        const used = count||0; const left = Math.max(0, 20 - used);
-        $("#usedCount").textContent = used;
-        $("#leftCount").textContent = left;
-        $("#freeBanner").classList.toggle("hide", false);
-        $("#upgradeBtn").classList.remove("hide");
-        $("#manageBillingBtn").classList.add("hide");
-        // Om 20 uppnått: disable add
-        $("#addBetBtn").disabled = (left<=0);
+        if(addBtn) addBtn.disabled = false;
+        return;
       }
-    });
+
+      const { count, error: countErr } = await SB.from("bets")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", currentUser.id);
+      if(countErr) throw countErr;
+
+      const used = count || 0;
+      const left = Math.max(0, 20 - used);
+      $("#usedCount").textContent = used;
+      $("#leftCount").textContent = left;
+      $("#freeBanner").classList.toggle("hide", false);
+      $("#upgradeBtn").classList.remove("hide");
+      $("#manageBillingBtn").classList.add("hide");
+      if(addBtn) addBtn.disabled = left <= 0;
+    }catch(err){
+      console.error("updateFreeBanner fel", err);
+      $("#freeBanner").classList.add("hide");
+      $("#upgradeBtn").classList.remove("hide");
+      $("#manageBillingBtn").classList.add("hide");
+      const addBtn = $("#addBetBtn");
+      if(addBtn) addBtn.disabled = false;
+    }
   }
 
   // ======= LÄGG TILL SPEL =======
@@ -387,11 +440,17 @@
   function renderBets(){
     const byMonth = {};
     for(const b of bets){
+      if(!b.matchday) continue;
       const ym = b.matchday.slice(0,7); // YYYY-MM
       (byMonth[ym] ||= []).push(b);
     }
     const cont = $("#playsContainer");
     cont.innerHTML = "";
+
+    if(bets.length === 0){
+      cont.innerHTML = '<p class="hint">Inga spel registrerade ännu. Lägg till ditt första spel ovan.</p>';
+      return;
+    }
 
     Object.keys(byMonth).sort().reverse().forEach(ym=>{
       const arr = byMonth[ym];
@@ -433,11 +492,17 @@
           p.onclick = async ()=>{
             if(p.dataset.del){
               if(confirm("Ta bort spelet?")){
-                await SB.from("bets").delete().eq("id", b.id);
+                await SB.from("bets")
+                  .delete()
+                  .eq("id", b.id)
+                  .eq("user_id", currentUser.id);
                 await loadBets();
               }
             }else{
-              await SB.from("bets").update({ result: p.dataset.r }).eq("id", b.id);
+              await SB.from("bets")
+                .update({ result: p.dataset.r })
+                .eq("id", b.id)
+                .eq("user_id", currentUser.id);
               await loadBets();
             }
           };
@@ -452,7 +517,7 @@
   function recompute(monthFilter="all"){
     let data = bets;
     if(monthFilter!=="all"){
-      data = data.filter(b => b.matchday.startsWith(monthFilter));
+      data = data.filter(b => b.matchday?.startsWith(monthFilter));
     }
     const decided = data.filter(b => b.result!=="Pending" && b.result!=="Void");
     const wins = decided.filter(b => b.result==="Win").length;
@@ -474,7 +539,7 @@
 
   function renderSummary(){
     // fyll månadsväljare
-    const months = [...new Set(bets.map(b=>b.matchday.slice(0,7)))].sort().reverse();
+    const months = [...new Set(bets.filter(b=>b.matchday).map(b=>b.matchday.slice(0,7)))].sort().reverse();
     const sel = $("#monthFilter");
     sel.innerHTML = `<option value="all">Alla månader</option>` + months.map(m=>`<option value="${m}">${m}</option>`).join("");
     sel.onchange = ()=>recompute(sel.value);
@@ -483,12 +548,18 @@
 
   // ======= INIT =======
   (async function init(){
-    await ensureAuth();
+    try{
+      await ensureAuth();
+    }catch(err){
+      console.warn("Användaren är inte inloggad", err);
+      return;
+    }
+
     // förifyll dagens datum
     $("#iDate").valueAsDate = new Date();
 
     await loadProjects();
-    if(!currentProject) updateFreeBanner();
+    if(!currentProject) await updateFreeBanner();
   })();
 </script>
 </body>

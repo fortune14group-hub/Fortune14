@@ -29,6 +29,7 @@ export default async function handler(req, res) {
   try {
     const origin = getOrigin(req);
     const { user_id, email } = req.body || {};
+    const incomingEmail = typeof email === "string" ? email.trim() : undefined;
 
     if (!user_id) {
       return res.status(400).json({ error: "Missing user_id" });
@@ -39,14 +40,33 @@ export default async function handler(req, res) {
       .from("users")
       .select("stripe_customer_id, email")
       .eq("id", user_id)
-      .single();
+      .maybeSingle();
 
     if (userErr) throw userErr;
 
-    const customerEmail = email || userRow?.email || undefined;
+    let profile = userRow || null;
+
+    if (!profile) {
+      const { data: inserted, error: insertErr } = await supabaseAdmin
+        .from("users")
+        .upsert({ id: user_id, email: incomingEmail })
+        .select("stripe_customer_id, email")
+        .single();
+      if (insertErr) throw insertErr;
+      profile = inserted;
+    } else if (incomingEmail && profile.email !== incomingEmail) {
+      const { error: emailUpdateErr } = await supabaseAdmin
+        .from("users")
+        .update({ email: incomingEmail })
+        .eq("id", user_id);
+      if (emailUpdateErr) throw emailUpdateErr;
+      profile.email = incomingEmail;
+    }
+
+    const customerEmail = incomingEmail || profile?.email || undefined;
 
     // Skapa kund i Stripe om saknas
-    let customerId = userRow?.stripe_customer_id || null;
+    let customerId = profile?.stripe_customer_id || null;
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: customerEmail,
