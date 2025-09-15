@@ -202,7 +202,8 @@
       const u = session?.user;
       const r = await fetch("/api/create-checkout-session", {
         method:"POST",
-        headers:{ "x-sb-user": u?.id||"", "x-sb-email": u?.email||"" }
+        headers:{ "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: u?.id, email: u?.email })
       });
       const d = await r.json();
       if(d?.url) location.href = d.url; else alert(d?.error || "Kunde inte starta Stripe Checkout");
@@ -214,7 +215,8 @@
       const u = session?.user;
       const r = await fetch("/api/create-portal-session", {
         method:"POST",
-        headers:{ "x-sb-user": u?.id||"" }
+        headers:{ "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: u?.id })
       });
       const d = await r.json();
       if(d?.url) location.href = d.url; else alert(d?.error || "Ingen portal hittades");

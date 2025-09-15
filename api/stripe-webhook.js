@@ -14,7 +14,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
-function isActiveSubscription(status) {
+export function isActiveSubscription(status) {
   // De statusar där vi betraktar användaren som premium
   return ["trialing", "active", "past_due", "unpaid"].includes(status);
 }

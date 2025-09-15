@@ -14,7 +14,7 @@ const supabaseAdmin = createClient(
 );
 
 function getOrigin(req) {
-  // Använd värd från request för att bygga absolut URL till app.html
+  // Använd protokoll och värd från request för att bygga absolut URL till app.html
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   return `${proto}://${host}`;
