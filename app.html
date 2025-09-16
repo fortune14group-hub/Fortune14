@@ -5,6 +5,127 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>BetSpread – App</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+<link rel="stylesheet" href="./app.css">
+
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">BetSpread</div>
+      <div class="header-meta">
+        <span id="userEmail" class="chip">…</span>
+        <button id="manageBillingBtn" class="btn ghost hide">Hantera</button>
+        <button id="upgradeBtn" class="btn primary">Uppgradera</button>
+        <button id="logoutBtn" class="btn danger">Logga ut</button>
+      </div>
+    </header>
+
+    <div id="freeBanner" class="notice hide">
+      Gratisläge: <span id="usedCount">0</span>/20 spel använda. Du har <span id="leftCount">20</span> kvar.
+    </div>
+
+    <main class="app-main">
+      <section class="primary">
+        <div class="top-board">
+          <section class="panel project-card">
+            <div class="project-header">
+              <div>
+                <span class="eyebrow">Aktivt projekt</span>
+                <h2 id="projectTitle" class="project-name">Inget projekt valt</h2>
+              </div>
+              <span class="count-chip"><span id="projectCount">0</span> projekt</span>
+            </div>
+            <div class="project-controls">
+              <label class="sr-only" for="projectSelect">Välj projekt</label>
+              <select id="projectSelect" aria-label="Välj projekt"></select>
+              <div class="project-buttons">
+                <button id="newProjectBtn" class="btn ghost" type="button">Nytt</button>
+                <button id="renameProjectBtn" class="btn ghost" type="button">Byt namn</button>
+                <button id="deleteProjectBtn" class="btn danger" type="button">Radera</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel stats-panel">
+            <div class="stats-heading">
+              <h2>Snabböversikt</h2>
+              <p class="muted">Uppdateras automatiskt för valt projekt.</p>
+            </div>
+            <div class="overview-grid">
+              <div class="overview-card">
+                <span class="label">Spel totalt</span>
+                <span id="quickTotal" class="value">0</span>
+              </div>
+              <div class="overview-card">
+                <span class="label">Pågående</span>
+                <span id="quickPending" class="value">0</span>
+              </div>
+              <div class="overview-card">
+                <span class="label">ROI</span>
+                <span id="quickRoi" class="value">–</span>
+              </div>
+              <div class="overview-card">
+                <span class="label">Profit</span>
+                <span id="quickProfit" class="value">0.00</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="reg" role="tab" aria-selected="true">Registrera spel</button>
+          <button class="tab" data-tab="summary" role="tab" aria-selected="false">Månadssummering</button>
+          <button class="tab" data-tab="list" role="tab" aria-selected="false">Spel</button>
+        </div>
+
+        <section id="tab-reg" class="panel tab-panel" role="tabpanel" aria-labelledby="Registrera spel">
+          <div class="form-grid">
+            <div class="col-3">
+              <label for="iDate">Matchdag</label>
+              <input id="iDate" type="date" />
+            </div>
+            <div class="col-4">
+              <label for="iMatch">Match</label>
+              <input id="iMatch" type="text" placeholder="Arsenal — Chelsea" />
+            </div>
+            <div class="col-3">
+              <label for="iMarket">Marknad</label>
+              <input id="iMarket" type="text" placeholder="Över 8.5 frisparkar" />
+            </div>
+            <div class="col-2">
+              <label for="iOdds">Oddset</label>
+              <input id="iOdds" type="number" step="0.01" min="1.01" placeholder="1.85" />
+            </div>
+            <div class="col-2">
+              <label for="iStake">Insats</label>
+              <input id="iStake" type="number" step="1" min="1" value="1" />
+            </div>
+            <div class="col-3">
+              <label for="iBook">Spelbolag</label>
+              <input id="iBook" type="text" placeholder="Bet365" />
+            </div>
+            <div class="col-3">
+              <label for="iResult">Resultat</label>
+              <select id="iResult">
+                <option>Pending</option>
+                <option>Win</option>
+                <option>Loss</option>
+                <option>Void</option>
+              </select>
+            </div>
+            <div class="col-6 form-actions">
+              <button id="cancelEditBtn" class="btn ghost hide" type="button">Avbryt redigering</button>
+              <button id="addBetBtn" class="btn primary" type="button">Lägg till spel</button>
+              <button id="resetProjectBtn" class="btn danger" type="button">Nollställ projekt</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-summary" class="panel tab-panel hide" role="tabpanel" aria-labelledby="Månadssummering">
+          <div class="form-grid" style="margin-bottom: 16px;">
+            <div class="col-4">
+
 <style>
   :root{
     --bg:#050b17;
@@ -497,10 +618,44 @@
               <p class="hint">Analysera avgjorda spel och följ ROI per månad.</p>
             </div>
             <div class="filter">
+        main
               <label for="monthFilter">Månad (matchdag)</label>
               <select id="monthFilter"></select>
             </div>
           </div>
+          <div class="summary-grid">
+            <div class="summary-card">
+              <span class="label">Spel (avgjorda)</span>
+              <span id="sGames" class="value">0</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">Vinster</span>
+              <span id="sWins" class="value">0</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">Profit</span>
+              <span id="sProfit" class="value">0.00</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">ROI</span>
+              <span id="sRoi" class="value">0.00%</span>
+            </div>
+          </div>
+          <div class="summary-meta" style="margin-top: 20px;">
+            <span class="label">Vald period</span>
+            <div id="sMonthName" class="value">Alla månader</div>
+          </div>
+        </section>
+
+        <section id="tab-list" class="panel tab-panel hide" role="tabpanel" aria-labelledby="Spel">
+          <div id="playsContainer"></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+
           <div class="stat-grid">
             <div class="stat-card"><span class="label">Spel (avgjorda)</span><span id="sGames" class="value">0</span></div>
             <div class="stat-card"><span class="label">Vinster</span><span id="sWins" class="value">0</span></div>
@@ -1030,10 +1185,7 @@
     }
 
     $("#iDate").valueAsDate = new Date();
+        main
 
-    await loadProjects();
-    if(!currentProject) await updateFreeBanner();
-  })();
-</script>
 </body>
 </html>
