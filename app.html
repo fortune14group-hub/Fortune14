@@ -836,8 +836,21 @@
       if(d?.url) location.href = d.url; else alert(d?.error || "Ingen portal hittades");
     }catch(e){ alert("Nätverksfel mot Stripe"); }
   }
-  $("#upgradeBtn").onclick = callStripeCheckout;
-  $("#manageBillingBtn").onclick = callBillingPortal;
+  const upgradeBtnEl = $("#upgradeBtn");
+  if(upgradeBtnEl){
+    upgradeBtnEl.dataset.mode = "upgrade";
+    upgradeBtnEl.addEventListener("click", ()=>{
+      if(upgradeBtnEl.dataset.mode === "manage"){
+        callBillingPortal();
+      }else{
+        callStripeCheckout();
+      }
+    });
+  }
+  const manageBillingBtnEl = $("#manageBillingBtn");
+  if(manageBillingBtnEl){
+    manageBillingBtnEl.addEventListener("click", callBillingPortal);
+  }
 
   // Section: Datahämtning
   async function loadProjects(){
@@ -973,6 +986,8 @@
       if(profileErr){ console.error(profileErr); return; }
       const banner = $("#freeBanner");
       if(!banner) return;
+      const manageBtn = $("#manageBillingBtn");
+      const upgradeBtn = $("#upgradeBtn");
       const isPremium = Boolean(profile?.is_premium);
       const used = Number(profile?.free_bets_used) || 0;
       const left = Math.max(20 - used, 0);
@@ -980,11 +995,19 @@
       $("#leftCount").textContent = left.toString();
       if(isPremium){
         banner.classList.add("hide");
-        const manageBtn = $("#manageBillingBtn");
         if(manageBtn) manageBtn.classList.remove("hide");
+        if(upgradeBtn){
+          upgradeBtn.textContent = "Hantera";
+          upgradeBtn.dataset.mode = "manage";
+        }
         if(addBtn) addBtn.disabled = false;
       }else{
         banner.classList.remove("hide");
+        if(manageBtn) manageBtn.classList.add("hide");
+        if(upgradeBtn){
+          upgradeBtn.textContent = "Uppgradera";
+          upgradeBtn.dataset.mode = "upgrade";
+        }
         if(addBtn) addBtn.disabled = used >= 20;
       }
     }catch(err){
