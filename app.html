@@ -5,562 +5,161 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>BetSpread – App</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<style>
-  :root{
-    --bg:#0b1522; --panel:#111b2a; --muted:#1a2740; --text:#e7eefc;
-    --sub:#b7c6e9; --accent:#6ee7bf; --accent-2:#4ade80; --danger:#ef4444;
-    --btn:#1f2a44; --btn-h:#273354; --tab:#1b2743; --tab-a:#243355;
-  }
-  *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0a1420,#0c1726);
-    color:var(--text);font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
-  .container{max-width:1100px;margin:20px auto;padding:0 16px}
-  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-  .brand{font-weight:800;font-size:22px}
-  .right-actions{display:flex;gap:10px;align-items:center}
-  button, .btn{background:var(--btn);border:1px solid #2a3a63;color:var(--text);border-radius:10px;
-    padding:10px 14px;cursor:pointer;transition:.15s;font-weight:600}
-  button:hover,.btn:hover{background:var(--btn-h)}
-  .btn-green{background:linear-gradient(180deg,#22c55e,#16a34a);border:none}
-  .btn-green:hover{filter:brightness(1.05)}
-  .btn-red{background:linear-gradient(180deg,#ef4444,#dc2626);border:none}
-  .panel{background:var(--panel);border:1px solid #22325a;border-radius:14px;padding:14px}
-  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-  select,input,textarea{background:#0e1a2a;border:1px solid #22325a;color:var(--text);
-    padding:10px;border-radius:10px;outline:none}
-  input[type="date"]{padding:8px 10px}
-  textarea{resize:vertical}
-  .tabs{display:flex;gap:8px;margin:10px 0}
-  .tab{background:var(--tab);border:1px solid #26365e;border-radius:10px;padding:10px 14px;cursor:pointer}
-  .tab.active{background:var(--tab-a)}
-  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
-  .col-2{grid-column:span 2} .col-3{grid-column:span 3} .col-4{grid-column:span 4} .col-6{grid-column:span 6} .col-12{grid-column:span 12}
-  .hint{color:var(--sub);font-size:14px}
-  .banner{background:#3f1d1d;border:1px solid #6b1d1d;color:#ffd9d9;border-radius:12px;padding:12px 14px;margin:12px 0}
-  .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#12213a;border:1px solid #27406e;color:#9fb7e6;font-size:12px}
-  .row{display:grid;grid-template-columns:110px 1fr 1fr 90px 70px 120px 1fr 140px;gap:10px;align-items:center}
-  .row > div{padding:6px 0}
-  .actions{display:flex;gap:6px;flex-wrap:wrap}
-  .pill{padding:6px 10px;border-radius:8px;background:#0e1d32;border:1px solid #2a416e;font-size:13px;cursor:pointer}
-  .pill.win{background:#11341f;border-color:#2f6c48} .pill.loss{background:#341313;border-color:#6c2f2f}
-  .pill.pending{background:#1f2a44;border-color:#3b4d7c} .pill.void{background:#303030;border-color:#595959}
-  details.month{border:1px solid #22325a;background:#0d1828;border-radius:12px;padding:10px;margin-bottom:10px}
-  details.month summary{cursor:pointer;font-weight:700}
-  .stat{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
-  .stat .panel{padding:10px}
-  .hide{display:none}
-</style>
+<link rel="stylesheet" href="./app.css">
+
 </head>
 <body>
-  <div class="container">
-    <header>
+  <div class="app-shell">
+    <header class="app-header">
       <div class="brand">BetSpread</div>
-      <div class="right-actions">
-        <span id="userEmail" class="badge">…</span>
-        <button id="manageBillingBtn" title="Hantera abonnemang" class="hide">Hantera</button>
-        <button id="upgradeBtn" class="btn-green">Uppgradera</button>
-        <button id="logoutBtn" class="btn-red">Logga ut</button>
+      <div class="header-meta">
+        <span id="userEmail" class="chip">…</span>
+        <button id="manageBillingBtn" class="btn ghost hide">Hantera</button>
+        <button id="upgradeBtn" class="btn primary">Uppgradera</button>
+        <button id="logoutBtn" class="btn danger">Logga ut</button>
       </div>
     </header>
 
-    <div id="freeBanner" class="banner hide">Gratisläge: <span id="usedCount">0</span>/20 spel använda. Du har <span id="leftCount">20</span> kvar.</div>
-
-    <!-- Projektpanel -->
-    <div class="panel">
-      <div class="controls">
-        <label>Projekt</label>
-        <select id="projectSelect" style="min-width:260px"></select>
-        <button id="newProjectBtn">Nytt projekt</button>
-        <button id="renameProjectBtn">Byt namn</button>
-        <button id="deleteProjectBtn" class="btn-red">Radera</button>
-      </div>
+    <div id="freeBanner" class="notice hide">
+      Gratisläge: <span id="usedCount">0</span>/20 spel använda. Du har <span id="leftCount">20</span> kvar.
     </div>
 
-    <!-- Flikar -->
-    <div class="tabs">
-      <div class="tab active" data-tab="reg">Registrera spel</div>
-      <div class="tab" data-tab="summary">Månadssummering</div>
-      <div class="tab" data-tab="list">Spel</div>
-    </div>
+    <main class="app-main">
+      <section class="primary">
+        <div class="top-board">
+          <section class="panel project-card">
+            <div class="project-header">
+              <div>
+                <span class="eyebrow">Aktivt projekt</span>
+                <h2 id="projectTitle" class="project-name">Inget projekt valt</h2>
+              </div>
+              <span class="count-chip"><span id="projectCount">0</span> projekt</span>
+            </div>
+            <div class="project-controls">
+              <label class="sr-only" for="projectSelect">Välj projekt</label>
+              <select id="projectSelect" aria-label="Välj projekt"></select>
+              <div class="project-buttons">
+                <button id="newProjectBtn" class="btn ghost" type="button">Nytt</button>
+                <button id="renameProjectBtn" class="btn ghost" type="button">Byt namn</button>
+                <button id="deleteProjectBtn" class="btn danger" type="button">Radera</button>
+              </div>
+            </div>
+          </section>
 
-    <!-- Registrera -->
-    <section id="tab-reg" class="panel">
-      <div class="grid">
-        <div class="col-2">
-          <label>Matchdag</label>
-          <input id="iDate" type="date" />
-        </div>
-        <div class="col-3">
-          <label>Match</label>
-          <input id="iMatch" type="text" placeholder="Arsenal — Chelsea" />
-        </div>
-        <div class="col-3">
-          <label>Marknad</label>
-          <input id="iMarket" type="text" placeholder="Över 8.5 frisparkar" />
-        </div>
-        <div class="col-2">
-          <label>Oddset</label>
-          <input id="iOdds" type="number" step="0.01" min="1.01" placeholder="1.85" />
-        </div>
-        <div class="col-1">
-          <label>Insats</label>
-          <input id="iStake" type="number" step="1" min="1" value="1"/>
-        </div>
-        <div class="col-1">
-          <label>Spelbolag</label>
-          <input id="iBook" type="text" placeholder="Bet365" />
+          <section class="panel stats-panel">
+            <div class="stats-heading">
+              <h2>Snabböversikt</h2>
+              <p class="muted">Uppdateras automatiskt för valt projekt.</p>
+            </div>
+            <div class="overview-grid">
+              <div class="overview-card">
+                <span class="label">Spel totalt</span>
+                <span id="quickTotal" class="value">0</span>
+              </div>
+              <div class="overview-card">
+                <span class="label">Pågående</span>
+                <span id="quickPending" class="value">0</span>
+              </div>
+              <div class="overview-card">
+                <span class="label">ROI</span>
+                <span id="quickRoi" class="value">–</span>
+              </div>
+              <div class="overview-card">
+                <span class="label">Profit</span>
+                <span id="quickProfit" class="value">0.00</span>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div class="col-2">
-          <label>Resultat</label>
-          <select id="iResult">
-            <option>Pending</option><option>Win</option><option>Loss</option><option>Void</option>
-          </select>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="reg" role="tab" aria-selected="true">Registrera spel</button>
+          <button class="tab" data-tab="summary" role="tab" aria-selected="false">Månadssummering</button>
+          <button class="tab" data-tab="list" role="tab" aria-selected="false">Spel</button>
         </div>
-        <div class="col-6">
-          <label>Notering</label>
-          <input id="iNote" type="text" placeholder="Ex. sent mål, cashout, etc." />
-        </div>
-        <div class="col-4 actions" style="align-self:end">
-          <button id="addBetBtn" class="btn-green">Lägg till spel</button>
-          <button id="resetProjectBtn" class="btn-red">Nollställ projekt</button>
-        </div>
-      </div>
-    </section>
 
-    <!-- Månadssummering -->
-    <section id="tab-summary" class="panel hide">
-      <div class="controls">
-        <label>Månad (matchdag)</label>
-        <select id="monthFilter"></select>
-      </div>
+        <section id="tab-reg" class="panel tab-panel" role="tabpanel" aria-labelledby="Registrera spel">
+          <div class="form-grid">
+            <div class="col-3">
+              <label for="iDate">Matchdag</label>
+              <input id="iDate" type="date" />
+            </div>
+            <div class="col-4">
+              <label for="iMatch">Match</label>
+              <input id="iMatch" type="text" placeholder="Arsenal — Chelsea" />
+            </div>
+            <div class="col-3">
+              <label for="iMarket">Marknad</label>
+              <input id="iMarket" type="text" placeholder="Över 8.5 frisparkar" />
+            </div>
+            <div class="col-2">
+              <label for="iOdds">Oddset</label>
+              <input id="iOdds" type="number" step="0.01" min="1.01" placeholder="1.85" />
+            </div>
+            <div class="col-2">
+              <label for="iStake">Insats</label>
+              <input id="iStake" type="number" step="1" min="1" value="1" />
+            </div>
+            <div class="col-3">
+              <label for="iBook">Spelbolag</label>
+              <input id="iBook" type="text" placeholder="Bet365" />
+            </div>
+            <div class="col-3">
+              <label for="iResult">Resultat</label>
+              <select id="iResult">
+                <option>Pending</option>
+                <option>Win</option>
+                <option>Loss</option>
+                <option>Void</option>
+              </select>
+            </div>
+            <div class="col-6 form-actions">
+              <button id="cancelEditBtn" class="btn ghost hide" type="button">Avbryt redigering</button>
+              <button id="addBetBtn" class="btn primary" type="button">Lägg till spel</button>
+              <button id="resetProjectBtn" class="btn danger" type="button">Nollställ projekt</button>
+            </div>
+          </div>
+        </section>
 
-      <div class="stat">
-        <div class="panel"><div class="hint">Spel (avgjorda)</div><div id="sGames" style="font-size:22px;font-weight:800">0</div></div>
-        <div class="panel"><div class="hint">Win</div><div id="sWins" style="font-size:22px;font-weight:800">0</div></div>
-        <div class="panel"><div class="hint">Profit</div><div id="sProfit" style="font-size:22px;font-weight:800">0.00</div></div>
-        <div class="panel"><div class="hint">ROI</div><div id="sRoi" style="font-size:22px;font-weight:800">0.00%</div></div>
-      </div>
+        <section id="tab-summary" class="panel tab-panel hide" role="tabpanel" aria-labelledby="Månadssummering">
+          <div class="form-grid" style="margin-bottom: 16px;">
+            <div class="col-4">
+              <label for="monthFilter">Månad (matchdag)</label>
+              <select id="monthFilter"></select>
+            </div>
+          </div>
+          <div class="summary-grid">
+            <div class="summary-card">
+              <span class="label">Spel (avgjorda)</span>
+              <span id="sGames" class="value">0</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">Vinster</span>
+              <span id="sWins" class="value">0</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">Profit</span>
+              <span id="sProfit" class="value">0.00</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">ROI</span>
+              <span id="sRoi" class="value">0.00%</span>
+            </div>
+          </div>
+          <div class="summary-meta" style="margin-top: 20px;">
+            <span class="label">Vald period</span>
+            <div id="sMonthName" class="value">Alla månader</div>
+          </div>
+        </section>
 
-      <div style="margin-top:10px">
-        <div class="panel">
-          <div class="hint">Månad</div>
-          <div id="sMonthName" style="font-weight:700">-</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Spel -->
-    <section id="tab-list" class="panel hide">
-      <div id="playsContainer"></div>
-    </section>
+        <section id="tab-list" class="panel tab-panel hide" role="tabpanel" aria-labelledby="Spel">
+          <div id="playsContainer"></div>
+        </section>
+      </section>
+    </main>
   </div>
 
-<script type="module">
-  // ======= KONFIG =======
-  const SUPABASE_URL = "https://updpywjfxeahtjpelbku.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZHB5d2pmeGVhaHRqcGVsYmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MjQzOTcsImV4cCI6MjA3MjUwMDM5N30.i1ztG8dkcHFLq8WEn_uVrgCBk0_Wf5gZb_OQQuaSGgo";
+  <script type="module" src="./app.js"></script>
 
-  // ======= LIBS =======
-  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-  const SB = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // ======= STATE =======
-  let currentUser = null;
-  let currentProject = null; // {id, name}
-  let projects = []; // [{id,name}]
-  let bets = [];     // alla bets för valt projekt
-
-  // ======= UI HELPERS =======
-  const $ = s => document.querySelector(s);
-  const $$ = s => document.querySelectorAll(s);
-  const fmtMoney = v => (Math.round(v * 100)/100).toFixed(2);
-  const svMonth = (y,m) => new Date(y, m-1, 1).toLocaleDateString("sv-SE",{month:"long",year:"numeric"});
-
-  function setTab(name){
-    $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab===name));
-    $("#tab-reg").classList.toggle("hide", name!=="reg");
-    $("#tab-summary").classList.toggle("hide", name!=="summary");
-    $("#tab-list").classList.toggle("hide", name!=="list");
-  }
-
-  $$(".tab").forEach(t => t.addEventListener("click",()=>setTab(t.dataset.tab)));
-
-  // ======= AUTH =======
-  async function ensureProfileRow(){
-    if(!currentUser) return;
-    try{
-      const payload = { id: currentUser.id };
-      if(currentUser.email) payload.email = currentUser.email;
-      const { error } = await SB.from("users").upsert(payload, { onConflict: "id" });
-      if(error) console.error("Kunde inte skapa/uppdatera användarrad", error);
-    }catch(err){
-      console.error("ensureProfileRow fel", err);
-    }
-  }
-
-  async function ensureAuth(){
-    const { data: { session } } = await SB.auth.getSession();
-    if(!session){
-      location.href = "/login.html";
-      throw new Error("NOT_AUTHENTICATED");
-    }
-    currentUser = session.user;
-    $("#userEmail").textContent = currentUser.email || "Ingen e-post";
-    await ensureProfileRow();
-  }
-
-  $("#logoutBtn").onclick = async () => { await SB.auth.signOut(); location.href="/"; };
-
-  // ======= STRIPE KNAPPAR =======
-  async function callStripeCheckout(){
-    try{
-      const { data: { session } } = await SB.auth.getSession();
-      const u = session?.user;
-      if(!u?.id){
-        alert("Sessionen är ogiltig. Logga in igen.");
-        return;
-      }
-      currentUser = u;
-      await ensureProfileRow();
-      const r = await fetch("/api/create-checkout-session", {
-        method:"POST",
-        headers:{ "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: u?.id, email: u?.email })
-      });
-      const d = await r.json();
-      if(d?.url) location.href = d.url; else alert(d?.error || "Kunde inte starta Stripe Checkout");
-    }catch(e){ alert("Nätverksfel mot Stripe"); }
-  }
-  async function callBillingPortal(){
-    try{
-      const { data: { session } } = await SB.auth.getSession();
-      const u = session?.user;
-      if(!u?.id){
-        alert("Sessionen är ogiltig. Logga in igen.");
-        return;
-      }
-      currentUser = u;
-      await ensureProfileRow();
-      const r = await fetch("/api/create-portal-session", {
-        method:"POST",
-        headers:{ "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: u?.id })
-      });
-      const d = await r.json();
-      if(d?.url) location.href = d.url; else alert(d?.error || "Ingen portal hittades");
-    }catch(e){ alert("Nätverksfel mot Stripe"); }
-  }
-  $("#upgradeBtn").onclick = callStripeCheckout;
-  $("#manageBillingBtn").onclick = callBillingPortal;
-
-  // ======= DATA =======
-  async function loadProjects(){
-    const { data, error } = await SB.from("projects")
-      .select("id,name")
-      .eq("user_id", currentUser.id)
-      .order("created_at",{ascending:true});
-    if(error){ console.error(error); return; }
-    projects = data||[];
-    renderProjectSelect();
-  }
-
-  function renderProjectSelect(){
-    const sel = $("#projectSelect");
-    sel.innerHTML = "";
-    for(const p of projects){
-      const opt = document.createElement("option");
-      opt.value = p.id; opt.textContent = p.name;
-      sel.appendChild(opt);
-    }
-    if(projects.length && !currentProject){
-      currentProject = projects[0];
-      sel.value = currentProject.id;
-      loadBets();
-    }else if(currentProject){
-      sel.value = currentProject.id;
-    }
-  }
-
-  $("#projectSelect").onchange = ()=>{
-    const id = $("#projectSelect").value;
-    currentProject = projects.find(p=>p.id===id) || null;
-    loadBets();
-  };
-
-  $("#newProjectBtn").onclick = async ()=>{
-    const name = prompt("Namn på nytt projekt:", "Nytt projekt");
-    if(!name) return;
-    const { data, error } = await SB.from("projects")
-      .insert({ name, user_id: currentUser.id })
-      .select("id,name")
-      .single();
-    if(error){ alert("Kunde inte skapa projekt"); return; }
-    projects.push(data);
-    currentProject = data;
-    renderProjectSelect();
-    await loadBets();
-  };
-
-  $("#renameProjectBtn").onclick = async ()=>{
-    if(!currentProject) return;
-    const name = prompt("Nytt namn:", currentProject.name);
-    if(!name) return;
-    const { error } = await SB.from("projects")
-      .update({ name })
-      .eq("id", currentProject.id)
-      .eq("user_id", currentUser.id);
-    if(error){ alert("Kunde inte byta namn"); return; }
-    currentProject.name = name;
-    renderProjectSelect();
-  };
-
-  $("#deleteProjectBtn").onclick = async ()=>{
-    if(!currentProject) return;
-    if(!confirm("Radera projektet och alla spel?")) return;
-    const { error } = await SB.from("projects")
-      .delete()
-      .eq("id", currentProject.id)
-      .eq("user_id", currentUser.id);
-    if(error){ alert("Kunde inte radera"); return; }
-    projects = projects.filter(p=>p.id!==currentProject.id);
-    currentProject = projects[0] || null;
-    renderProjectSelect();
-    await loadBets();
-  };
-
-  $("#resetProjectBtn").onclick = async ()=>{
-    if(!currentProject) return;
-    if(!confirm("Ta bort alla spel i projektet?")) return;
-    const { error } = await SB.from("bets")
-      .delete()
-      .eq("project_id", currentProject.id)
-      .eq("user_id", currentUser.id);
-    if(error){ alert("Kunde inte nollställa"); return; }
-    await loadBets();
-  };
-
-  async function loadBets(){
-    if(!currentProject){
-      $("#playsContainer").innerHTML="";
-      await updateFreeBanner();
-      return;
-    }
-    const { data, error } = await SB.from("bets")
-      .select("*")
-      .eq("project_id", currentProject.id)
-      .eq("user_id", currentUser.id)
-      .order("matchday",{ascending:false})
-      .order("created_at",{ascending:false});
-    if(error){ console.error(error); return; }
-    bets = data||[];
-    renderBets();
-    renderSummary();
-    await updateFreeBanner();
-  }
-
-  async function updateFreeBanner(){
-    if(!currentUser) return;
-    try{
-      const addBtn = $("#addBetBtn");
-      const { data: profile, error: profileErr } = await SB
-        .from("users")
-        .select("is_premium")
-        .eq("id", currentUser.id)
-        .maybeSingle();
-      if(profileErr) throw profileErr;
-      if(!profile){
-        await ensureProfileRow();
-      }
-
-      const premium = !!profile?.is_premium;
-      if(premium){
-        $("#freeBanner").classList.add("hide");
-        $("#upgradeBtn").classList.add("hide");
-        $("#manageBillingBtn").classList.remove("hide");
-        if(addBtn) addBtn.disabled = false;
-        return;
-      }
-
-      const { count, error: countErr } = await SB.from("bets")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", currentUser.id);
-      if(countErr) throw countErr;
-
-      const used = count || 0;
-      const left = Math.max(0, 20 - used);
-      $("#usedCount").textContent = used;
-      $("#leftCount").textContent = left;
-      $("#freeBanner").classList.toggle("hide", false);
-      $("#upgradeBtn").classList.remove("hide");
-      $("#manageBillingBtn").classList.add("hide");
-      if(addBtn) addBtn.disabled = left <= 0;
-    }catch(err){
-      console.error("updateFreeBanner fel", err);
-      $("#freeBanner").classList.add("hide");
-      $("#upgradeBtn").classList.remove("hide");
-      $("#manageBillingBtn").classList.add("hide");
-      const addBtn = $("#addBetBtn");
-      if(addBtn) addBtn.disabled = false;
-    }
-  }
-
-  // ======= LÄGG TILL SPEL =======
-  $("#addBetBtn").onclick = async ()=>{
-    if(!currentProject) return alert("Välj/skapa projekt först.");
-    const d = $("#iDate").value;
-    const match = $("#iMatch").value.trim();
-    const market = $("#iMarket").value.trim();
-    const odds = parseFloat($("#iOdds").value);
-    const stake = parseFloat($("#iStake").value||"1");
-    const book = $("#iBook").value.trim();
-    const result = $("#iResult").value;
-    const note = $("#iNote").value.trim();
-
-    if(!d || !match || !market || !odds || !stake) return alert("Fyll i alla fält.");
-
-    if($("#addBetBtn").disabled){
-      alert("Du har använt alla 20 gratis spel. Uppgradera för fler.");
-      return;
-    }
-
-    const { error } = await SB.from("bets").insert({
-      project_id: currentProject.id,
-      user_id: currentUser.id,
-      matchday: d,
-      match, market, odds, stake, book, result, note
-    });
-    if(error){ alert("Kunde inte spara spel"); return; }
-
-    $("#iNote").value = "";
-    await loadBets();
-    setTab("list");
-  };
-
-  // ======= RENDER LISTA (gruppera per månad) =======
-  function renderBets(){
-    const byMonth = {};
-    for(const b of bets){
-      if(!b.matchday) continue;
-      const ym = b.matchday.slice(0,7); // YYYY-MM
-      (byMonth[ym] ||= []).push(b);
-    }
-    const cont = $("#playsContainer");
-    cont.innerHTML = "";
-
-    if(bets.length === 0){
-      cont.innerHTML = '<p class="hint">Inga spel registrerade ännu. Lägg till ditt första spel ovan.</p>';
-      return;
-    }
-
-    Object.keys(byMonth).sort().reverse().forEach(ym=>{
-      const arr = byMonth[ym];
-      const [y,m] = ym.split("-").map(Number);
-      const el = document.createElement("details");
-      el.className = "month"; el.open = false;
-      el.innerHTML = `<summary>${svMonth(y,m)} (${arr.length} spel)</summary>`;
-
-      const header = document.createElement("div");
-      header.className = "row hint";
-      header.innerHTML = `
-        <div>Datum</div><div>Match</div><div>Marknad</div>
-        <div>Odds</div><div>Insats</div><div>Spelbolag</div>
-        <div>Notering</div><div>Resultat</div>`;
-      el.appendChild(header);
-
-      for(const b of arr){
-        const row = document.createElement("div"); row.className="row";
-        const resHtml = `
-          <div class="actions">
-            <span class="pill win" data-r="Win">Win</span>
-            <span class="pill loss" data-r="Loss">Loss</span>
-            <span class="pill pending" data-r="Pending">Pending</span>
-            <span class="pill void" data-r="Void">Void</span>
-            <span class="pill" data-del="1" style="margin-left:6px">Ta bort</span>
-          </div>`;
-        row.innerHTML = `
-          <div>${b.matchday}</div>
-          <div>${b.match}</div>
-          <div>${b.market}</div>
-          <div>${b.odds}</div>
-          <div>${b.stake}</div>
-          <div>${b.book||""}</div>
-          <div>${b.note||""}</div>
-          <div>${resHtml}</div>
-        `;
-        // klickar på snabbknappar
-        row.querySelectorAll(".pill").forEach(p=>{
-          p.onclick = async ()=>{
-            if(p.dataset.del){
-              if(confirm("Ta bort spelet?")){
-                await SB.from("bets")
-                  .delete()
-                  .eq("id", b.id)
-                  .eq("user_id", currentUser.id);
-                await loadBets();
-              }
-            }else{
-              await SB.from("bets")
-                .update({ result: p.dataset.r })
-                .eq("id", b.id)
-                .eq("user_id", currentUser.id);
-              await loadBets();
-            }
-          };
-        });
-        el.appendChild(row);
-      }
-      cont.appendChild(el);
-    });
-  }
-
-  // ======= RENDER MÅNADSSUMMERING =======
-  function recompute(monthFilter="all"){
-    let data = bets;
-    if(monthFilter!=="all"){
-      data = data.filter(b => b.matchday?.startsWith(monthFilter));
-    }
-    const decided = data.filter(b => b.result!=="Pending" && b.result!=="Void");
-    const wins = decided.filter(b => b.result==="Win").length;
-    const stakeSum = decided.reduce((s,b)=>s+b.stake,0);
-    const profit = decided.reduce((s,b)=> s + (b.result==="Win" ? (b.odds-1)*b.stake : -b.stake), 0);
-    const roi = stakeSum>0 ? (profit/stakeSum)*100 : 0;
-
-    $("#sGames").textContent = decided.length.toString();
-    $("#sWins").textContent = wins.toString();
-    $("#sProfit").textContent = fmtMoney(profit);
-    $("#sRoi").textContent = fmtMoney(roi)+"%";
-
-    if(monthFilter==="all"){ $("#sMonthName").textContent = "Alla månader"; }
-    else{
-      const [y,m] = monthFilter.split("-").map(Number);
-      $("#sMonthName").textContent = svMonth(y,m);
-    }
-  }
-
-  function renderSummary(){
-    // fyll månadsväljare
-    const months = [...new Set(bets.filter(b=>b.matchday).map(b=>b.matchday.slice(0,7)))].sort().reverse();
-    const sel = $("#monthFilter");
-    sel.innerHTML = `<option value="all">Alla månader</option>` + months.map(m=>`<option value="${m}">${m}</option>`).join("");
-    sel.onchange = ()=>recompute(sel.value);
-    recompute(sel.value||"all");
-  }
-
-  // ======= INIT =======
-  (async function init(){
-    try{
-      await ensureAuth();
-    }catch(err){
-      console.warn("Användaren är inte inloggad", err);
-      return;
-    }
-
-    // förifyll dagens datum
-    $("#iDate").valueAsDate = new Date();
-
-    await loadProjects();
-    if(!currentProject) await updateFreeBanner();
-  })();
-</script>
 </body>
 </html>

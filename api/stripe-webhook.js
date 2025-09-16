@@ -14,6 +14,37 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
+function logSupabaseError(eventType, context, error) {
+  const parts = [
+    `event=${eventType}`,
+    context?.userId ? `user=${context.userId}` : "user=unknown",
+    context?.customerId ? `customer=${context.customerId}` : null,
+    context?.subscriptionId ? `subscription=${context.subscriptionId}` : null,
+  ].filter(Boolean);
+  const errorMessage = error?.message || String(error);
+  const message = `[Stripe webhook] Supabase error (${parts.join(", ")}, message=${errorMessage})`;
+  console.error(message, error);
+
+  const monitoring = globalThis?.monitoringService;
+  if (monitoring && typeof monitoring.captureException === "function") {
+    const monitoringContext = {
+      eventType,
+      ...(context ?? {}),
+      errorMessage,
+    };
+    monitoring.captureException(error, monitoringContext);
+  }
+}
+
+async function withSupabaseLogging(eventType, context, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    logSupabaseError(eventType, context, error);
+    throw error;
+  }
+}
+
 export function isActiveSubscription(status) {
   // De statusar där vi betraktar användaren som premium
   return ["trialing", "active", "past_due", "unpaid"].includes(status);
@@ -47,34 +78,35 @@ export default async function handler(req, res) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
-        const user_id =
+        const userId =
           session.metadata?.user_id || session.client_reference_id || null;
-
-        // Länka sub-id till användaren om det finns
-        let subscriptionId = session.subscription || null;
-
-        // Säkra kund-id
+        const subscriptionId = session.subscription || null;
         const customerId = session.customer;
 
-        if (user_id) {
-          const update = {
-            stripe_customer_id: customerId,
-          };
-          if (subscriptionId) update.stripe_subscription_id = subscriptionId;
+        if (userId) {
+          const context = { userId, customerId, subscriptionId };
+          await withSupabaseLogging(event.type, context, async () => {
+            const update = {
+              stripe_customer_id: customerId,
+            };
+            if (subscriptionId) {
+              update.stripe_subscription_id = subscriptionId;
+            }
 
-          const { error } = await supabaseAdmin
-            .from("users")
-            .update(update)
-            .eq("id", user_id);
-          if (error) throw error;
-
-          if (subscriptionId) {
-            const { error: premiumError } = await supabaseAdmin
+            const { error } = await supabaseAdmin
               .from("users")
-              .update({ is_premium: true })
-              .eq("id", user_id);
-            if (premiumError) throw premiumError;
-          }
+              .update(update)
+              .eq("id", userId);
+            if (error) throw error;
+
+            if (subscriptionId) {
+              const { error: premiumError } = await supabaseAdmin
+                .from("users")
+                .update({ is_premium: true })
+                .eq("id", userId);
+              if (premiumError) throw premiumError;
+            }
+          });
         }
         break;
       }
@@ -84,60 +116,97 @@ export default async function handler(req, res) {
         const sub = event.data.object;
         const customerId = sub.customer;
         const status = sub.status;
+        const metadataUserId = sub.metadata?.user_id || null;
+        const context = {
+          userId: metadataUserId,
+          customerId,
+          subscriptionId: sub.id,
+        };
 
-        // Försök hitta user via kund-id
-        const { data: userRow, error: findErr } = await supabaseAdmin
-          .from("users")
-          .select("id")
-          .eq("stripe_customer_id", customerId)
-          .single();
+        await withSupabaseLogging(event.type, context, async () => {
+          const { data: userRow, error: findErr } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .single();
 
-        if (findErr) {
-          // Om inte hittad: som fallback, försök via metadata.user_id om finns
-          const user_id = sub.metadata?.user_id || null;
-          if (user_id) {
-            await supabaseAdmin
+          if (userRow?.id) {
+            context.userId = userRow.id;
+          }
+
+          if (findErr && findErr.code !== "PGRST116") {
+            throw findErr;
+          }
+
+          if (!userRow?.id && !metadataUserId) {
+            console.warn(
+              `Stripe webhook ${event.type} saknar användarreferens för kund ${customerId}`
+            );
+          }
+
+          if (!findErr && userRow?.id) {
+            const { error: updateError } = await supabaseAdmin
               .from("users")
-              .upsert({
-                id: user_id,
-                stripe_customer_id: customerId,
+              .update({
                 stripe_subscription_id: sub.id,
                 is_premium: isActiveSubscription(status),
-              }, { onConflict: "id" });
+              })
+              .eq("id", userRow.id);
+
+            if (updateError) throw updateError;
+          } else if (metadataUserId) {
+            const { error: upsertError } = await supabaseAdmin
+              .from("users")
+              .upsert(
+                {
+                  id: metadataUserId,
+                  stripe_customer_id: customerId,
+                  stripe_subscription_id: sub.id,
+                  is_premium: isActiveSubscription(status),
+                },
+                { onConflict: "id" }
+              );
+
+            if (upsertError) throw upsertError;
           }
-        } else {
-          await supabaseAdmin
-            .from("users")
-            .update({
-              stripe_subscription_id: sub.id,
-              is_premium: isActiveSubscription(status),
-            })
-            .eq("id", userRow.id);
-        }
+        });
         break;
       }
 
       case "customer.subscription.deleted": {
         const sub = event.data.object;
         const customerId = sub.customer;
+        const context = { customerId, subscriptionId: sub.id };
 
-        const { data: userRow } = await supabaseAdmin
-          .from("users")
-          .select("id")
-          .eq("stripe_customer_id", customerId)
-          .maybeSingle();
-
-        if (userRow?.id) {
-          await supabaseAdmin
+        await withSupabaseLogging(event.type, context, async () => {
+          const { data: userRow, error: selectError } = await supabaseAdmin
             .from("users")
-            .update({ is_premium: false, stripe_subscription_id: null })
-            .eq("id", userRow.id);
-        }
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .maybeSingle();
+
+          if (selectError) throw selectError;
+
+          if (userRow?.id) {
+            context.userId = userRow.id;
+
+            const { error: updateError } = await supabaseAdmin
+              .from("users")
+              .update({ is_premium: false, stripe_subscription_id: null })
+              .eq("id", userRow.id);
+
+            if (updateError) throw updateError;
+          } else {
+            console.warn(
+              `Stripe webhook ${event.type} hittade ingen användare för kund ${customerId}`
+            );
+          }
+        });
         break;
       }
 
       default:
-        // Ignorera övriga events
+        console.warn("Ohanterad Stripe-webhook-händelse", event.type);
         break;
     }
 
