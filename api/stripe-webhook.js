@@ -14,23 +14,21 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE
 );
 
-function handleSupabaseError(eventType, userId, error) {
-  const resolvedUserId = userId ?? "unknown";
-  const errorMessage = error?.message || String(error);
+function logSupabaseError(eventType, context, error) {
+  const parts = [
+    `event=${eventType}`,
+    context?.userId ? `user=${context.userId}` : "user=unknown",
+    context?.customerId ? `customer=${context.customerId}` : null,
+    context?.subscriptionId ? `subscription=${context.subscriptionId}` : null,
+  ].filter(Boolean);
+  const message = `[Stripe webhook] Supabase error (${parts.join(", ")})`;
+  console.error(message, error);
 
-  const contextMessage = `Stripe webhook Supabase error - event: ${eventType}, user: ${resolvedUserId}`;
-  console.error(contextMessage, error);
-
-  const monitoringService = globalThis?.monitoringService;
-  if (
-    monitoringService &&
-    typeof monitoringService.captureException === "function"
-  ) {
-    monitoringService.captureException(error, {
+  const monitoring = globalThis?.monitoringService;
+  if (monitoring && typeof monitoring.captureException === "function") {
+    monitoring.captureException(error, {
       eventType,
-      userId: userId ?? null,
-      message: errorMessage,
-      context: contextMessage,
+      context,
     });
   }
 }
@@ -68,39 +66,41 @@ export default async function handler(req, res) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
-        const user_id =
+        const userId =
           session.metadata?.user_id || session.client_reference_id || null;
-
-        // Länka sub-id till användaren om det finns
-        let subscriptionId = session.subscription || null;
-
-        // Säkra kund-id
+        const subscriptionId = session.subscription || null;
         const customerId = session.customer;
 
-        try {
-          if (user_id) {
+        if (userId) {
+          try {
             const update = {
               stripe_customer_id: customerId,
             };
-            if (subscriptionId) update.stripe_subscription_id = subscriptionId;
+            if (subscriptionId) {
+              update.stripe_subscription_id = subscriptionId;
+            }
 
             const { error } = await supabaseAdmin
               .from("users")
               .update(update)
-              .eq("id", user_id);
+              .eq("id", userId);
             if (error) throw error;
 
             if (subscriptionId) {
               const { error: premiumError } = await supabaseAdmin
                 .from("users")
                 .update({ is_premium: true })
-                .eq("id", user_id);
+                .eq("id", userId);
               if (premiumError) throw premiumError;
             }
+          } catch (error) {
+            logSupabaseError(event.type, {
+              userId,
+              customerId,
+              subscriptionId,
+            }, error);
+            throw error;
           }
-        } catch (error) {
-          handleSupabaseError(event.type, user_id, error);
-          throw error;
         }
         break;
       }
@@ -114,7 +114,6 @@ export default async function handler(req, res) {
         let logUserId = metadataUserId;
 
         try {
-          // Försök hitta user via kund-id
           const { data: userRow, error: findErr } = await supabaseAdmin
             .from("users")
             .select("id")
@@ -161,7 +160,15 @@ export default async function handler(req, res) {
             if (upsertError) throw upsertError;
           }
         } catch (error) {
-          handleSupabaseError(event.type, logUserId, error);
+          logSupabaseError(
+            event.type,
+            {
+              userId: logUserId,
+              customerId,
+              subscriptionId: sub.id,
+            },
+            error
+          );
           throw error;
         }
         break;
@@ -170,7 +177,7 @@ export default async function handler(req, res) {
       case "customer.subscription.deleted": {
         const sub = event.data.object;
         const customerId = sub.customer;
-        let logUserId = null;
+        let userIdForLog = null;
 
         try {
           const { data: userRow, error: selectError } = await supabaseAdmin
@@ -182,7 +189,7 @@ export default async function handler(req, res) {
           if (selectError) throw selectError;
 
           if (userRow?.id) {
-            logUserId = userRow.id;
+            userIdForLog = userRow.id;
 
             const { error: updateError } = await supabaseAdmin
               .from("users")
@@ -190,9 +197,21 @@ export default async function handler(req, res) {
               .eq("id", userRow.id);
 
             if (updateError) throw updateError;
+          } else {
+            console.warn(
+              `Stripe webhook ${event.type} hittade ingen användare för kund ${customerId}`
+            );
           }
         } catch (error) {
-          handleSupabaseError(event.type, logUserId, error);
+          logSupabaseError(
+            event.type,
+            {
+              userId: userIdForLog,
+              customerId,
+              subscriptionId: sub.id,
+            },
+            error
+          );
           throw error;
         }
         break;

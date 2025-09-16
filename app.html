@@ -6,506 +6,581 @@
 <title>BetSpread – App</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
-  :root{
-    --bg:#050b17;
-    --panel:rgba(12,22,39,0.92);
-    --panel-strong:rgba(17,31,52,0.95);
-    --muted:rgba(22,34,54,0.8);
-    --text:#f1f5ff;
-    --sub:#8ca3cc;
-    --accent:#60a5fa;
-    --accent-2:#4ade80;
-    --danger:#ef4444;
-    --btn:rgba(42,60,100,0.9);
-    --btn-h:rgba(58,82,134,0.95);
-    --tab:rgba(20,33,54,0.6);
-    --tab-a:rgba(47,85,151,0.82);
-    --shadow:0 28px 65px -35px rgba(7,11,24,0.9);
-    --radius:18px;
+  :root {
+    --bg: #050712;
+    --bg-alt: #090d1c;
+    --panel: rgba(13, 18, 37, 0.92);
+    --panel-strong: rgba(17, 25, 46, 0.96);
+    --border: rgba(82, 108, 173, 0.45);
+    --border-soft: rgba(82, 108, 173, 0.25);
+    --text: #f1f5ff;
+    --muted: #97a6cd;
+    --accent: #60a5fa;
+    --accent-2: #34d399;
+    --danger: #f87171;
+    --radius: 18px;
+    --shadow: 0 28px 68px -32px rgba(6, 9, 18, 0.9);
   }
-  *{box-sizing:border-box}
-  body{
-    margin:0;
-    min-height:100vh;
-    background:linear-gradient(180deg,#040914,#0d1729);
-    color:var(--text);
-    font:16px/1.5 "Inter","Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
-    position:relative;
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text);
+    background: radial-gradient(100% 100% at 10% 0%, rgba(96, 165, 250, 0.25), rgba(5, 7, 18, 0) 60%),
+      radial-gradient(80% 80% at 90% 10%, rgba(110, 231, 183, 0.18), rgba(5, 7, 18, 0) 70%),
+      linear-gradient(180deg, #04060f, #0d1529 60%, #070b14 100%);
   }
-  body::before{
-    content:"";
-    position:fixed;
-    inset:0;
-    background:radial-gradient(50% 60% at 18% 14%,rgba(96,165,250,0.22) 0%,rgba(5,11,23,0) 100%),
-      radial-gradient(55% 65% at 80% 12%,rgba(99,102,241,0.18) 0%,rgba(5,11,23,0) 100%);
-    pointer-events:none;
-    z-index:-1;
+
+  .app-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
-  .container{
-    width:100%;
-    max-width:1220px;
-    margin:0 auto;
-    padding:36px 22px 64px;
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 26px min(4vw, 48px) 16px;
   }
-  header.top-bar{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:24px;
-    margin-bottom:24px;
-    padding:22px 26px;
-    border-radius:var(--radius);
-    background:var(--panel-strong);
-    border:1px solid rgba(74,96,138,0.38);
-    box-shadow:var(--shadow);
-    backdrop-filter:blur(12px);
+
+  .brand {
+    font-size: clamp(1.6rem, 2.2vw, 2.4rem);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    background: linear-gradient(135deg, #38bdf8 0%, #a855f7 70%);
+    -webkit-background-clip: text;
+    color: transparent;
   }
-  .brand-block{display:flex;flex-direction:column;gap:6px}
-  .brand{
-    font-weight:800;
-    font-size:28px;
-    letter-spacing:.02em;
-    background:linear-gradient(135deg,#a855f7,#38bdf8);
-    -webkit-background-clip:text;
-    color:transparent;
+
+  .header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
   }
-  .tagline{margin:0;font-size:14px;color:var(--sub)}
-  .right-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-  button,.btn{
-    background:var(--btn);
-    border:1px solid rgba(96,119,173,0.45);
-    color:var(--text);
-    border-radius:12px;
-    padding:10px 16px;
-    cursor:pointer;
-    transition:background .2s ease,transform .2s ease,border-color .2s ease;
-    font-weight:600;
-    letter-spacing:.01em;
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    border-radius: 999px;
+    border: 1px solid rgba(96, 165, 250, 0.45);
+    background: rgba(8, 20, 45, 0.7);
+    color: var(--accent);
+    font-weight: 600;
   }
-  button:hover,.btn:hover{background:var(--btn-h);transform:translateY(-1px);}
-  button:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
-  .btn-green{background:linear-gradient(135deg,#34d399,#10b981);border:none;box-shadow:0 12px 32px -20px rgba(16,185,129,0.7);}
-  .btn-green:hover{filter:brightness(1.05);}
-  .btn-red{background:linear-gradient(135deg,#f87171,#ef4444);border:none;box-shadow:0 12px 32px -20px rgba(239,68,68,0.65);}
-  .btn-red:hover{filter:brightness(1.05);}
-  .btn-ghost{background:rgba(18,30,52,0.7);border:1px solid rgba(78,106,150,0.45);}
-  .btn-ghost:hover{background:rgba(34,52,86,0.8);}
-  .badge{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    padding:6px 14px;
-    border-radius:999px;
-    background:rgba(59,130,246,0.12);
-    border:1px solid rgba(96,165,250,0.35);
-    color:var(--accent);
-    font-weight:600;
-    font-size:14px;
+
+  button,
+  .btn {
+    border: 1px solid var(--border);
+    background: rgba(20, 32, 58, 0.85);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
   }
-  .banner{
-    display:flex;
-    align-items:flex-start;
-    justify-content:space-between;
-    gap:18px;
-    padding:18px 22px;
-    margin-bottom:24px;
-    border-radius:var(--radius);
-    background:linear-gradient(135deg,rgba(248,113,113,0.2),rgba(248,113,113,0.08));
-    border:1px solid rgba(248,113,113,0.45);
-    color:#ffe1e1;
-    box-shadow:0 18px 45px -30px rgba(248,113,113,0.45);
+
+  button:hover,
+  .btn:hover {
+    transform: translateY(-1px);
+    background: rgba(35, 52, 83, 0.9);
+    border-color: rgba(110, 168, 255, 0.6);
   }
-  .banner h2{margin:0 0 4px;font-size:18px;color:#ffe1e1;}
-  .banner p{margin:0;font-size:15px;color:#ffd9d9;line-height:1.45;}
-  .workspace{
-    display:grid;
-    grid-template-columns:minmax(0,1fr) 320px;
-    gap:24px;
-    align-items:flex-start;
+
+  button:focus-visible,
+  .btn:focus-visible {
+    outline: 2px solid rgba(96, 165, 250, 0.8);
+    outline-offset: 3px;
   }
-  .primary,.secondary{display:flex;flex-direction:column;gap:24px;}
-  .project-bar{
-    display:flex;
-    align-items:flex-end;
-    justify-content:space-between;
-    gap:18px;
-    padding:18px 22px;
-    border-radius:var(--radius);
-    background:var(--panel-strong);
-    border:1px solid rgba(74,96,138,0.38);
-    box-shadow:var(--shadow);
-    backdrop-filter:blur(12px);
+
+  .btn.primary {
+    background: linear-gradient(135deg, #60a5fa, #2563eb);
+    border-color: transparent;
+    box-shadow: 0 16px 32px -22px rgba(37, 99, 235, 0.7);
   }
-  .project-bar .project-summary{display:flex;flex-direction:column;gap:4px;min-width:160px;}
-  .project-bar .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);}
-  .project-bar .value{font-size:18px;font-weight:600;}
-  .project-bar .project-picker{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;}
-  .project-bar select{min-width:200px;}
-  .project-bar button{padding:8px 14px;font-size:14px;}
-  .project-count{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:90px;}
-  .panel{
-    background:var(--panel);
-    border:1px solid rgba(74,96,138,0.38);
-    border-radius:var(--radius);
-    padding:24px;
-    box-shadow:var(--shadow);
-    backdrop-filter:blur(12px);
+
+  .btn.primary:hover { filter: brightness(1.05); }
+
+  .btn.danger {
+    background: linear-gradient(135deg, #f87171, #ef4444);
+    border: none;
+    box-shadow: 0 16px 36px -24px rgba(239, 68, 68, 0.75);
   }
-  .panel h2{margin:0;font-size:20px;font-weight:700;letter-spacing:.01em;}
-  .hint{color:var(--sub);font-size:14px;}
-  .subtle{color:var(--sub);font-size:13px;}
-  .section-header{
-    display:flex;
-    align-items:flex-start;
-    justify-content:space-between;
-    gap:20px;
-    margin-bottom:20px;
+
+  .btn.ghost {
+    background: rgba(18, 28, 48, 0.6);
+    border: 1px solid rgba(102, 126, 173, 0.6);
   }
-  select,input,textarea{
-    background:rgba(10,20,35,0.85);
-    border:1px solid rgba(78,106,150,0.4);
-    color:var(--text);
-    padding:12px 14px;
-    border-radius:12px;
-    font-size:15px;
-    transition:border .2s ease,box-shadow .2s ease,background .2s ease;
+
+  .hide { display: none !important; }
+
+  .notice {
+    margin: 0 auto;
+    width: min(1120px, 92%);
+    margin-bottom: 20px;
+    padding: 18px 24px;
+    border-radius: var(--radius);
+    border: 1px solid rgba(248, 180, 180, 0.45);
+    background: linear-gradient(135deg, rgba(248, 113, 113, 0.18), rgba(248, 113, 113, 0.08));
+    color: #ffe4e4;
+    box-shadow: 0 22px 54px -34px rgba(248, 113, 113, 0.55);
   }
-  select:focus-visible,input:focus-visible,textarea:focus-visible{
-    border-color:rgba(96,165,250,0.8);
-    box-shadow:0 0 0 3px rgba(96,165,250,0.2);
-    outline:none;
+
+  .app-main {
+    width: min(1180px, 94%);
+    margin: 0 auto 64px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 28px;
+    align-items: start;
   }
-  textarea{resize:vertical;min-height:96px;}
-  .tabs{
-    display:flex;
-    gap:12px;
-    padding:6px;
-    background:rgba(15,26,44,0.7);
-    border:1px solid rgba(72,95,142,0.35);
-    border-radius:var(--radius);
-    box-shadow:var(--shadow);
+
+  .primary {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
   }
-  .tab{
-    flex:1;
-    padding:12px 16px;
-    border-radius:12px;
-    border:1px solid transparent;
-    background:transparent;
-    color:var(--sub);
-    font-weight:600;
-    letter-spacing:.02em;
-    cursor:pointer;
-    transition:background .2s ease,color .2s ease,border .2s ease,transform .2s ease;
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
   }
-  .tab:hover{color:var(--text);transform:translateY(-1px);}
-  .tab.active{
-    background:linear-gradient(135deg,rgba(96,165,250,0.28),rgba(56,189,248,0.16));
-    border-color:rgba(96,165,250,0.5);
-    color:var(--text);
-    box-shadow:0 12px 28px -20px rgba(96,165,250,0.7);
+
+  .panel {
+    position: relative;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    backdrop-filter: blur(14px);
   }
-  .grid{
-    display:grid;
-    grid-template-columns:repeat(12,minmax(0,1fr));
-    gap:16px;
+
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 1.2rem;
+    letter-spacing: 0.01em;
   }
-  .grid .field{display:flex;flex-direction:column;gap:6px;}
-  .grid label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);}
-  .col-1{grid-column:span 1;}
-  .col-2{grid-column:span 2;}
-  .col-3{grid-column:span 3;}
-  .col-4{grid-column:span 4;}
-  .col-5{grid-column:span 5;}
-  .col-6{grid-column:span 6;}
-  .col-12{grid-column:span 12;}
-  .actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
-  .action-field{align-self:end;}
-  .sr-only{
-    position:absolute;
-    width:1px;
-    height:1px;
-    padding:0;
-    margin:-1px;
-    overflow:hidden;
-    clip:rect(0,0,0,0);
-    white-space:nowrap;
-    border:0;
+
+  .panel .subtle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0;
   }
-  .summary-panel .filter{display:flex;flex-direction:column;gap:8px;min-width:190px;}
-  .summary-panel select{min-width:190px;}
-  .stat-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-    gap:16px;
+
+  .project-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
   }
-  .stat-card{
-    padding:18px;
-    border-radius:14px;
-    background:rgba(18,32,54,0.8);
-    border:1px solid rgba(73,103,152,0.4);
-    display:flex;
-    flex-direction:column;
-    gap:6px;
+
+  .project-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
-  .stat-card .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);}
-  .stat-card .value{font-size:26px;font-weight:700;}
-  .trend-card{
-    margin-top:20px;
-    padding:18px;
-    border-radius:14px;
-    background:rgba(22,36,58,0.8);
-    border:1px solid rgba(72,103,152,0.35);
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:12px;
+
+  .project-meta .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
   }
-  .trend-card .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);}
-  .trend-card .value{font-size:18px;font-weight:600;}
-  #playsContainer{display:flex;flex-direction:column;gap:16px;}
-  details.month{
-    border-radius:var(--radius);
-    border:1px solid rgba(72,103,152,0.35);
-    background:rgba(17,29,49,0.75);
-    overflow:hidden;
-    box-shadow:var(--shadow);
+
+  .project-meta .value {
+    font-size: 1.25rem;
+    font-weight: 700;
   }
-  details.month summary{
-    list-style:none;
-    padding:18px 22px;
-    font-weight:700;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    cursor:pointer;
-    background:linear-gradient(135deg,rgba(96,165,250,0.2),rgba(56,189,248,0.08));
+
+  .project-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
   }
-  details.month summary::-webkit-details-marker{display:none;}
-  details.month[open] summary{border-bottom:1px solid rgba(72,103,152,0.35);background:linear-gradient(135deg,rgba(96,165,250,0.08),rgba(56,189,248,0.05));}
-  .month-count{font-size:14px;color:var(--sub);}
-  .row{
-    display:grid;
-    grid-template-columns:120px 1.8fr 90px 90px 150px 220px;
-    gap:16px;
-    padding:16px 22px;
-    align-items:flex-start;
+
+  select,
+  input,
+  textarea {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--border-soft);
+    background: rgba(10, 17, 32, 0.9);
+    color: var(--text);
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
-  .row-head{
-    background:rgba(255,255,255,0.02);
-    font-size:12px;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    color:var(--sub);
-    font-weight:600;
-    padding-top:14px;
-    padding-bottom:14px;
+
+  select:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    border-color: rgba(110, 168, 255, 0.7);
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+    outline: none;
   }
-  .row:not(.row-head):nth-child(odd){background:rgba(10,18,32,0.3);}
-  .row > div{min-width:0;}
-  .cell-match .match{font-weight:600;display:block;}
-  .cell-match .market{display:block;font-size:13px;color:var(--sub);margin-top:2px;}
-  .result-cell{display:flex;align-items:center;gap:12px;justify-content:flex-start;flex-wrap:wrap;}
-  .status-badge{
-    padding:6px 12px;
-    border-radius:999px;
-    font-size:13px;
-    font-weight:600;
-    letter-spacing:.01em;
-    border:1px solid transparent;
+
+  .tabs {
+    display: flex;
+    gap: 12px;
+    padding: 8px;
+    border-radius: var(--radius);
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(82, 108, 173, 0.35);
   }
-  .status-badge.win{background:rgba(22,101,52,0.28);border-color:rgba(134,239,172,0.45);color:#86efac;}
-  .status-badge.loss{background:rgba(153,27,27,0.28);border-color:rgba(248,113,113,0.5);color:#fca5a5;}
-  .status-badge.pending{background:rgba(30,64,175,0.25);border-color:rgba(129,140,248,0.45);color:#c7d2fe;}
-  .status-badge.void{background:rgba(107,114,128,0.25);border-color:rgba(156,163,175,0.45);color:#e5e7eb;}
-  .action-dropdown{position:relative;}
-  .dropdown-toggle{
-    background:var(--btn);
-    border:1px solid rgba(96,119,173,0.45);
-    color:var(--text);
-    border-radius:10px;
-    padding:8px 12px;
-    font-weight:600;
-    cursor:pointer;
-    font-size:13px;
-    transition:background .2s ease,border .2s ease,transform .2s ease;
+
+  .tab {
+    flex: 1;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    padding: 12px 16px;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
   }
-  .dropdown-toggle:hover{background:var(--btn-h);transform:translateY(-1px);}
-  .action-dropdown.open .dropdown-toggle{border-color:rgba(96,165,250,0.7);}
-  .action-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:210px;display:none;flex-direction:column;padding:10px;background:rgba(10,18,32,0.95);border:1px solid rgba(78,106,150,0.45);border-radius:12px;box-shadow:0 18px 45px -20px rgba(8,12,28,0.85);z-index:10;}
-  .action-dropdown.open .action-menu{display:flex;}
-  .action-menu button{
-    background:transparent;
-    border:none;
-    color:var(--text);
-    text-align:left;
-    padding:10px 12px;
-    border-radius:8px;
-    font-size:14px;
-    font-weight:500;
-    cursor:pointer;
-    transition:background .2s ease,color .2s ease;
+
+  .tab:hover { color: var(--text); transform: translateY(-1px); }
+
+  .tab.active {
+    color: var(--text);
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.3), rgba(59, 130, 246, 0.12));
+    border-color: rgba(96, 165, 250, 0.45);
   }
-  .action-menu button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  .action-menu button:hover{background:rgba(45,70,110,0.6);color:#fff;}
-  .action-menu button[data-action="delete"]{color:#fca5a5;}
-  .action-menu button[data-action="delete"]:hover{background:rgba(120,31,46,0.35);}
-  .empty-state{
-    padding:32px 24px;
-    text-align:center;
-    background:rgba(17,31,52,0.75);
-    border:1px dashed rgba(99,102,241,0.35);
-    border-radius:var(--radius);
-    color:var(--sub);
-    font-size:15px;
-    line-height:1.6;
+
+  .tab-panel.hide { display: none; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 14px;
   }
-  .highlight-panel{position:sticky;top:24px;}
-  .overview-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-    gap:16px;
-    margin-top:18px;
+
+  .col-12 { grid-column: span 12; }
+  .col-6 { grid-column: span 6; }
+  .col-4 { grid-column: span 4; }
+  .col-3 { grid-column: span 3; }
+  .col-2 { grid-column: span 2; }
+  .col-1 { grid-column: span 1; }
+
+  label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--muted);
   }
-  .overview-card{
-    padding:16px;
-    border-radius:14px;
-    background:rgba(18,32,54,0.72);
-    border:1px solid rgba(72,103,152,0.35);
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-    transition:transform .2s ease,border .2s ease,background .2s ease;
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
-  .overview-card:hover{transform:translateY(-2px);border-color:rgba(96,165,250,0.5);background:rgba(21,38,62,0.8);}
-  .overview-card .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);}
-  .overview-card .value{font-size:24px;font-weight:700;}
-  .hide{display:none!important;}
-  @media (max-width:1100px){
-    .workspace{grid-template-columns:1fr;}
-    .secondary{flex-direction:row;flex-wrap:wrap;}
-    .highlight-panel{position:static;}
-    .row{grid-template-columns:110px 1.6fr 80px 80px 130px 200px;}
-    .grid{grid-template-columns:repeat(6,minmax(0,1fr));}
-    .col-1,.col-2{grid-column:span 3;}
-    .col-3{grid-column:span 3;}
-    .col-4,.col-6{grid-column:span 6;}
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
   }
-  @media (max-width:900px){
-    .row-head{display:none;}
-    .row{grid-template-columns:repeat(2,minmax(0,1fr));padding:14px 18px;border-bottom:1px solid rgba(72,103,152,0.25);}
-    .row:not(.row-head) > div{display:flex;flex-direction:column;gap:4px;}
-    .row:not(.row-head) > div::before{content:attr(data-label);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);font-weight:600;}
-    .result-cell{align-items:flex-start;}
+
+  .summary-card {
+    padding: 18px;
+    border-radius: 14px;
+    background: rgba(16, 24, 46, 0.88);
+    border: 1px solid rgba(96, 125, 180, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
-  @media (max-width:760px){
-    .secondary{flex-direction:column;}
+
+  .summary-card .label { color: var(--muted); font-size: 0.85rem; }
+  .summary-card .value { font-size: 1.45rem; font-weight: 700; }
+
+  .summary-meta {
+    margin-top: 20px;
+    padding: 18px;
+    border-radius: 14px;
+    background: rgba(11, 19, 36, 0.9);
+    border: 1px solid rgba(80, 114, 180, 0.35);
   }
-  @media (max-width:720px){
-    .grid{grid-template-columns:repeat(1,minmax(0,1fr));}
-    .col-1,.col-2,.col-3,.col-4,.col-6,.col-12{grid-column:span 1;}
-    .action-field{align-self:auto;}
-    .actions{flex-direction:column;align-items:stretch;}
-    .tabs{flex-direction:column;}
+
+  .summary-meta .label { color: var(--muted); font-size: 0.85rem; }
+  .summary-meta .value { font-size: 1rem; font-weight: 600; }
+
+  .empty-state {
+    padding: 32px;
+    text-align: center;
+    border-radius: 16px;
+    background: rgba(13, 23, 45, 0.7);
+    border: 1px dashed rgba(96, 125, 180, 0.4);
+    color: var(--muted);
   }
-  @media (max-width:640px){
-    header.top-bar{flex-direction:column;align-items:flex-start;}
-    .right-actions{justify-content:flex-start;width:100%;}
-    .project-bar{flex-direction:column;align-items:flex-start;}
-    .project-count{align-items:flex-start;}
-    .project-bar .project-picker{width:100%;justify-content:flex-start;}
-    .project-bar .project-picker select{flex:1;min-width:0;}
+
+  details.month {
+    border-radius: 16px;
+    border: 1px solid rgba(80, 114, 180, 0.3);
+    background: rgba(9, 16, 32, 0.78);
+    margin-bottom: 16px;
+    padding: 10px 14px;
   }
-  @media (max-width:480px){
-    .right-actions{gap:10px;}
-    .right-actions button{width:100%;}
-    .badge{width:100%;justify-content:center;}
-    .banner{flex-direction:column;align-items:flex-start;}
+
+  details.month[open] { background: rgba(12, 24, 46, 0.82); }
+
+  details.month summary {
+    list-style: none;
+    cursor: pointer;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 2px;
+    color: var(--text);
+  }
+
+  details.month summary::-webkit-details-marker { display: none; }
+
+  .month-count {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1.2fr) 80px 80px 120px 1fr;
+    gap: 12px;
+    align-items: start;
+    padding: 10px 6px;
+  }
+
+  .row-head {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .market {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border: 1px solid transparent;
+  }
+
+  .status-badge.win { background: rgba(16, 185, 129, 0.18); border-color: rgba(16, 185, 129, 0.35); color: #6ee7bf; }
+  .status-badge.loss { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.35); color: #fca5a5; }
+  .status-badge.pending { background: rgba(96, 165, 250, 0.18); border-color: rgba(96, 165, 250, 0.32); color: #bfdbfe; }
+  .status-badge.void { background: rgba(148, 163, 184, 0.18); border-color: rgba(148, 163, 184, 0.3); color: #e2e8f0; }
+
+  .result-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .action-dropdown {
+    position: relative;
+  }
+
+  .dropdown-toggle {
+    border-radius: 10px;
+    padding: 8px 14px;
+    background: rgba(24, 34, 58, 0.85);
+    border: 1px solid rgba(96, 125, 180, 0.5);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .dropdown-toggle[aria-expanded="true"],
+  .dropdown-toggle:hover {
+    background: rgba(42, 60, 100, 0.95);
+  }
+
+  .action-dropdown .action-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 210px;
+    background: rgba(10, 17, 35, 0.98);
+    border-radius: 12px;
+    border: 1px solid rgba(80, 114, 180, 0.35);
+    box-shadow: 0 18px 45px -28px rgba(8, 12, 24, 0.85);
+    padding: 8px;
+    display: none;
+    z-index: 20;
+  }
+
+  .action-dropdown.open .action-menu { display: flex; flex-direction: column; }
+
+  .action-menu button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+  }
+
+  .action-menu button:hover,
+  .action-menu button:focus-visible {
+    background: rgba(59, 130, 246, 0.18);
+    outline: none;
+  }
+
+  .stats-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .overview-card {
+    border-radius: 14px;
+    padding: 18px;
+    background: rgba(11, 20, 38, 0.85);
+    border: 1px solid rgba(96, 125, 180, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .overview-card .label { color: var(--muted); font-size: 0.85rem; }
+  .overview-card .value { font-size: 1.5rem; font-weight: 700; }
+
+  @media (max-width: 1080px) {
+    .app-main {
+      grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+      order: -1;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    .overview-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  }
+
+  @media (max-width: 720px) {
+    .app-header { flex-direction: column; align-items: flex-start; }
+    .header-meta { justify-content: flex-start; }
+    .form-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .col-6 { grid-column: span 6; }
+    .col-4 { grid-column: span 6; }
+    .col-3 { grid-column: span 6; }
+    .col-2 { grid-column: span 3; }
+    .col-1 { grid-column: span 3; }
+    .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .row > div:nth-child(3),
+    .row > div:nth-child(4),
+    .row > div:nth-child(5),
+    .row > div:nth-child(6) { margin-top: 6px; }
+    .result-cell { flex-direction: column; align-items: flex-start; }
+    .dropdown-toggle { width: 100%; }
   }
 </style>
 </head>
 <body>
-  <div class="container">
-    <header class="top-bar">
-      <div class="brand-block">
-        <div class="brand">BetSpread</div>
-        <p class="tagline">Planera, följ upp och förbättra dina spel.</p>
-      </div>
-      <div class="right-actions">
-        <span id="userEmail" class="badge">…</span>
-        <button id="manageBillingBtn" title="Hantera abonnemang" class="hide">Hantera</button>
-        <button id="upgradeBtn" class="btn-green">Uppgradera</button>
-        <button id="logoutBtn" class="btn-red">Logga ut</button>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">BetSpread</div>
+      <div class="header-meta">
+        <span id="userEmail" class="chip">…</span>
+        <button id="manageBillingBtn" class="btn ghost hide">Hantera</button>
+        <button id="upgradeBtn" class="btn primary">Uppgradera</button>
+        <button id="logoutBtn" class="btn danger">Logga ut</button>
       </div>
     </header>
 
-    <div id="freeBanner" class="banner hide">
-      <div>
-        <h2>Gratisläge</h2>
-        <p>Du har använt <strong id="usedCount">0</strong> av 20 spel. <br>Återstår: <strong id="leftCount">20</strong> spel.</p>
-      </div>
-      <span class="hint">Uppgradera för obegränsade registreringar.</span>
+    <div id="freeBanner" class="notice hide">
+      Gratisläge: <span id="usedCount">0</span>/20 spel använda. Du har <span id="leftCount">20</span> kvar.
     </div>
 
-    <main class="workspace">
+    <main class="app-main">
       <section class="primary">
-        <div class="project-bar">
-          <div class="project-summary">
+        <section class="panel project-card">
+          <div class="project-meta">
             <span class="label">Aktivt projekt</span>
             <span id="projectTitle" class="value">Inget projekt valt</span>
+            <p class="subtle">Du har <span id="projectCount">0</span> projekt.</p>
           </div>
-          <div class="project-picker">
-            <label for="projectSelect" class="sr-only">Välj projekt</label>
-            <select id="projectSelect"></select>
-            <button id="newProjectBtn">Nytt projekt</button>
-            <button id="renameProjectBtn">Byt namn</button>
-            <button id="deleteProjectBtn" class="btn-red">Radera</button>
+          <div class="project-actions">
+            <select id="projectSelect" aria-label="Välj projekt"></select>
+            <button id="newProjectBtn" class="btn ghost" type="button">Nytt</button>
+            <button id="renameProjectBtn" class="btn ghost" type="button">Byt namn</button>
+            <button id="deleteProjectBtn" class="btn danger" type="button">Radera</button>
           </div>
-          <div class="project-count">
-            <span class="label">Projekt</span>
-            <span class="value" id="projectCount">0</span>
-          </div>
+        </section>
+
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="reg" role="tab" aria-selected="true">Registrera spel</button>
+          <button class="tab" data-tab="summary" role="tab" aria-selected="false">Månadssummering</button>
+          <button class="tab" data-tab="list" role="tab" aria-selected="false">Spel</button>
         </div>
 
-        <nav class="tabs" role="tablist">
-          <button type="button" id="tab-reg-btn" class="tab active" data-tab="reg" role="tab" aria-controls="tab-reg" aria-selected="true">Registrera spel</button>
-          <button type="button" id="tab-summary-btn" class="tab" data-tab="summary" role="tab" aria-controls="tab-summary" aria-selected="false">Månadssummering</button>
-          <button type="button" id="tab-list-btn" class="tab" data-tab="list" role="tab" aria-controls="tab-list" aria-selected="false">Spel</button>
-        </nav>
-
-        <section id="tab-reg" class="panel form-panel" role="tabpanel" aria-labelledby="tab-reg-btn" aria-hidden="false">
-          <div class="section-header">
-            <div>
-              <h2>Registrera spel</h2>
-              <p class="hint">Fyll i matchinformationen och klicka på &quot;Lägg till spel&quot; för att spara.</p>
-            </div>
-          </div>
-          <div class="grid">
-            <div class="col-2 field">
+        <section id="tab-reg" class="panel tab-panel" role="tabpanel" aria-labelledby="Registrera spel">
+          <div class="form-grid">
+            <div class="col-3">
               <label for="iDate">Matchdag</label>
               <input id="iDate" type="date" />
             </div>
-            <div class="col-3 field">
+            <div class="col-4">
               <label for="iMatch">Match</label>
               <input id="iMatch" type="text" placeholder="Arsenal — Chelsea" />
             </div>
-            <div class="col-3 field">
+            <div class="col-3">
               <label for="iMarket">Marknad</label>
               <input id="iMarket" type="text" placeholder="Över 8.5 frisparkar" />
             </div>
-            <div class="col-2 field">
+            <div class="col-2">
               <label for="iOdds">Oddset</label>
               <input id="iOdds" type="number" step="0.01" min="1.01" placeholder="1.85" />
             </div>
-            <div class="col-1 field">
+            <div class="col-2">
               <label for="iStake">Insats</label>
               <input id="iStake" type="number" step="1" min="1" value="1" />
             </div>
-            <div class="col-1 field">
+            <div class="col-3">
               <label for="iBook">Spelbolag</label>
               <input id="iBook" type="text" placeholder="Bet365" />
             </div>
-            <div class="col-2 field">
+            <div class="col-3">
               <label for="iResult">Resultat</label>
               <select id="iResult">
                 <option>Pending</option>
@@ -514,59 +589,70 @@
                 <option>Void</option>
               </select>
             </div>
-            <div class="col-4 field action-field">
-              <span class="sr-only">Åtgärder</span>
-              <div class="actions">
-                <button id="addBetBtn" class="btn-green">Lägg till spel</button>
-                <button id="cancelEditBtn" class="btn btn-ghost hide">Avbryt redigering</button>
-                <button id="resetProjectBtn" class="btn-red">Nollställ projekt</button>
-              </div>
+            <div class="col-6 form-actions">
+              <button id="cancelEditBtn" class="btn ghost hide" type="button">Avbryt redigering</button>
+              <button id="addBetBtn" class="btn primary" type="button">Lägg till spel</button>
+              <button id="resetProjectBtn" class="btn danger" type="button">Nollställ projekt</button>
             </div>
           </div>
         </section>
 
-        <section id="tab-summary" class="panel summary-panel hide" role="tabpanel" aria-labelledby="tab-summary-btn" aria-hidden="true">
-          <div class="section-header">
-            <div>
-              <h2>Månadssummering</h2>
-              <p class="hint">Analysera avgjorda spel och följ ROI per månad.</p>
-            </div>
-            <div class="filter">
+        <section id="tab-summary" class="panel tab-panel hide" role="tabpanel" aria-labelledby="Månadssummering">
+          <div class="form-grid" style="margin-bottom: 16px;">
+            <div class="col-4">
               <label for="monthFilter">Månad (matchdag)</label>
               <select id="monthFilter"></select>
             </div>
           </div>
-          <div class="stat-grid">
-            <div class="stat-card"><span class="label">Spel (avgjorda)</span><span id="sGames" class="value">0</span></div>
-            <div class="stat-card"><span class="label">Vinster</span><span id="sWins" class="value">0</span></div>
-            <div class="stat-card"><span class="label">Profit</span><span id="sProfit" class="value">0.00</span></div>
-            <div class="stat-card"><span class="label">ROI</span><span id="sRoi" class="value">0.00%</span></div>
+          <div class="summary-grid">
+            <div class="summary-card">
+              <span class="label">Spel (avgjorda)</span>
+              <span id="sGames" class="value">0</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">Vinster</span>
+              <span id="sWins" class="value">0</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">Profit</span>
+              <span id="sProfit" class="value">0.00</span>
+            </div>
+            <div class="summary-card">
+              <span class="label">ROI</span>
+              <span id="sRoi" class="value">0.00%</span>
+            </div>
           </div>
-          <div class="trend-card">
-            <span class="label">Visar</span>
-            <span id="sMonthName" class="value">-</span>
+          <div class="summary-meta" style="margin-top: 20px;">
+            <span class="label">Vald period</span>
+            <div id="sMonthName" class="value">Alla månader</div>
           </div>
         </section>
 
-        <section id="tab-list" class="panel list-panel hide" role="tabpanel" aria-labelledby="tab-list-btn" aria-hidden="true">
-          <div class="section-header">
-            <div>
-              <h2>Spel</h2>
-              <p class="hint">Hantera registrerade spel och uppdatera resultaten.</p>
-            </div>
-          </div>
+        <section id="tab-list" class="panel tab-panel hide" role="tabpanel" aria-labelledby="Spel">
           <div id="playsContainer"></div>
         </section>
       </section>
 
-      <aside class="secondary">
-        <section class="panel highlight-panel">
+      <aside class="sidebar">
+        <section class="panel stats-panel">
           <h2>Snabböversikt</h2>
           <div class="overview-grid">
-            <div class="overview-card"><span class="label">Spel totalt</span><span id="quickTotal" class="value">0</span></div>
-            <div class="overview-card"><span class="label">Pågående</span><span id="quickPending" class="value">0</span></div>
-            <div class="overview-card"><span class="label">ROI</span><span id="quickRoi" class="value">–</span></div>
-            <div class="overview-card"><span class="label">Profit</span><span id="quickProfit" class="value">0.00</span></div>
+            <div class="overview-card">
+              <span class="label">Spel totalt</span>
+              <span id="quickTotal" class="value">0</span>
+            </div>
+            <div class="overview-card">
+              <span class="label">Pågående</span>
+              <span id="quickPending" class="value">0</span>
+            </div>
+            <div class="overview-card">
+              <span class="label">ROI</span>
+              <span id="quickRoi" class="value">–</span>
+            </div>
+            <div class="overview-card">
+              <span class="label">Profit</span>
+              <span id="quickProfit" class="value">0.00</span>
+            </div>
           </div>
         </section>
       </aside>
@@ -574,22 +660,22 @@
   </div>
 
 <script type="module">
-  // --- Konfiguration ---
+  // Section: Konfiguration
   const SUPABASE_URL = "https://updpywjfxeahtjpelbku.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZHB5d2pmeGVhaHRqcGVsYmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MjQzOTcsImV4cCI6MjA3MjUwMDM5N30.i1ztG8dkcHFLq8WEn_uVrgCBk0_Wf5gZb_OQQuaSGgo";
 
-  // --- Bibliotek ---
+  // Section: Bibliotek
   import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
   const SB = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // --- Tillstånd ---
+  // Section: Tillstånd
   let currentUser = null;
   let currentProject = null; // {id, name}
   let projects = []; // [{id,name}]
   let bets = [];     // alla bets för valt projekt
   let editingBetId = null;
 
-  // --- UI-hjälpare ---
+  // Section: UI-hjälpare
   const $ = s => document.querySelector(s);
   const $$ = s => document.querySelectorAll(s);
   const fmtMoney = v => (Math.round(v * 100)/100).toFixed(2);
@@ -685,7 +771,7 @@
     }
   });
 
-  // --- Auth ---
+  // Section: Auth
   async function ensureProfileRow(){
     if(!currentUser) return;
     try{
@@ -711,7 +797,7 @@
 
   $("#logoutBtn").onclick = async () => { await SB.auth.signOut(); location.href="/"; };
 
-  // --- Stripe-knappar ---
+  // Section: Stripe-knappar
   async function callStripeCheckout(){
     try{
       const { data: { session } } = await SB.auth.getSession();
@@ -753,7 +839,7 @@
   $("#upgradeBtn").onclick = callStripeCheckout;
   $("#manageBillingBtn").onclick = callBillingPortal;
 
-  // --- Datahämtning ---
+  // Section: Datahämtning
   async function loadProjects(){
     const { data, error } = await SB.from("projects")
       .select("id,name")
@@ -881,47 +967,34 @@
       const addBtn = $("#addBetBtn");
       const { data: profile, error: profileErr } = await SB
         .from("users")
-        .select("is_premium")
+        .select("plan_tier, free_bets_used, is_premium")
         .eq("id", currentUser.id)
         .maybeSingle();
-      if(profileErr) throw profileErr;
-      if(!profile){
-        await ensureProfileRow();
-      }
-
-      const premium = !!profile?.is_premium;
-      if(premium){
-        $("#freeBanner").classList.add("hide");
-        $("#upgradeBtn").classList.add("hide");
-        $("#manageBillingBtn").classList.remove("hide");
+      if(profileErr){ console.error(profileErr); return; }
+      const banner = $("#freeBanner");
+      if(!banner) return;
+      const isPremium = Boolean(profile?.is_premium);
+      const used = Number(profile?.free_bets_used) || 0;
+      const left = Math.max(20 - used, 0);
+      $("#usedCount").textContent = used.toString();
+      $("#leftCount").textContent = left.toString();
+      if(isPremium){
+        banner.classList.add("hide");
+        const manageBtn = $("#manageBillingBtn");
+        if(manageBtn) manageBtn.classList.remove("hide");
         if(addBtn) addBtn.disabled = false;
-        return;
+      }else{
+        banner.classList.remove("hide");
+        if(addBtn) addBtn.disabled = used >= 20;
       }
-
-      const { count, error: countErr } = await SB.from("bets")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", currentUser.id);
-      if(countErr) throw countErr;
-
-      const used = count || 0;
-      const left = Math.max(0, 20 - used);
-      $("#usedCount").textContent = used;
-      $("#leftCount").textContent = left;
-      $("#freeBanner").classList.toggle("hide", false);
-      $("#upgradeBtn").classList.remove("hide");
-      $("#manageBillingBtn").classList.add("hide");
-      if(addBtn) addBtn.disabled = left <= 0;
     }catch(err){
-      console.error("updateFreeBanner fel", err);
-      $("#freeBanner").classList.add("hide");
-      $("#upgradeBtn").classList.remove("hide");
-      $("#manageBillingBtn").classList.add("hide");
+      console.error("Kunde inte hämta profil", err);
       const addBtn = $("#addBetBtn");
       if(addBtn) addBtn.disabled = false;
     }
   }
 
-  // --- Lägg till spel ---
+  // Section: Lägg till spel
   $("#addBetBtn").onclick = async ()=>{
     if(!currentProject) return alert("Välj/skapa projekt först.");
     const d = $("#iDate").value;
@@ -979,7 +1052,7 @@
     setTab("list");
   };
 
-  // --- Rendera lista (grupperad per månad) ---
+  // Section: Rendera lista (grupperad per månad)
   function renderBets(){
     const byMonth = {};
     for(const b of bets){
@@ -1039,72 +1112,66 @@
               <div class="action-menu" id="${menuId}" role="menu">
                 <button type="button" role="menuitem" data-action="status" data-value="Win">Markera som vinst</button>
                 <button type="button" role="menuitem" data-action="status" data-value="Loss">Markera som förlust</button>
-                <button type="button" role="menuitem" data-action="status" data-value="Pending">Markera som pending</button>
+                <button type="button" role="menuitem" data-action="status" data-value="Pending">Markera som avvaktar</button>
                 <button type="button" role="menuitem" data-action="status" data-value="Void">Markera som void</button>
                 <button type="button" role="menuitem" data-action="edit">Redigera</button>
                 <button type="button" role="menuitem" data-action="delete">Ta bort</button>
               </div>
             </div>
           </div>`;
+
         row.innerHTML = `
-          <div data-label="Datum">${b.matchday || "–"}</div>
-          <div data-label="Match &amp; Marknad" class="cell-match"><span class="match">${matchInfo}</span>${marketInfo}</div>
-          <div data-label="Odds">${formatNumber(b.odds, 2)}</div>
-          <div data-label="Insats">${formatStake(b.stake)}</div>
-          <div data-label="Spelbolag">${book}</div>
-          <div data-label="Status &amp; åtgärder">${resHtml}</div>
-        `;
+          <div>${b.matchday ? new Date(b.matchday).toLocaleDateString("sv-SE") : "–"}</div>
+          <div>${matchInfo}${marketInfo}</div>
+          <div>${formatNumber(b.odds)}</div>
+          <div>${formatStake(b.stake)}</div>
+          <div>${book}</div>
+          <div>${resHtml}</div>`;
 
         const dropdown = row.querySelector(".action-dropdown");
-        if(dropdown){
-          const toggle = dropdown.querySelector(".dropdown-toggle");
-          const menu = dropdown.querySelector(".action-menu");
-          if(toggle){
-            toggle.addEventListener("click", ev => {
+        const toggle = dropdown?.querySelector(".dropdown-toggle");
+        const menu = dropdown?.querySelector(".action-menu");
+        if(dropdown && toggle && menu){
+          toggle.addEventListener("click", ev => {
+            ev.stopPropagation();
+            closeActionMenus();
+            dropdown.classList.add("open");
+            toggle.setAttribute("aria-expanded", "true");
+            const firstItem = menu.querySelector("button");
+            if(firstItem){
+              setTimeout(()=>firstItem.focus(), 0);
+            }
+          });
+
+          menu.querySelectorAll("button").forEach(btn => {
+            btn.addEventListener("click", async ev => {
               ev.stopPropagation();
-              const isOpen = dropdown.classList.contains("open");
-              closeActionMenus();
-              const willOpen = !isOpen;
-              dropdown.classList.toggle("open", willOpen);
-              toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
-              if(willOpen && menu){
-                const firstAction = menu.querySelector("[data-action]");
-                if(firstAction){
-                  firstAction.focus();
-                }
-              }
-            });
-          }
-          if(menu){
-            menu.addEventListener("click", ev => ev.stopPropagation());
-            menu.querySelectorAll("[data-action]").forEach(btn => {
-              btn.addEventListener("click", async ev => {
-                ev.stopPropagation();
-                const action = btn.dataset.action;
-                if(action === "status"){
-                  const value = btn.dataset.value;
+              const action = btn.dataset.action;
+              if(action === "edit"){ startEdit(b); }
+              if(action === "status"){
+                const value = btn.dataset.value;
+                if(value && value !== b.result){
                   const { error } = await SB.from("bets")
                     .update({ result: value })
                     .eq("id", b.id)
                     .eq("user_id", currentUser.id);
-                  if(error){ alert("Kunde inte uppdatera resultat"); }
+                  if(error){ alert("Kunde inte uppdatera status"); }
                   else await loadBets();
-                }else if(action === "edit"){
-                  startEdit(b);
-                }else if(action === "delete"){
-                  if(confirm("Ta bort spelet?")){
-                    const { error } = await SB.from("bets")
-                      .delete()
-                      .eq("id", b.id)
-                      .eq("user_id", currentUser.id);
-                    if(error){ alert("Kunde inte ta bort spel"); }
-                    else await loadBets();
-                  }
                 }
-                closeActionMenus();
-              });
+              }
+              if(action === "delete"){
+                if(confirm("Ta bort detta spel?")){
+                  const { error } = await SB.from("bets")
+                    .delete()
+                    .eq("id", b.id)
+                    .eq("user_id", currentUser.id);
+                  if(error){ alert("Kunde inte ta bort spel"); }
+                  else await loadBets();
+                }
+              }
+              closeActionMenus();
             });
-          }
+          });
         }
         el.appendChild(row);
       }
@@ -1192,7 +1259,7 @@
     renderQuickStats();
   }
 
-  // --- Initiering ---
+  // Section: Initiering
   (async function init(){
     try{
       await ensureAuth();
