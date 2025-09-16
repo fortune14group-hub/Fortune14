@@ -33,6 +33,15 @@ function logSupabaseError(eventType, context, error) {
   }
 }
 
+async function withSupabaseLogging(eventType, context, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    logSupabaseError(eventType, context, error);
+    throw error;
+  }
+}
+
 export function isActiveSubscription(status) {
   // De statusar där vi betraktar användaren som premium
   return ["trialing", "active", "past_due", "unpaid"].includes(status);
@@ -72,7 +81,8 @@ export default async function handler(req, res) {
         const customerId = session.customer;
 
         if (userId) {
-          try {
+          const context = { userId, customerId, subscriptionId };
+          await withSupabaseLogging(event.type, context, async () => {
             const update = {
               stripe_customer_id: customerId,
             };
@@ -93,14 +103,7 @@ export default async function handler(req, res) {
                 .eq("id", userId);
               if (premiumError) throw premiumError;
             }
-          } catch (error) {
-            logSupabaseError(event.type, {
-              userId,
-              customerId,
-              subscriptionId,
-            }, error);
-            throw error;
-          }
+          });
         }
         break;
       }
@@ -111,9 +114,13 @@ export default async function handler(req, res) {
         const customerId = sub.customer;
         const status = sub.status;
         const metadataUserId = sub.metadata?.user_id || null;
-        let logUserId = metadataUserId;
+        const context = {
+          userId: metadataUserId,
+          customerId,
+          subscriptionId: sub.id,
+        };
 
-        try {
+        await withSupabaseLogging(event.type, context, async () => {
           const { data: userRow, error: findErr } = await supabaseAdmin
             .from("users")
             .select("id")
@@ -121,7 +128,7 @@ export default async function handler(req, res) {
             .single();
 
           if (userRow?.id) {
-            logUserId = userRow.id;
+            context.userId = userRow.id;
           }
 
           if (findErr && findErr.code !== "PGRST116") {
@@ -159,27 +166,16 @@ export default async function handler(req, res) {
 
             if (upsertError) throw upsertError;
           }
-        } catch (error) {
-          logSupabaseError(
-            event.type,
-            {
-              userId: logUserId,
-              customerId,
-              subscriptionId: sub.id,
-            },
-            error
-          );
-          throw error;
-        }
+        });
         break;
       }
 
       case "customer.subscription.deleted": {
         const sub = event.data.object;
         const customerId = sub.customer;
-        let userIdForLog = null;
+        const context = { customerId, subscriptionId: sub.id };
 
-        try {
+        await withSupabaseLogging(event.type, context, async () => {
           const { data: userRow, error: selectError } = await supabaseAdmin
             .from("users")
             .select("id")
@@ -189,7 +185,7 @@ export default async function handler(req, res) {
           if (selectError) throw selectError;
 
           if (userRow?.id) {
-            userIdForLog = userRow.id;
+            context.userId = userRow.id;
 
             const { error: updateError } = await supabaseAdmin
               .from("users")
@@ -202,18 +198,7 @@ export default async function handler(req, res) {
               `Stripe webhook ${event.type} hittade ingen användare för kund ${customerId}`
             );
           }
-        } catch (error) {
-          logSupabaseError(
-            event.type,
-            {
-              userId: userIdForLog,
-              customerId,
-              subscriptionId: sub.id,
-            },
-            error
-          );
-          throw error;
-        }
+        });
         break;
       }
 
