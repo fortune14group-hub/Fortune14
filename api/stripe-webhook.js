@@ -21,15 +21,18 @@ function logSupabaseError(eventType, context, error) {
     context?.customerId ? `customer=${context.customerId}` : null,
     context?.subscriptionId ? `subscription=${context.subscriptionId}` : null,
   ].filter(Boolean);
-  const message = `[Stripe webhook] Supabase error (${parts.join(", ")})`;
+  const errorMessage = error?.message || String(error);
+  const message = `[Stripe webhook] Supabase error (${parts.join(", ")}, message=${errorMessage})`;
   console.error(message, error);
 
   const monitoring = globalThis?.monitoringService;
   if (monitoring && typeof monitoring.captureException === "function") {
-    monitoring.captureException(error, {
+    const monitoringContext = {
       eventType,
-      context,
-    });
+      ...(context ?? {}),
+      errorMessage,
+    };
+    monitoring.captureException(error, monitoringContext);
   }
 }
 
