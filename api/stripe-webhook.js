@@ -18,9 +18,8 @@ function handleSupabaseError(eventType, userId, error) {
   const resolvedUserId = userId ?? "unknown";
   const errorMessage = error?.message || String(error);
 
-  console.error(
-    `Stripe webhook Supabase error - event: ${eventType}, user: ${resolvedUserId}, message: ${errorMessage}`
-  );
+  const contextMessage = `Stripe webhook Supabase error - event: ${eventType}, user: ${resolvedUserId}`;
+  console.error(contextMessage, error);
 
   const monitoringService = globalThis?.monitoringService;
   if (
@@ -31,6 +30,7 @@ function handleSupabaseError(eventType, userId, error) {
       eventType,
       userId: userId ?? null,
       message: errorMessage,
+      context: contextMessage,
     });
   }
 }
@@ -129,6 +129,12 @@ export default async function handler(req, res) {
             throw findErr;
           }
 
+          if (!userRow?.id && !metadataUserId) {
+            console.warn(
+              `Stripe webhook ${event.type} saknar användarreferens för kund ${customerId}`
+            );
+          }
+
           if (!findErr && userRow?.id) {
             const { error: updateError } = await supabaseAdmin
               .from("users")
@@ -193,7 +199,7 @@ export default async function handler(req, res) {
       }
 
       default:
-        // Ignorera övriga events
+        console.warn("Ohanterad Stripe-webhook-händelse", event.type);
         break;
     }
 
