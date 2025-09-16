@@ -346,6 +346,7 @@
     cursor:pointer;
     transition:background .2s ease,color .2s ease;
   }
+  .action-menu button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .action-menu button:hover{background:rgba(45,70,110,0.6);color:#fff;}
   .action-menu button[data-action="delete"]{color:#fca5a5;}
   .action-menu button[data-action="delete"]:hover{background:rgba(120,31,46,0.35);}
@@ -573,22 +574,22 @@
   </div>
 
 <script type="module">
-  // ======= KONFIG =======
+  // --- Konfiguration ---
   const SUPABASE_URL = "https://updpywjfxeahtjpelbku.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZHB5d2pmeGVhaHRqcGVsYmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MjQzOTcsImV4cCI6MjA3MjUwMDM5N30.i1ztG8dkcHFLq8WEn_uVrgCBk0_Wf5gZb_OQQuaSGgo";
 
-  // ======= LIBS =======
+  // --- Bibliotek ---
   import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
   const SB = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // ======= STATE =======
+  // --- Tillstånd ---
   let currentUser = null;
   let currentProject = null; // {id, name}
   let projects = []; // [{id,name}]
   let bets = [];     // alla bets för valt projekt
   let editingBetId = null;
 
-  // ======= UI HELPERS =======
+  // --- UI-hjälpare ---
   const $ = s => document.querySelector(s);
   const $$ = s => document.querySelectorAll(s);
   const fmtMoney = v => (Math.round(v * 100)/100).toFixed(2);
@@ -611,7 +612,16 @@
   $$(".tab").forEach(t => t.addEventListener("click",()=>setTab(t.dataset.tab)));
 
   function closeActionMenus(){
-    document.querySelectorAll(".action-dropdown.open").forEach(el => el.classList.remove("open"));
+    document.querySelectorAll(".action-dropdown.open").forEach(el => {
+      el.classList.remove("open");
+      const toggle = el.querySelector(".dropdown-toggle");
+      if(toggle){
+        toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    document
+      .querySelectorAll('.dropdown-toggle[aria-expanded="true"]')
+      .forEach(btn => btn.setAttribute("aria-expanded", "false"));
   }
 
   function resetBetForm(){
@@ -669,8 +679,13 @@
   }
 
   document.addEventListener("click", closeActionMenus);
+  document.addEventListener("keydown", ev => {
+    if(ev.key === "Escape"){
+      closeActionMenus();
+    }
+  });
 
-  // ======= AUTH =======
+  // --- Auth ---
   async function ensureProfileRow(){
     if(!currentUser) return;
     try{
@@ -696,7 +711,7 @@
 
   $("#logoutBtn").onclick = async () => { await SB.auth.signOut(); location.href="/"; };
 
-  // ======= STRIPE KNAPPAR =======
+  // --- Stripe-knappar ---
   async function callStripeCheckout(){
     try{
       const { data: { session } } = await SB.auth.getSession();
@@ -738,7 +753,7 @@
   $("#upgradeBtn").onclick = callStripeCheckout;
   $("#manageBillingBtn").onclick = callBillingPortal;
 
-  // ======= DATA =======
+  // --- Datahämtning ---
   async function loadProjects(){
     const { data, error } = await SB.from("projects")
       .select("id,name")
@@ -906,7 +921,7 @@
     }
   }
 
-  // ======= LÄGG TILL SPEL =======
+  // --- Lägg till spel ---
   $("#addBetBtn").onclick = async ()=>{
     if(!currentProject) return alert("Välj/skapa projekt först.");
     const d = $("#iDate").value;
@@ -964,7 +979,7 @@
     setTab("list");
   };
 
-  // ======= RENDER LISTA (gruppera per månad) =======
+  // --- Rendera lista (grupperad per månad) ---
   function renderBets(){
     const byMonth = {};
     for(const b of bets){
@@ -1014,18 +1029,20 @@
         const statusClass = status.toLowerCase();
         const statusLabelMap = { Win: "Vinst", Loss: "Förlust", Pending: "Avvaktar", Void: "Void" };
         const statusLabel = statusLabelMap[status] || status;
+        const fallbackId = Math.random().toString(36).slice(2, 9);
+        const menuId = b.id ? `actions-${b.id}` : `actions-temp-${fallbackId}`;
         const resHtml = `
           <div class="result-cell">
             <span class="status-badge ${statusClass}">${statusLabel}</span>
             <div class="action-dropdown">
-              <button type="button" class="dropdown-toggle">Hantera</button>
-              <div class="action-menu">
-                <button type="button" data-action="status" data-value="Win">Markera som vinst</button>
-                <button type="button" data-action="status" data-value="Loss">Markera som förlust</button>
-                <button type="button" data-action="status" data-value="Pending">Markera som pending</button>
-                <button type="button" data-action="status" data-value="Void">Markera som void</button>
-                <button type="button" data-action="edit">Redigera</button>
-                <button type="button" data-action="delete">Ta bort</button>
+              <button type="button" class="dropdown-toggle" aria-haspopup="true" aria-expanded="false" aria-controls="${menuId}">Hantera</button>
+              <div class="action-menu" id="${menuId}" role="menu">
+                <button type="button" role="menuitem" data-action="status" data-value="Win">Markera som vinst</button>
+                <button type="button" role="menuitem" data-action="status" data-value="Loss">Markera som förlust</button>
+                <button type="button" role="menuitem" data-action="status" data-value="Pending">Markera som pending</button>
+                <button type="button" role="menuitem" data-action="status" data-value="Void">Markera som void</button>
+                <button type="button" role="menuitem" data-action="edit">Redigera</button>
+                <button type="button" role="menuitem" data-action="delete">Ta bort</button>
               </div>
             </div>
           </div>`;
@@ -1041,15 +1058,23 @@
         const dropdown = row.querySelector(".action-dropdown");
         if(dropdown){
           const toggle = dropdown.querySelector(".dropdown-toggle");
+          const menu = dropdown.querySelector(".action-menu");
           if(toggle){
             toggle.addEventListener("click", ev => {
               ev.stopPropagation();
               const isOpen = dropdown.classList.contains("open");
               closeActionMenus();
-              dropdown.classList.toggle("open", !isOpen);
+              const willOpen = !isOpen;
+              dropdown.classList.toggle("open", willOpen);
+              toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+              if(willOpen && menu){
+                const firstAction = menu.querySelector("[data-action]");
+                if(firstAction){
+                  firstAction.focus();
+                }
+              }
             });
           }
-          const menu = dropdown.querySelector(".action-menu");
           if(menu){
             menu.addEventListener("click", ev => ev.stopPropagation());
             menu.querySelectorAll("[data-action]").forEach(btn => {
@@ -1167,7 +1192,7 @@
     renderQuickStats();
   }
 
-  // ======= INIT =======
+  // --- Initiering ---
   (async function init(){
     try{
       await ensureAuth();
