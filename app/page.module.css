@@ -20,6 +20,19 @@
   align-items: center;
 }
 
+.topbarLink {
+  color: #cbd5f5;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.topbarLink:hover {
+  background: rgba(148, 163, 184, 0.16);
+  color: #f8fafc;
+}
+
 .btn {
   padding: 12px 14px;
   border-radius: 10px;

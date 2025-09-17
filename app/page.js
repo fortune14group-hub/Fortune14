@@ -9,6 +9,9 @@ export default function LandingPage() {
       <div className={styles.landingTopbar}>
         <div className={styles.brand}><strong>BetSpread</strong></div>
         <div className={styles.topbarActions}>
+          <Link href="/drift-krav" className={styles.topbarLink}>
+            Drift & juridik
+          </Link>
           <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
             Logga in
           </Link>
