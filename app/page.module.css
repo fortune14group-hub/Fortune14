@@ -122,11 +122,60 @@
 }
 
 .landingFooter {
-  padding: 20px;
-  color: #93a4b4;
+  padding: 24px 20px 32px;
+  color: #cbd5f5;
   border-top: 1px solid #1f2a37;
   background: #0f1720;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
   text-align: center;
+}
+
+.footerNav {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footerLink {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 4px 0;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.footerLink:hover {
+  color: #ffffff;
+  border-color: rgba(226, 232, 240, 0.6);
+}
+
+.footerContact,
+.footerMessage {
+  margin: 0;
+  color: #93a4b4;
+  font-size: 14px;
+}
+
+.footerContact a,
+.footerMessage a {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.footerCopy {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+@media (min-width: 900px) {
+  .landingFooter {
+    justify-items: center;
+  }
 }
 
 @media (max-width: 900px) {

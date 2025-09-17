@@ -98,6 +98,24 @@ export default function CompliancePage() {
           </article>
 
           <article className={styles.card}>
+            <h3>Supabase RLS, snapshots &amp; DPA</h3>
+            <ul>
+              <li>
+                Aktivera Row Level Security (RLS) på tabellerna <code>users</code>, <code>projects</code>
+                och <code>bets</code> så att endast ägaren får åtkomst till sina data.
+              </li>
+              <li>
+                Schemalägg dagliga snapshots via Supabases backup-funktion och lagra krypterade kopior i
+                minst 30 dagar för återställning.
+              </li>
+              <li>
+                Signera Supabases Data Processing Agreement (DPA) och arkivera avtalet tillsammans med
+                loggar över åtkomst och förändringar.
+              </li>
+            </ul>
+          </article>
+
+          <article className={styles.card}>
             <h3>Skydda drift & hemligheter</h3>
             <ul>
               <li>
@@ -127,6 +145,52 @@ export default function CompliancePage() {
               <li>
                 Säkerställ dokumenterade processer för kontostängning, dataportabilitet och
                 radering på begäran.
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <h2>Support &amp; incidentrutiner</h2>
+        <p>
+          Alla supportärenden och säkerhetsincidenter hanteras via{' '}
+          <a href="mailto:support@betspread.se">support@betspread.se</a>. Adressen används även för
+          dataskyddsförfrågningar och eskaleringar till driftteamet.
+        </p>
+        <div className={styles.cardGrid}>
+          <article className={styles.card}>
+            <h3>Supportprocess</h3>
+            <ul>
+              <li>Öppettider vardagar 09.00–17.00 med svar inom 24 timmar.</li>
+              <li>
+                Ärenden kategoriseras (betalning, konto, teknik). Kritiska fel eskaleras omedelbart till
+                driftansvarig.
+              </li>
+              <li>
+                All kommunikation loggas i ärendehanteringssystem tillsammans med tidsstämplar och
+                åtgärder.
+              </li>
+              <li>
+                Kunder informeras via e-post och statusuppdateringar vid planerade driftfönster eller
+                större avbrott.
+              </li>
+            </ul>
+          </article>
+          <article className={styles.card}>
+            <h3>Incidentrespons</h3>
+            <ul>
+              <li>Bekräfta mottagen incidentrapport inom 24 timmar och starta triagering.</li>
+              <li>
+                Isolera berörda system, återställ data från senaste snapshot och dokumentera påverkan.
+              </li>
+              <li>
+                Vid personuppgiftsincidenter: notifiera drabbade användare och Integritetsskyddsmyndigheten
+                (IMY) inom 72 timmar.
+              </li>
+              <li>
+                Efterarbete inkluderar rotorsaksanalys, uppdaterade rutiner och delad rapport med ledning
+                och supportteam.
               </li>
             </ul>
           </article>
@@ -164,11 +228,21 @@ export default function CompliancePage() {
               åtkomstkontroller för produktion.
             </div>
           </li>
+          <li>
+            <span className={styles.bullet}>5</span>
+            <div>
+              <strong>Support & incidentrapportering:</strong> Säkerställ att{' '}
+              <a href="mailto:support@betspread.se">support@betspread.se</a> är bemannad, dokumentera
+              ärendeflödet och testa rapportering till IMY.
+            </div>
+          </li>
         </ul>
         <p className={styles.closingNote}>
           När checklistan är avklarad har ni grunden för att driva BetSpread professionellt och
           uppfylla de krav som ställs av svensk lagstiftning, dataskyddsregler och
-          betalningsleverantörer.
+          betalningsleverantörer. Komplettera med uppdaterade <Link href="/terms">köpvillkor</Link>,{' '}
+          <Link href="/privacy">integritetspolicy</Link> och <Link href="/disclaimer">ansvarsfriskrivning</Link>
+          på webbplatsen.
         </p>
       </section>
     </main>

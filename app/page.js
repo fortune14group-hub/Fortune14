@@ -60,7 +60,33 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className={styles.landingFooter}>© {yearNow} BetSpread</footer>
+      <footer className={styles.landingFooter}>
+        <nav className={styles.footerNav} aria-label="Juridik och policy">
+          <Link href="/terms" className={styles.footerLink}>
+            Köpvillkor
+          </Link>
+          <Link href="/privacy" className={styles.footerLink}>
+            Integritetspolicy
+          </Link>
+          <Link href="/disclaimer" className={styles.footerLink}>
+            Ansvarsfriskrivning
+          </Link>
+          <Link href="/drift-krav" className={styles.footerLink}>
+            Drift & juridik
+          </Link>
+        </nav>
+        <p className={styles.footerContact}>
+          Support: <a href="mailto:support@betspread.se">support@betspread.se</a>
+        </p>
+        <p className={styles.footerMessage}>
+          Spela ansvarsfullt. Behöver du stöd? Besök{' '}
+          <a href="https://www.stodlinjen.se" target="_blank" rel="noreferrer">
+            Stödlinjen
+          </a>
+          .
+        </p>
+        <p className={styles.footerCopy}>© {yearNow} BetSpread</p>
+      </footer>
     </>
   );
 }

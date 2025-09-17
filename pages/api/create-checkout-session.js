@@ -1,7 +1,13 @@
 import Stripe from 'stripe';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+if (!stripeSecretKey) {
+  throw new Error('STRIPE_SECRET_KEY måste vara satt för Stripe Checkout.');
+}
+
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2023-10-16',
 });
 
@@ -70,6 +76,10 @@ export default async function handler(req, res) {
         .update({ stripe_customer_id: customerId })
         .eq('id', user_id);
       if (upErr) throw upErr;
+    }
+
+    if (!process.env.STRIPE_PRICE_ID) {
+      throw new Error('STRIPE_PRICE_ID saknas i miljövariablerna.');
     }
 
     const session = await stripe.checkout.sessions.create({
