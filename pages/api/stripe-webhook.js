@@ -1,21 +1,19 @@
-// /api/stripe-webhook.js
-export const config = { runtime: "nodejs" };
+import Stripe from 'stripe';
+import getRawBody from 'raw-body';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
 
-import Stripe from "stripe";
-import getRawBody from "raw-body";
-import { createClient } from "@supabase/supabase-js";
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2023-10-16",
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-10-16',
 });
 
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE
-);
-
 function handleSupabaseError(eventType, userId, error) {
-  const resolvedUserId = userId ?? "unknown";
+  const resolvedUserId = userId ?? 'unknown';
   const errorMessage = error?.message || String(error);
 
   console.error(
@@ -23,10 +21,7 @@ function handleSupabaseError(eventType, userId, error) {
   );
 
   const monitoringService = globalThis?.monitoringService;
-  if (
-    monitoringService &&
-    typeof monitoringService.captureException === "function"
-  ) {
+  if (monitoringService && typeof monitoringService.captureException === 'function') {
     monitoringService.captureException(error, {
       eventType,
       userId: userId ?? null,
@@ -36,19 +31,20 @@ function handleSupabaseError(eventType, userId, error) {
 }
 
 export function isActiveSubscription(status) {
-  // De statusar där vi betraktar användaren som premium
-  return ["trialing", "active", "past_due", "unpaid"].includes(status);
+  return ['trialing', 'active', 'past_due', 'unpaid'].includes(status);
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).send("Method Not Allowed");
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    res.status(405).send('Method Not Allowed');
+    return;
   }
 
-  const sig = req.headers["stripe-signature"];
+  const sig = req.headers['stripe-signature'];
   if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
-    return res.status(400).send("Missing Stripe signature or webhook secret");
+    res.status(400).send('Missing Stripe signature or webhook secret');
+    return;
   }
 
   let event;
@@ -60,21 +56,17 @@ export default async function handler(req, res) {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error('Webhook signature verification failed:', err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+    return;
   }
 
   try {
     switch (event.type) {
-      case "checkout.session.completed": {
+      case 'checkout.session.completed': {
         const session = event.data.object;
-        const user_id =
-          session.metadata?.user_id || session.client_reference_id || null;
-
-        // Länka sub-id till användaren om det finns
-        let subscriptionId = session.subscription || null;
-
-        // Säkra kund-id
+        const user_id = session.metadata?.user_id || session.client_reference_id || null;
+        const subscriptionId = session.subscription || null;
         const customerId = session.customer;
 
         try {
@@ -85,16 +77,16 @@ export default async function handler(req, res) {
             if (subscriptionId) update.stripe_subscription_id = subscriptionId;
 
             const { error } = await supabaseAdmin
-              .from("users")
+              .from('users')
               .update(update)
-              .eq("id", user_id);
+              .eq('id', user_id);
             if (error) throw error;
 
             if (subscriptionId) {
               const { error: premiumError } = await supabaseAdmin
-                .from("users")
+                .from('users')
                 .update({ is_premium: true })
-                .eq("id", user_id);
+                .eq('id', user_id);
               if (premiumError) throw premiumError;
             }
           }
@@ -105,8 +97,8 @@ export default async function handler(req, res) {
         break;
       }
 
-      case "customer.subscription.created":
-      case "customer.subscription.updated": {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
         const sub = event.data.object;
         const customerId = sub.customer;
         const status = sub.status;
@@ -114,34 +106,33 @@ export default async function handler(req, res) {
         let logUserId = metadataUserId;
 
         try {
-          // Försök hitta user via kund-id
           const { data: userRow, error: findErr } = await supabaseAdmin
-            .from("users")
-            .select("id")
-            .eq("stripe_customer_id", customerId)
+            .from('users')
+            .select('id')
+            .eq('stripe_customer_id', customerId)
             .single();
 
           if (userRow?.id) {
             logUserId = userRow.id;
           }
 
-          if (findErr && findErr.code !== "PGRST116") {
+          if (findErr && findErr.code !== 'PGRST116') {
             throw findErr;
           }
 
           if (!findErr && userRow?.id) {
             const { error: updateError } = await supabaseAdmin
-              .from("users")
+              .from('users')
               .update({
                 stripe_subscription_id: sub.id,
                 is_premium: isActiveSubscription(status),
               })
-              .eq("id", userRow.id);
+              .eq('id', userRow.id);
 
             if (updateError) throw updateError;
           } else if (metadataUserId) {
             const { error: upsertError } = await supabaseAdmin
-              .from("users")
+              .from('users')
               .upsert(
                 {
                   id: metadataUserId,
@@ -149,7 +140,7 @@ export default async function handler(req, res) {
                   stripe_subscription_id: sub.id,
                   is_premium: isActiveSubscription(status),
                 },
-                { onConflict: "id" }
+                { onConflict: 'id' }
               );
 
             if (upsertError) throw upsertError;
@@ -161,16 +152,16 @@ export default async function handler(req, res) {
         break;
       }
 
-      case "customer.subscription.deleted": {
+      case 'customer.subscription.deleted': {
         const sub = event.data.object;
         const customerId = sub.customer;
         let logUserId = null;
 
         try {
           const { data: userRow, error: selectError } = await supabaseAdmin
-            .from("users")
-            .select("id")
-            .eq("stripe_customer_id", customerId)
+            .from('users')
+            .select('id')
+            .eq('stripe_customer_id', customerId)
             .maybeSingle();
 
           if (selectError) throw selectError;
@@ -179,9 +170,9 @@ export default async function handler(req, res) {
             logUserId = userRow.id;
 
             const { error: updateError } = await supabaseAdmin
-              .from("users")
+              .from('users')
               .update({ is_premium: false, stripe_subscription_id: null })
-              .eq("id", userRow.id);
+              .eq('id', userRow.id);
 
             if (updateError) throw updateError;
           }
@@ -193,13 +184,12 @@ export default async function handler(req, res) {
       }
 
       default:
-        // Ignorera övriga events
         break;
     }
 
-    return res.status(200).json({ received: true });
+    res.status(200).json({ received: true });
   } catch (err) {
-    console.error("stripe-webhook handler error:", err);
-    return res.status(500).send("Webhook handler error");
+    console.error('stripe-webhook handler error:', err);
+    res.status(500).send('Webhook handler error');
   }
 }

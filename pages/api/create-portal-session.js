@@ -1,25 +1,19 @@
-// /api/create-portal-session.js
-export const config = { runtime: 'nodejs' };
-
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
 });
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE
-);
 
 function getOrigin(req) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const host = req.headers['x-forwarded-host'] || req.headers.host || '';
   return `${proto}://${host}`;
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
     res.status(405).send('Method Not Allowed');
     return;
   }
@@ -46,16 +40,14 @@ export default async function handler(req, res) {
       return;
     }
 
-    const returnUrl = `${getOrigin(req)}/app.html`;
-
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: userRow.stripe_customer_id,
-      return_url: returnUrl,
+      return_url: `${getOrigin(req)}/app`,
     });
 
-    res.json({ url: portalSession.url });
-  } catch (e) {
-    console.error('Portal error:', e);
+    res.status(200).json({ url: portalSession.url });
+  } catch (err) {
+    console.error('Portal error:', err);
     res.status(500).json({ error: 'Failed to create portal session' });
   }
 }
