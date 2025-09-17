@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabaseClient';
+import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
 
 const initialForm = () => ({
   date: new Date().toISOString().slice(0, 10),
@@ -77,9 +77,31 @@ export default function AppPage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
+  const [supabaseState] = useState(() => {
+    try {
+      return { client: getSupabaseBrowserClient(), error: null };
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Okänt fel vid initiering av Supabase-klienten.';
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.error('Supabase-konfiguration saknas:', err);
+      }
+      return { client: null, error: message };
+    }
+  });
+  const supabase = supabaseState.client;
+  const supabaseError = supabaseState.error;
 
   useEffect(() => {
+    if (!supabase) {
+      return undefined;
+    }
+
     let isMounted = true;
+    let authSubscription = null;
 
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return;
@@ -91,24 +113,26 @@ export default function AppPage() {
       }
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       const nextUser = nextSession?.user ?? null;
       setUser(nextUser);
       if (!nextUser) {
         router.replace('/login');
       }
     });
+    authSubscription = data?.subscription ?? null;
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
     };
-  }, [router]);
+  }, [router, supabase]);
 
   const ensureProfileRow = useCallback(
     async (targetUser) => {
+      if (!supabase) return;
       const u = targetUser ?? user;
       if (!u?.id) return;
       try {
@@ -122,10 +146,14 @@ export default function AppPage() {
         console.error('ensureProfileRow fel', err);
       }
     },
-    [user]
+    [supabase, user]
   );
 
   const updateFreeUsage = useCallback(async () => {
+    if (!supabase) {
+      setFreeInfo(null);
+      return;
+    }
     if (!user?.id) {
       setFreeInfo(null);
       return;
@@ -160,9 +188,15 @@ export default function AppPage() {
       console.error('updateFreeUsage fel', err);
       setFreeInfo({ premium: false, used: 0, left: 20 });
     }
-  }, [ensureProfileRow, user]);
+  }, [ensureProfileRow, supabase, user]);
 
   const loadProjects = useCallback(async () => {
+    if (!supabase) {
+      setProjects([]);
+      setCurrentProjectId('');
+      setLoadingProjects(false);
+      return;
+    }
     if (!user?.id) {
       setProjects([]);
       setCurrentProjectId('');
@@ -190,12 +224,18 @@ export default function AppPage() {
     } finally {
       setLoadingProjects(false);
     }
-  }, [user]);
+  }, [supabase, user]);
 
   const loadBets = useCallback(
     async (projectId) => {
+      if (!supabase) {
+        setBets([]);
+        setLoadingBets(false);
+        return;
+      }
       if (!user?.id || !projectId) {
         setBets([]);
+        setLoadingBets(false);
         await updateFreeUsage();
         return;
       }
@@ -218,7 +258,7 @@ export default function AppPage() {
         await updateFreeUsage();
       }
     },
-    [updateFreeUsage, user]
+    [supabase, updateFreeUsage, user]
   );
 
   useEffect(() => {
@@ -360,11 +400,19 @@ export default function AppPage() {
   }, [performanceSeries]);
 
   const handleLogout = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     await supabase.auth.signOut();
     router.replace('/login');
   };
 
   const handleNewProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     if (!user?.id) return;
     const name = window.prompt('Namn på nytt projekt:', 'Nytt projekt');
     if (!name) return;
@@ -385,6 +433,10 @@ export default function AppPage() {
   };
 
   const handleRenameProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     if (!user?.id || !currentProject) return;
     const name = window.prompt('Nytt namn:', currentProject.name);
     if (!name) return;
@@ -403,6 +455,10 @@ export default function AppPage() {
   };
 
   const handleDeleteProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     if (!user?.id || !currentProject) return;
     if (!window.confirm('Radera projektet och alla spel?')) return;
     try {
@@ -424,6 +480,10 @@ export default function AppPage() {
   };
 
   const handleResetProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     if (!user?.id || !currentProject) return;
     if (!window.confirm('Ta bort alla spel i projektet?')) return;
     try {
@@ -444,6 +504,10 @@ export default function AppPage() {
   };
 
   const handleSaveBet = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     if (!user?.id || !currentProjectId) {
       window.alert('Välj eller skapa projekt först.');
       return;
@@ -524,6 +588,10 @@ export default function AppPage() {
   };
 
   const handleUpdateBetResult = async (betId, result) => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     if (!user?.id) return;
     try {
       const { error } = await supabase
@@ -540,6 +608,10 @@ export default function AppPage() {
   };
 
   const handleDeleteBet = async (betId) => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
     if (!user?.id) return;
     if (!window.confirm('Ta bort spelet?')) return;
     try {
@@ -632,6 +704,35 @@ export default function AppPage() {
   const lastChartPoint = chartHasData
     ? performanceChart.coords[performanceChart.coords.length - 1]
     : null;
+
+  if (supabaseError) {
+    return (
+      <main
+        style={{
+          maxWidth: '640px',
+          margin: '4rem auto',
+          padding: '2.5rem',
+          borderRadius: '1.5rem',
+          background: '#ffffff',
+          boxShadow: '0 24px 64px rgba(15, 23, 42, 0.12)',
+          color: '#0f172a',
+          lineHeight: 1.6,
+        }}
+      >
+        <h1 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Konfigurationsfel</h1>
+        <p style={{ marginBottom: '1rem' }}>
+          BetSpread kan inte koppla upp sig mot din Supabase-databas eftersom nödvändiga
+          miljövariabler saknas. Lägg till <code>NEXT_PUBLIC_SUPABASE_URL</code>,{' '}
+          <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, <code>SUPABASE_URL</code> och{' '}
+          <code>SUPABASE_SERVICE_ROLE</code> i din miljö och deploya på nytt.
+        </p>
+        <p style={{ marginBottom: '1.5rem', fontWeight: 500 }}>{supabaseError}</p>
+        <p style={{ fontSize: '0.95rem', color: '#475569' }}>
+          När variablerna är satta kommer denna sida att ladda om och ansluta automatiskt.
+        </p>
+      </main>
+    );
+  }
 
   return (
     <div className="container">

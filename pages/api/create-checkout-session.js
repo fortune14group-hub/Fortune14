@@ -1,15 +1,24 @@
 import Stripe from 'stripe';
-import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { getSupabaseServiceRoleClient } from '../../lib/supabaseAdmin';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+let stripeClient = null;
 
-if (!stripeSecretKey) {
-  throw new Error('STRIPE_SECRET_KEY måste vara satt för Stripe Checkout.');
+function getStripeClient() {
+  if (stripeClient) {
+    return stripeClient;
+  }
+
+  if (!stripeSecretKey) {
+    throw new Error('STRIPE_SECRET_KEY saknas i miljön.');
+  }
+
+  stripeClient = new Stripe(stripeSecretKey, {
+    apiVersion: '2023-10-16',
+  });
+
+  return stripeClient;
 }
-
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2023-10-16',
-});
 
 function getOrigin(req) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
@@ -25,6 +34,24 @@ export default async function handler(req, res) {
   }
 
   try {
+    let supabaseAdmin;
+    try {
+      supabaseAdmin = getSupabaseServiceRoleClient();
+    } catch (configErr) {
+      console.error('Supabase-konfiguration saknas:', configErr);
+      res.status(500).json({ error: 'Supabase-konfiguration saknas' });
+      return;
+    }
+
+    let stripe;
+    try {
+      stripe = getStripeClient();
+    } catch (configErr) {
+      console.error('Stripe-konfiguration saknas:', configErr);
+      res.status(500).json({ error: 'Stripe-konfiguration saknas' });
+      return;
+    }
+
     const origin = getOrigin(req);
     const { user_id, email } = req.body || {};
     const incomingEmail = typeof email === 'string' ? email.trim() : undefined;
@@ -79,7 +106,9 @@ export default async function handler(req, res) {
     }
 
     if (!process.env.STRIPE_PRICE_ID) {
-      throw new Error('STRIPE_PRICE_ID saknas i miljövariablerna.');
+      console.error('STRIPE_PRICE_ID saknas i miljövariablerna.');
+      res.status(500).json({ error: 'Stripe-konfiguration saknas' });
+      return;
     }
 
     const session = await stripe.checkout.sessions.create({

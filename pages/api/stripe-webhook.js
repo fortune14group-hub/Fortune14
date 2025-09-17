@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import getRawBody from 'raw-body';
-import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { getSupabaseServiceRoleClient } from '../../lib/supabaseAdmin';
 
 export const config = {
   api: {
@@ -9,14 +9,23 @@ export const config = {
 };
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+let stripeClient = null;
 
-if (!stripeSecretKey) {
-  throw new Error('STRIPE_SECRET_KEY måste vara satt för Stripe-webhooken.');
+function getStripeClient() {
+  if (stripeClient) {
+    return stripeClient;
+  }
+
+  if (!stripeSecretKey) {
+    throw new Error('STRIPE_SECRET_KEY saknas i miljön.');
+  }
+
+  stripeClient = new Stripe(stripeSecretKey, {
+    apiVersion: '2023-10-16',
+  });
+
+  return stripeClient;
 }
-
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2023-10-16',
-});
 
 function handleSupabaseError(eventType, userId, error) {
   const resolvedUserId = userId ?? 'unknown';
@@ -44,6 +53,24 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.status(405).send('Method Not Allowed');
+    return;
+  }
+
+  let stripe;
+  try {
+    stripe = getStripeClient();
+  } catch (configErr) {
+    console.error('Stripe-konfiguration saknas:', configErr);
+    res.status(500).send('Stripe-konfiguration saknas');
+    return;
+  }
+
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseServiceRoleClient();
+  } catch (configErr) {
+    console.error('Supabase-konfiguration saknas:', configErr);
+    res.status(500).send('Supabase-konfiguration saknas');
     return;
   }
 

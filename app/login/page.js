@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabaseClient';
+import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,9 +15,31 @@ export default function LoginPage() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupError, setSignupError] = useState('');
   const [signupInfo, setSignupInfo] = useState('');
+  const [supabaseState] = useState(() => {
+    try {
+      return { client: getSupabaseBrowserClient(), error: null };
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Okänt fel vid initiering av Supabase-klienten.';
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.error('Supabase-konfiguration saknas:', err);
+      }
+      return { client: null, error: message };
+    }
+  });
+  const supabase = supabaseState.client;
+  const supabaseError = supabaseState.error;
 
   useEffect(() => {
+    if (!supabase) {
+      return undefined;
+    }
+
     let isMounted = true;
+    let authSubscription = null;
 
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return;
@@ -26,19 +48,20 @@ export default function LoginPage() {
       }
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         router.replace('/app');
       }
     });
+    authSubscription = data?.subscription ?? null;
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
     };
-  }, [router]);
+  }, [router, supabase]);
 
   const handleLogin = async () => {
     setLoginError('');
@@ -47,6 +70,11 @@ export default function LoginPage() {
 
     if (!email || !password) {
       setLoginError('Fyll i e-post och lösenord.');
+      return;
+    }
+
+    if (!supabase) {
+      setLoginError('Supabase är inte konfigurerat. Lägg till miljövariablerna och försök igen.');
       return;
     }
 
@@ -71,6 +99,11 @@ export default function LoginPage() {
       return;
     }
 
+    if (!supabase) {
+      setSignupError('Supabase är inte konfigurerat. Lägg till miljövariablerna och försök igen.');
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -87,6 +120,36 @@ export default function LoginPage() {
 
     setSignupInfo('Konto skapat. Du kan nu logga in.');
   };
+
+  if (supabaseError) {
+    return (
+      <main
+        style={{
+          maxWidth: '560px',
+          margin: '4rem auto',
+          padding: '2.5rem',
+          borderRadius: '1.5rem',
+          background: '#111827',
+          boxShadow: '0 24px 64px rgba(15, 23, 42, 0.28)',
+          color: '#e2e8f0',
+          lineHeight: 1.6,
+          border: '1px solid #1f2937',
+        }}
+      >
+        <h1 style={{ fontSize: '1.75rem', marginBottom: '1rem', color: '#f8fafc' }}>Konfigurationsfel</h1>
+        <p style={{ marginBottom: '1rem' }}>
+          Inloggningen är beroende av Supabase. Lägg till{' '}
+          <code>NEXT_PUBLIC_SUPABASE_URL</code> och <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> i din miljö
+          tillsammans med server-variablerna <code>SUPABASE_URL</code> och{' '}
+          <code>SUPABASE_SERVICE_ROLE</code>, deploya på nytt och försök igen.
+        </p>
+        <p style={{ marginBottom: '1.5rem', fontWeight: 500 }}>{supabaseError}</p>
+        <p style={{ fontSize: '0.95rem', color: '#cbd5f5' }}>
+          När variablerna är satta laddar sidan om automatiskt och du kan logga in.
+        </p>
+      </main>
+    );
+  }
 
   return (
     <div className="center">
