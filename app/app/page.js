@@ -20,10 +20,28 @@ const monthFormatter = new Intl.DateTimeFormat('sv-SE', {
   year: 'numeric',
 });
 
+const dayFormatter = new Intl.DateTimeFormat('sv-SE', {
+  day: '2-digit',
+  month: 'short',
+});
+
+const formatDay = (isoDate) => {
+  if (!isoDate) return '–';
+  const safeDate = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(safeDate.getTime())) return isoDate;
+  return dayFormatter.format(safeDate);
+};
+
 const formatMoney = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return '0.00';
   return (Math.round(num * 100) / 100).toFixed(2);
+};
+
+const formatPercent = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0.0%';
+  return `${(Math.round(num * 10) / 10).toFixed(1)}%`;
 };
 
 const formatMonth = (key) => {
@@ -58,6 +76,7 @@ export default function AppPage() {
   const [freeInfo, setFreeInfo] = useState(null);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
+  const [editingBet, setEditingBet] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -218,6 +237,11 @@ export default function AppPage() {
     loadBets(currentProjectId);
   }, [currentProjectId, loadBets, updateFreeUsage]);
 
+  useEffect(() => {
+    setEditingBet(null);
+    setForm(initialForm());
+  }, [currentProjectId]);
+
   const currentProject = useMemo(
     () => projects.find((project) => project.id === currentProjectId) ?? null,
     [projects, currentProjectId]
@@ -243,12 +267,13 @@ export default function AppPage() {
     });
   }, [monthGroups]);
 
+  const filteredBets = useMemo(
+    () => (monthFilter === 'all' ? bets : bets.filter((bet) => bet.matchday?.startsWith(monthFilter))),
+    [bets, monthFilter]
+  );
+
   const summaryData = useMemo(() => {
-    const filtered =
-      monthFilter === 'all'
-        ? bets
-        : bets.filter((bet) => bet.matchday?.startsWith(monthFilter));
-    const decided = filtered.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
+    const decided = filteredBets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
     const wins = decided.filter((bet) => bet.result === 'Win');
     const stakeSum = decided.reduce((sum, bet) => {
       const stakeNum = Number(bet.stake);
@@ -262,22 +287,77 @@ export default function AppPage() {
       profit,
       roi,
     };
-  }, [bets, monthFilter]);
+  }, [filteredBets]);
 
-  const quickStats = useMemo(() => {
-    const total = bets.length;
-    const pending = bets.filter((bet) => bet.result === 'Pending').length;
-    const decided = bets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
-    const wins = decided.filter((bet) => bet.result === 'Win').length;
-    const winRate = decided.length ? (wins / decided.length) * 100 : null;
-    const profit = bets.reduce((sum, bet) => sum + computeProfit(bet), 0);
+  const overviewStats = useMemo(() => {
+    const total = filteredBets.length;
+    const pending = filteredBets.filter((bet) => bet.result === 'Pending').length;
     return {
       total,
       pending,
-      winRate,
-      profit,
+      roi: summaryData.roi,
+      profit: summaryData.profit,
+      decided: summaryData.games,
+      wins: summaryData.wins,
     };
-  }, [bets]);
+  }, [filteredBets, summaryData]);
+
+  const performanceSeries = useMemo(() => {
+    const decided = filteredBets
+      .filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void')
+      .filter((bet) => !!bet.matchday);
+    if (decided.length === 0) {
+      return { points: [], min: 0, max: 0, start: null, end: null };
+    }
+    const sorted = [...decided].sort((a, b) => {
+      const dateA = a.matchday ?? '';
+      const dateB = b.matchday ?? '';
+      if (dateA === dateB) {
+        const createdA = a.created_at ?? '';
+        const createdB = b.created_at ?? '';
+        return createdA.localeCompare(createdB);
+      }
+      return dateA.localeCompare(dateB);
+    });
+    let running = 0;
+    const points = sorted.map((bet) => {
+      running += computeProfit(bet);
+      return {
+        date: bet.matchday.slice(0, 10),
+        value: Math.round(running * 100) / 100,
+      };
+    });
+    const values = points.map((p) => p.value);
+    const min = Math.min(0, ...values);
+    const max = Math.max(0, ...values);
+    return {
+      points,
+      min,
+      max,
+      start: points[0].date,
+      end: points[points.length - 1].date,
+    };
+  }, [filteredBets]);
+
+  const performanceChart = useMemo(() => {
+    const { points, min, max } = performanceSeries;
+    if (points.length === 0) {
+      return { coords: [], linePoints: '', areaPoints: '', min: 0, max: 0 };
+    }
+    const range = max - min || 1;
+    const coords = points.map((point, index) => {
+      const x = points.length > 1 ? (index / (points.length - 1)) * 100 : 50;
+      const y = 100 - ((point.value - min) / range) * 100;
+      return { ...point, x, y };
+    });
+    const linePoints = coords.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+    const areaPoints = [
+      ...coords.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`),
+      `${coords[coords.length - 1].x.toFixed(2)},100.00`,
+      `${coords[0].x.toFixed(2)},100.00`,
+    ].join(' ');
+    return { coords, linePoints, areaPoints, min, max };
+  }, [performanceSeries]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -332,6 +412,9 @@ export default function AppPage() {
         .eq('id', currentProject.id)
         .eq('user_id', user.id);
       if (error) throw error;
+      setEditingBet(null);
+      setForm(initialForm());
+      setTab('reg');
       setProjects((prev) => prev.filter((p) => p.id !== currentProject.id));
       setCurrentProjectId('');
     } catch (err) {
@@ -350,6 +433,9 @@ export default function AppPage() {
         .eq('project_id', currentProject.id)
         .eq('user_id', user.id);
       if (error) throw error;
+      setEditingBet(null);
+      setForm(initialForm());
+      setTab('reg');
       loadBets(currentProject.id);
     } catch (err) {
       console.error('Kunde inte nollställa projekt', err);
@@ -357,7 +443,7 @@ export default function AppPage() {
     }
   };
 
-  const handleAddBet = async () => {
+  const handleSaveBet = async () => {
     if (!user?.id || !currentProjectId) {
       window.alert('Välj eller skapa projekt först.');
       return;
@@ -376,32 +462,65 @@ export default function AppPage() {
       return;
     }
 
-    if (freeInfo && !freeInfo.premium && freeInfo.left <= 0) {
+    if (!editingBet && freeInfo && !freeInfo.premium && freeInfo.left <= 0) {
       window.alert('Du har använt alla 20 gratis spel. Uppgradera för fler.');
       return;
     }
 
     try {
-      const { error } = await supabase.from('bets').insert({
-        project_id: currentProjectId,
-        user_id: user.id,
-        matchday,
-        match,
-        market,
-        odds,
-        stake,
-        book,
-        result,
-        note,
-      });
-      if (error) throw error;
-      setForm((prev) => ({ ...prev, note: '' }));
+      if (editingBet?.id) {
+        const { error } = await supabase
+          .from('bets')
+          .update({ matchday, match, market, odds, stake, book, result, note })
+          .eq('id', editingBet.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('bets').insert({
+          project_id: currentProjectId,
+          user_id: user.id,
+          matchday,
+          match,
+          market,
+          odds,
+          stake,
+          book,
+          result,
+          note,
+        });
+        if (error) throw error;
+      }
+      setForm(initialForm());
+      setEditingBet(null);
       setTab('list');
       loadBets(currentProjectId);
     } catch (err) {
       console.error('Kunde inte spara spel', err);
       window.alert('Kunde inte spara spel');
     }
+  };
+
+  const handleStartEditBet = (bet) => {
+    setEditingBet(bet);
+    setTab('reg');
+    setForm({
+      date: bet.matchday ? bet.matchday.slice(0, 10) : new Date().toISOString().slice(0, 10),
+      match: bet.match ?? '',
+      market: bet.market ?? '',
+      odds: bet.odds != null ? String(bet.odds) : '',
+      stake: bet.stake != null ? String(bet.stake) : '',
+      book: bet.book ?? '',
+      result: bet.result ?? 'Pending',
+      note: bet.note ?? '',
+    });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingBet(null);
+    setForm(initialForm());
   };
 
   const handleUpdateBetResult = async (betId, result) => {
@@ -430,6 +549,9 @@ export default function AppPage() {
         .eq('id', betId)
         .eq('user_id', user.id);
       if (error) throw error;
+      if (editingBet?.id === betId) {
+        handleCancelEdit();
+      }
       loadBets(currentProjectId);
     } catch (err) {
       console.error('Kunde inte ta bort spel', err);
@@ -479,7 +601,9 @@ export default function AppPage() {
     }
   };
 
-  const isAddDisabled = !currentProjectId || (freeInfo && !freeInfo.premium && freeInfo.left <= 0);
+  const isEditing = !!editingBet;
+  const isSubmitDisabled =
+    !currentProjectId || (!isEditing && freeInfo && !freeInfo.premium && freeInfo.left <= 0);
 
   const formatNumber = (value, decimals = 2) => {
     const num = Number(value);
@@ -493,6 +617,21 @@ export default function AppPage() {
   };
 
   const summaryMonthName = monthFilter === 'all' ? 'Alla månader' : formatMonth(monthFilter);
+  const chartLatestValue =
+    performanceSeries.points.length > 0
+      ? performanceSeries.points[performanceSeries.points.length - 1].value
+      : 0;
+  const chartLatestFormatted = formatMoney(chartLatestValue);
+  const chartTrendClass = chartLatestValue >= 0 ? 'positive' : 'negative';
+  const chartStartLabel = performanceSeries.start ? formatDay(performanceSeries.start) : '–';
+  const chartEndLabel = performanceSeries.end ? formatDay(performanceSeries.end) : '–';
+  const editingDateLabel = editingBet?.matchday
+    ? formatDay(editingBet.matchday.slice(0, 10))
+    : null;
+  const chartHasData = performanceChart.coords.length > 0;
+  const lastChartPoint = chartHasData
+    ? performanceChart.coords[performanceChart.coords.length - 1]
+    : null;
 
   return (
     <div className="container">
@@ -624,10 +763,23 @@ export default function AppPage() {
                 <h2>Registrera spel</h2>
                 <p className="hint">Fyll i matchinformationen och klicka på "Lägg till spel" för att spara.</p>
               </div>
-              <span className="subtle">Alla fält är obligatoriska</span>
             </div>
+            {isEditing ? (
+              <div className="edit-indicator">
+                <div className="edit-copy">
+                  <span className="edit-title">Redigerar spel</span>
+                  <span className="edit-meta">
+                    {editingBet?.match ? editingBet.match : 'Uppdatera detaljer nedan.'}
+                    {editingDateLabel ? ` • ${editingDateLabel}` : ''}
+                  </span>
+                </div>
+                <button type="button" className="btn-ghost" onClick={handleCancelEdit}>
+                  Avbryt
+                </button>
+              </div>
+            ) : null}
             <div className="grid">
-              <div className="col-2 field">
+              <div className="col-3 field">
                 <label htmlFor="iDate">Matchdag</label>
                 <input
                   id="iDate"
@@ -636,7 +788,7 @@ export default function AppPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
                 />
               </div>
-              <div className="col-3 field">
+              <div className="col-5 field">
                 <label htmlFor="iMatch">Match</label>
                 <input
                   id="iMatch"
@@ -646,7 +798,7 @@ export default function AppPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, match: e.target.value }))}
                 />
               </div>
-              <div className="col-3 field">
+              <div className="col-4 field">
                 <label htmlFor="iMarket">Marknad</label>
                 <input
                   id="iMarket"
@@ -657,7 +809,7 @@ export default function AppPage() {
                 />
               </div>
               <div className="col-2 field">
-                <label htmlFor="iOdds">Oddset</label>
+                <label htmlFor="iOdds">Odds</label>
                 <input
                   id="iOdds"
                   type="number"
@@ -668,7 +820,7 @@ export default function AppPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, odds: e.target.value }))}
                 />
               </div>
-              <div className="col-1 field">
+              <div className="col-2 field">
                 <label htmlFor="iStake">Insats</label>
                 <input
                   id="iStake"
@@ -679,7 +831,7 @@ export default function AppPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, stake: e.target.value }))}
                 />
               </div>
-              <div className="col-1 field">
+              <div className="col-3 field">
                 <label htmlFor="iBook">Spelbolag</label>
                 <input
                   id="iBook"
@@ -689,7 +841,7 @@ export default function AppPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, book: e.target.value }))}
                 />
               </div>
-              <div className="col-2 field">
+              <div className="col-3 field">
                 <label htmlFor="iResult">Resultat</label>
                 <select
                   id="iResult"
@@ -702,7 +854,7 @@ export default function AppPage() {
                   <option>Void</option>
                 </select>
               </div>
-              <div className="col-6 field">
+              <div className="col-12 field">
                 <label htmlFor="iNote">Notering</label>
                 <input
                   id="iNote"
@@ -712,12 +864,17 @@ export default function AppPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))}
                 />
               </div>
-              <div className="col-4 field action-field">
+              <div className="col-12 field action-field">
                 <span className="sr-only">Åtgärder</span>
                 <div className="actions">
-                  <button type="button" className="btn-green" onClick={handleAddBet} disabled={isAddDisabled}>
-                    Lägg till spel
+                  <button type="button" className="btn-green" onClick={handleSaveBet} disabled={isSubmitDisabled}>
+                    {isEditing ? 'Spara ändringar' : 'Lägg till spel'}
                   </button>
+                  {isEditing ? (
+                    <button type="button" className="btn-ghost" onClick={handleCancelEdit}>
+                      Avbryt redigering
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="btn-red"
@@ -752,7 +909,7 @@ export default function AppPage() {
                   <option value="all">Alla månader</option>
                   {monthGroups.map(([key]) => (
                     <option key={key} value={key}>
-                      {key}
+                      {formatMonth(key)}
                     </option>
                   ))}
                 </select>
@@ -768,17 +925,64 @@ export default function AppPage() {
                 <span className="value">{summaryData.wins}</span>
               </div>
               <div className="stat-card">
-                <span className="label">Profit</span>
-                <span className="value">{formatMoney(summaryData.profit)}</span>
+                <span className="label">Nettoresultat</span>
+                <span className={`value ${summaryData.profit >= 0 ? 'positive' : 'negative'}`}>
+                  {formatMoney(summaryData.profit)}
+                </span>
               </div>
               <div className="stat-card">
                 <span className="label">ROI</span>
-                <span className="value">{`${formatMoney(summaryData.roi)}%`}</span>
+                <span className={`value ${summaryData.roi >= 0 ? 'positive' : 'negative'}`}>
+                  {formatPercent(summaryData.roi)}
+                </span>
               </div>
             </div>
-            <div className="trend-card">
-              <span className="label">Visar</span>
-              <span className="value">{summaryMonthName}</span>
+            <div className="chart-card">
+              <div className="chart-header">
+                <div>
+                  <span className="chart-title">Utveckling</span>
+                  <p className="chart-subtitle">Kumulativt nettoresultat – {summaryMonthName}</p>
+                </div>
+                <div className="chart-total">
+                  <span className={`chart-total-value ${chartTrendClass}`}>{chartLatestFormatted}</span>
+                  <span className="chart-total-label">Senaste värde</span>
+                </div>
+              </div>
+              <div className="chart-body">
+                {chartHasData ? (
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Linje som visar projektets utveckling">
+                    <defs>
+                      <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(56, 189, 248, 0.4)" />
+                        <stop offset="100%" stopColor="rgba(56, 189, 248, 0)" />
+                      </linearGradient>
+                      <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#38bdf8" />
+                        <stop offset="100%" stopColor="#a855f7" />
+                      </linearGradient>
+                    </defs>
+                    <polygon points={performanceChart.areaPoints} fill="url(#trendFill)" />
+                    <polyline
+                      points={performanceChart.linePoints}
+                      fill="none"
+                      stroke="url(#trendStroke)"
+                      strokeWidth="1.8"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    {lastChartPoint ? (
+                      <circle cx={lastChartPoint.x} cy={lastChartPoint.y} r="2.4" fill="#38bdf8" />
+                    ) : null}
+                  </svg>
+                ) : (
+                  <div className="chart-empty">Ingen avgjord historik för perioden ännu.</div>
+                )}
+              </div>
+              <div className="chart-footer">
+                <span>{chartStartLabel}</span>
+                <span>{summaryMonthName}</span>
+                <span>{chartEndLabel}</span>
+              </div>
             </div>
           </section>
 
@@ -833,25 +1037,31 @@ export default function AppPage() {
                           {bet.note || '–'}
                         </div>
                         <div data-label="Resultat">
-                          <div className="actions">
-                            <span className="pill win" onClick={() => handleUpdateBetResult(bet.id, 'Win')}>
-                              Win
+                          <div className="result-controls">
+                            <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                              {bet.result || 'Pending'}
                             </span>
-                            <span className="pill loss" onClick={() => handleUpdateBetResult(bet.id, 'Loss')}>
-                              Loss
-                            </span>
-                            <span
-                              className="pill pending"
-                              onClick={() => handleUpdateBetResult(bet.id, 'Pending')}
+                            <select
+                              className="result-select"
+                              value={bet.result}
+                              onChange={(e) => handleUpdateBetResult(bet.id, e.target.value)}
+                              aria-label="Uppdatera resultat"
                             >
-                              Pending
-                            </span>
-                            <span className="pill void" onClick={() => handleUpdateBetResult(bet.id, 'Void')}>
-                              Void
-                            </span>
-                            <span className="pill" data-del="1" onClick={() => handleDeleteBet(bet.id)}>
+                              <option value="Pending">Pending</option>
+                              <option value="Win">Win</option>
+                              <option value="Loss">Loss</option>
+                              <option value="Void">Void</option>
+                            </select>
+                            <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
+                              Redigera
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost danger"
+                              onClick={() => handleDeleteBet(bet.id)}
+                            >
                               Ta bort
-                            </span>
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -865,42 +1075,38 @@ export default function AppPage() {
 
         <aside className="secondary">
           <section className="panel highlight-panel">
-            <h2>Snabböversikt</h2>
-            <p className="hint">Få koll på projektets status utan att lämna formuläret.</p>
+            <div className="section-header compact">
+              <div>
+                <h2>Snabböversikt</h2>
+                <span className="subtle-tag">Visar: {summaryMonthName}</span>
+              </div>
+            </div>
             <div className="overview-grid">
               <div className="overview-card">
                 <span className="label">Spel totalt</span>
-                <span className="value">{quickStats.total}</span>
+                <span className="value">{overviewStats.total}</span>
               </div>
               <div className="overview-card">
-                <span className="label">Pågående</span>
-                <span className="value">{quickStats.pending}</span>
+                <span className="label">Avgjorda</span>
+                <span className="value">{overviewStats.decided}</span>
               </div>
               <div className="overview-card">
-                <span className="label">Vinstrate</span>
-                <span className="value">
-                  {quickStats.winRate == null ? '–' : `${(Math.round(quickStats.winRate * 10) / 10).toFixed(1)}%`}
+                <span className="label">Vinster</span>
+                <span className="value">{overviewStats.wins}</span>
+              </div>
+              <div className="overview-card">
+                <span className="label">ROI</span>
+                <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
+                  {formatPercent(overviewStats.roi)}
                 </span>
               </div>
               <div className="overview-card">
-                <span className="label">Profit</span>
-                <span className="value">{formatMoney(quickStats.profit)}</span>
+                <span className="label">Nettoresultat</span>
+                <span className={`value ${overviewStats.profit >= 0 ? 'positive' : 'negative'}`}>
+                  {formatMoney(overviewStats.profit)}
+                </span>
               </div>
             </div>
-          </section>
-          <section className="panel tip-panel">
-            <h2>Tips</h2>
-            <ul className="tips-list">
-              <li>
-                <strong>Byt projekt</strong> i listan för att se andra spel.
-              </li>
-              <li>
-                <strong>Använd flikarna</strong> för att registrera spel eller analysera resultat.
-              </li>
-              <li>
-                <strong>Uppdatera resultat</strong> i spel-listan så hålls statistiken aktuell.
-              </li>
-            </ul>
           </section>
         </aside>
       </main>
@@ -985,6 +1191,22 @@ export default function AppPage() {
           border: none;
           box-shadow: 0 12px 32px -20px rgba(239, 68, 68, 0.65);
         }
+        .btn-ghost {
+          background: rgba(26, 39, 66, 0.65);
+          border: 1px solid rgba(78, 106, 150, 0.5);
+          color: rgba(226, 232, 255, 0.88);
+        }
+        .btn-ghost:hover {
+          background: rgba(41, 57, 92, 0.85);
+          border-color: rgba(129, 140, 248, 0.45);
+        }
+        .btn-ghost.danger {
+          color: #fca5a5;
+          border-color: rgba(248, 113, 113, 0.45);
+        }
+        .btn-ghost.danger:hover {
+          background: rgba(127, 29, 29, 0.2);
+        }
         .btn-red:disabled,
         .btn-green:disabled,
         button:disabled {
@@ -1048,6 +1270,36 @@ export default function AppPage() {
           font-weight: 700;
           letter-spacing: 0.01em;
         }
+        .positive {
+          color: #4ade80;
+        }
+        .negative {
+          color: #f87171;
+        }
+        .section-header.compact {
+          margin-bottom: 12px;
+          align-items: baseline;
+        }
+        .subtle-tag {
+          display: inline-block;
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(140, 163, 204, 0.8);
+          background: rgba(15, 26, 44, 0.7);
+          border: 1px solid rgba(72, 95, 142, 0.4);
+          border-radius: 999px;
+          padding: 4px 10px;
+        }
+        .project-panel {
+          padding: 18px 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+        .project-panel .section-header {
+          margin-bottom: 12px;
+        }
         .hint {
           color: rgba(140, 163, 204, 0.9);
           font-size: 14px;
@@ -1077,7 +1329,7 @@ export default function AppPage() {
         .project-controls {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 12px;
         }
         .project-controls label {
           font-size: 12px;
@@ -1097,9 +1349,10 @@ export default function AppPage() {
           background: rgba(10, 20, 35, 0.85);
           border: 1px solid rgba(78, 106, 150, 0.4);
           color: #f1f5ff;
-          padding: 12px 14px;
+          padding: 14px 16px;
           border-radius: 12px;
           font-size: 15px;
+          min-height: 46px;
           transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
         select:focus-visible,
@@ -1148,7 +1401,7 @@ export default function AppPage() {
         .grid {
           display: grid;
           grid-template-columns: repeat(12, minmax(0, 1fr));
-          gap: 16px;
+          gap: 18px;
         }
         .field {
           display: flex;
@@ -1160,6 +1413,32 @@ export default function AppPage() {
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: rgba(140, 163, 204, 0.9);
+        }
+        .edit-indicator {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 14px 18px;
+          border-radius: 14px;
+          background: rgba(37, 99, 235, 0.12);
+          border: 1px solid rgba(129, 140, 248, 0.35);
+          margin-bottom: 18px;
+        }
+        .edit-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .edit-title {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgba(199, 210, 254, 0.9);
+        }
+        .edit-meta {
+          font-size: 14px;
+          color: rgba(199, 210, 254, 0.85);
         }
         .col-1 {
           grid-column: span 1;
@@ -1173,8 +1452,26 @@ export default function AppPage() {
         .col-4 {
           grid-column: span 4;
         }
+        .col-5 {
+          grid-column: span 5;
+        }
         .col-6 {
           grid-column: span 6;
+        }
+        .col-7 {
+          grid-column: span 7;
+        }
+        .col-8 {
+          grid-column: span 8;
+        }
+        .col-9 {
+          grid-column: span 9;
+        }
+        .col-10 {
+          grid-column: span 10;
+        }
+        .col-11 {
+          grid-column: span 11;
         }
         .col-12 {
           grid-column: span 12;
@@ -1232,26 +1529,88 @@ export default function AppPage() {
           font-size: 26px;
           font-weight: 700;
         }
-        .trend-card {
-          margin-top: 20px;
-          padding: 18px;
-          border-radius: 14px;
-          background: rgba(22, 36, 58, 0.8);
-          border: 1px solid rgba(72, 103, 152, 0.35);
+        .chart-card {
+          margin-top: 22px;
+          padding: 20px;
+          border-radius: 18px;
+          background: rgba(16, 28, 47, 0.82);
+          border: 1px solid rgba(73, 103, 152, 0.35);
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+        .chart-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          gap: 12px;
+          align-items: flex-start;
+          gap: 18px;
+          flex-wrap: wrap;
         }
-        .trend-card .label {
+        .chart-title {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: rgba(140, 163, 204, 0.9);
         }
-        .trend-card .value {
-          font-size: 18px;
-          font-weight: 600;
+        .chart-subtitle {
+          margin: 4px 0 0;
+          font-size: 14px;
+          color: rgba(160, 182, 220, 0.9);
+        }
+        .chart-total {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+        }
+        .chart-total-value {
+          font-size: 28px;
+          font-weight: 700;
+        }
+        .chart-total-value.positive {
+          color: #4ade80;
+        }
+        .chart-total-value.negative {
+          color: #f87171;
+        }
+        .chart-total-label {
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(140, 163, 204, 0.7);
+        }
+        .chart-body {
+          position: relative;
+          width: 100%;
+          height: 200px;
+        }
+        .chart-body svg {
+          width: 100%;
+          height: 100%;
+        }
+        .chart-empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 160px;
+          border-radius: 14px;
+          border: 1px dashed rgba(96, 165, 250, 0.35);
+          color: rgba(140, 163, 204, 0.9);
+          font-size: 14px;
+          background: rgba(17, 31, 52, 0.6);
+        }
+        .chart-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          color: rgba(140, 163, 204, 0.85);
+        }
+        .chart-footer span:first-child,
+        .chart-footer span:last-child {
+          color: rgba(140, 163, 204, 0.7);
         }
         #playsContainer {
           display: flex;
@@ -1289,7 +1648,7 @@ export default function AppPage() {
         }
         .row {
           display: grid;
-          grid-template-columns: 120px 1.8fr 90px 90px 150px 1.4fr 220px;
+          grid-template-columns: 120px 1.8fr 90px 90px 150px 1.4fr 260px;
           gap: 16px;
           padding: 16px 22px;
           align-items: flex-start;
@@ -1325,45 +1684,44 @@ export default function AppPage() {
           line-height: 1.4;
           opacity: 0.92;
         }
-        .pill {
+        .result-controls {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
+        }
+        .result-select {
+          min-width: 150px;
+          flex: 0 0 auto;
+        }
+        .status-badge {
           padding: 6px 12px;
           border-radius: 999px;
-          background: rgba(27, 43, 73, 0.9);
-          border: 1px solid rgba(71, 103, 152, 0.4);
-          font-size: 13px;
-          font-weight: 600;
-          color: #f1f5ff;
-          transition: transform 0.15s ease, background 0.2s ease, border 0.2s ease;
-          cursor: pointer;
-        }
-        .pill:hover {
-          transform: translateY(-1px);
-          background: rgba(46, 69, 104, 0.95);
-        }
-        .pill.win {
-          background: rgba(22, 101, 52, 0.28);
-          border-color: rgba(134, 239, 172, 0.45);
-          color: #86efac;
-        }
-        .pill.loss {
-          background: rgba(153, 27, 27, 0.28);
-          border-color: rgba(248, 113, 113, 0.5);
-          color: #fca5a5;
-        }
-        .pill.pending {
-          background: rgba(30, 64, 175, 0.25);
-          border-color: rgba(129, 140, 248, 0.45);
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          font-weight: 700;
+          background: rgba(37, 99, 235, 0.18);
+          border: 1px solid rgba(129, 140, 248, 0.4);
           color: #c7d2fe;
         }
-        .pill.void {
-          background: rgba(107, 114, 128, 0.25);
-          border-color: rgba(156, 163, 175, 0.45);
-          color: #e5e7eb;
+        .status-badge.win {
+          background: rgba(22, 163, 74, 0.2);
+          border-color: rgba(74, 222, 128, 0.45);
+          color: #bbf7d0;
         }
-        .pill[data-del] {
-          background: rgba(120, 31, 46, 0.25);
-          border-color: rgba(239, 68, 68, 0.45);
-          color: #fca5a5;
+        .status-badge.loss {
+          background: rgba(185, 28, 28, 0.2);
+          border-color: rgba(248, 113, 113, 0.45);
+          color: #fecaca;
+        }
+        .status-badge.pending {
+          background: rgba(37, 99, 235, 0.18);
+        }
+        .status-badge.void {
+          background: rgba(107, 114, 128, 0.18);
+          border-color: rgba(156, 163, 175, 0.35);
+          color: #e5e7eb;
         }
         .empty-state {
           padding: 32px 24px;
@@ -1378,12 +1736,15 @@ export default function AppPage() {
         .highlight-panel {
           position: sticky;
           top: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
         }
         .overview-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           gap: 16px;
-          margin-top: 18px;
+          margin-top: 6px;
         }
         .overview-card {
           padding: 16px;
@@ -1410,15 +1771,6 @@ export default function AppPage() {
           font-size: 24px;
           font-weight: 700;
         }
-        .tip-panel ul {
-          margin: 12px 0 0;
-          padding-left: 20px;
-          color: rgba(140, 163, 204, 0.9);
-          line-height: 1.6;
-        }
-        .tip-panel li strong {
-          color: #f1f5ff;
-        }
         .hide {
           display: none !important;
         }
@@ -1434,7 +1786,7 @@ export default function AppPage() {
             position: static;
           }
           .row {
-            grid-template-columns: 110px 1.6fr 80px 80px 140px 1.2fr 200px;
+            grid-template-columns: 110px 1.6fr 80px 80px 140px 1.2fr 240px;
           }
           .grid {
             grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1443,11 +1795,18 @@ export default function AppPage() {
           .col-2 {
             grid-column: span 3;
           }
-          .col-3 {
+          .col-3,
+          .col-4,
+          .col-5 {
             grid-column: span 3;
           }
-          .col-4,
-          .col-6 {
+          .col-6,
+          .col-7,
+          .col-8,
+          .col-9,
+          .col-10,
+          .col-11,
+          .col-12 {
             grid-column: span 6;
           }
         }
@@ -1503,6 +1862,10 @@ export default function AppPage() {
           }
           .tabs {
             flex-direction: column;
+          }
+          .edit-indicator {
+            flex-direction: column;
+            align-items: stretch;
           }
         }
         @media (max-width: 640px) {
