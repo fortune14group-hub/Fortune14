@@ -32,12 +32,9 @@ export default function LandingPage() {
             </p>
             <div className={styles.ctaRow}>
               <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
-                Kom igång gratis
+                Kom igång
               </Link>
             </div>
-            <p className={styles.ctaNote}>
-              Hela tjänsten är öppen och gratis att använda – inga kortuppgifter behövs.
-            </p>
           </div>
           <div className={styles.feature}>
             <strong>Hur funkar det?</strong>
@@ -53,7 +50,7 @@ export default function LandingPage() {
 
       <section className={styles.featureGrid}>
         <div className={styles.feature}>
-          <strong>Snabb registrering</strong>
+          <strong>Snabb registrering av spel</strong>
           <p>Matchdag, odds, insats, marknad, spelbolag.</p>
         </div>
         <div className={styles.feature}>
@@ -61,8 +58,8 @@ export default function LandingPage() {
           <p>ROI, profit och win/loss per månad.</p>
         </div>
         <div className={styles.feature}>
-          <strong>Gratis och obegränsat</strong>
-          <p>Under den öppna perioden sparar du hur många spel du vill.</p>
+          <strong>Helt gratis</strong>
+          <p>Bokför obegränsat med spel.</p>
         </div>
       </section>
 
@@ -79,7 +76,7 @@ export default function LandingPage() {
           </Link>
         </nav>
         <p className={styles.footerContact}>
-          Support: <a href="mailto:support@betspread.se">support@betspread.se</a>
+          Support: <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a>
         </p>
         <p className={styles.footerMessage}>
           Spela ansvarsfullt. Behöver du stöd? Besök{' '}

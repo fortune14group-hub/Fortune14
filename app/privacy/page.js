@@ -22,8 +22,7 @@ export default function PrivacyPage() {
         <p className={styles.lead}>
           Den här policyn förklarar hur BetSpread samlar in, använder och skyddar personuppgifter när du
           registrerar dig och loggar spel. Tjänsten är kostnadsfri men vi följer samma krav enligt GDPR
-          och samarbetar med Supabase som datalager. Stripe finns förberett för framtida betalningar men
-          är inte aktivt just nu.
+          och samarbetar med Supabase som datalager.
         </p>
       </header>
 
@@ -31,7 +30,7 @@ export default function PrivacyPage() {
         <h2>1. Personuppgiftsansvarig</h2>
         <p>
           BetSpread är personuppgiftsansvarig för behandlingar kopplade till plattformen. Frågor om
-          dataskydd skickas till <a href="mailto:support@betspread.se">support@betspread.se</a> med
+          dataskydd skickas till <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a> med
           ämnesraden "Integritet".
         </p>
       </section>
@@ -56,11 +55,6 @@ export default function PrivacyPage() {
             <strong>Tekniska loggar:</strong> fel, inloggningar och administrativa åtgärder loggas i ett
             begränsat omfång för att kunna felsöka och förebygga missbruk.
           </li>
-          <li>
-            <strong>Betalningsreferenser (inaktivt):</strong> eftersom tjänsten är gratis samlar vi inte
-            in kort- eller betalningsuppgifter. Historiska Stripe-referenser som kund- eller
-            prenumerations-ID kan finnas kvar men innehåller inga känsliga kortdata.
-          </li>
         </ul>
       </section>
 
@@ -79,11 +73,6 @@ export default function PrivacyPage() {
             <strong>Support och kommunikation:</strong> att svara på frågor och hålla användare informerade
             vid driftstörningar. Rättslig grund: berättigat intresse.
           </li>
-          <li>
-            <strong>Förberedelse av betalningar:</strong> att kunna återaktivera premiumpaket i framtiden
-            genom att behålla kundreferenser. Rättslig grund: berättigat intresse och rättslig skyldighet
-            vid bokföring om betalningar blir aktuella.
-          </li>
         </ul>
       </section>
 
@@ -101,7 +90,6 @@ export default function PrivacyPage() {
           </li>
           <li>
             Ett personuppgiftsbiträdesavtal (Data Processing Agreement, DPA) är ingånget med Supabase.
-            Eventuella avtal med Stripe aktiveras först om betalningar införs igen.
           </li>
           <li>
             Administrativa verktyg skyddas med stark autentisering och principen om minsta privilegium.
@@ -114,9 +102,8 @@ export default function PrivacyPage() {
         <h2>5. Delning av uppgifter</h2>
         <p>
           Vi delar personuppgifter med betrodda leverantörer som agerar personuppgiftsbiträden. Supabase
-          tillhandahåller hosting av databasen. Om betalningar återinförs använder vi Stripe som
-          betalningsleverantör, men inga kortuppgifter lagras i BetSpread. Uppgifter lämnas ut till
-          myndigheter endast om lag kräver det.
+          tillhandahåller hosting av databasen. Uppgifter lämnas ut till myndigheter endast om lag kräver
+          det.
         </p>
       </section>
 
@@ -139,7 +126,7 @@ export default function PrivacyPage() {
           <li>Överföra data till annan tjänst (dataportabilitet).</li>
         </ul>
         <p className={styles.note}>
-          Kontakta <a href="mailto:support@betspread.se">support@betspread.se</a> för att utöva dina
+          Kontakta <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a> för att utöva dina
           rättigheter. Vi svarar inom 30 dagar. Du kan även klaga hos Integritetsskyddsmyndigheten
           (IMY).
         </p>
@@ -158,7 +145,7 @@ export default function PrivacyPage() {
         <h2>9. Kontakta oss</h2>
         <p>
           Vid frågor om denna policy eller dataskydd generellt når du oss på{' '}
-          <a href="mailto:support@betspread.se">support@betspread.se</a>. För övergripande villkor se
+          <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a>. För övergripande villkor se
           även våra <Link href="/terms">villkor &amp; datahantering</Link> och{' '}
           <Link href="/disclaimer">ansvarsfriskrivning</Link>.
         </p>

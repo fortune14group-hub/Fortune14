@@ -60,16 +60,7 @@ export default function TermsPage() {
             <strong>Tekniska loggar:</strong> vi sparar begränsade loggar över fel, inloggningar och
             administrativa åtgärder för att kunna felsöka och upprätthålla säkerheten.
           </li>
-          <li>
-            <strong>Betalningsreferenser:</strong> tjänsten är gratis just nu och vi tar inte emot
-            betalningar. Tidigare skapade Stripe-referenser (t.ex. kund-ID) kan finnas kvar i databasen
-            men innehåller inga kortuppgifter.
-          </li>
         </ul>
-        <p className={styles.note}>
-          Om vi återinför betalningar uppdateras denna sida med aktuella villkor innan något tas i
-          bruk.
-        </p>
       </section>
 
       <section className={styles.section}>
@@ -110,7 +101,7 @@ export default function TermsPage() {
         <h2>5. Dina rättigheter och kontakt</h2>
         <p>
           Du har rätt att få tillgång till, rätta eller radera uppgifter om dig samt invända mot viss
-          behandling. Kontakta <a href="mailto:support@betspread.se">support@betspread.se</a> för att
+          behandling. Kontakta <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a> för att
           utöva dina rättigheter eller ställa frågor om dessa villkor. Mer information finns i vår{' '}
           <Link href="/privacy">integritetspolicy</Link>.
         </p>
