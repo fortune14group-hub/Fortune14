@@ -215,7 +215,11 @@ export default function LoginPage() {
                   onChange={(e) => setLoginPassword(e.target.value)}
                 />
               </div>
-              {loginError ? <p className={styles.formError}>{loginError}</p> : null}
+              {loginError ? (
+                <p className={styles.formError} role="alert">
+                  {loginError}
+                </p>
+              ) : null}
               <button type="submit" className={styles.primaryButton}>
                 Logga in
               </button>
@@ -244,8 +248,16 @@ export default function LoginPage() {
                   onChange={(e) => setSignupPassword(e.target.value)}
                 />
               </div>
-              {signupInfo ? <p className={styles.formSuccess}>{signupInfo}</p> : null}
-              {signupError ? <p className={styles.formError}>{signupError}</p> : null}
+              {signupInfo ? (
+                <p className={styles.formSuccess} role="status">
+                  {signupInfo}
+                </p>
+              ) : null}
+              {signupError ? (
+                <p className={styles.formError} role="alert">
+                  {signupError}
+                </p>
+              ) : null}
               <button type="submit" className={styles.primaryButton}>
                 Skapa konto
               </button>
