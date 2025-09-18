@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
 
+import styles from './page.module.css';
+
+
+
 export default function LoginPage() {
   const router = useRouter();
   const [tab, setTab] = useState('login');
@@ -63,7 +67,12 @@ export default function LoginPage() {
     };
   }, [router, supabase]);
 
+
+  const handleLogin = async (event) => {
+    event?.preventDefault?.();
+
   const handleLogin = async () => {
+
     setLoginError('');
     const email = loginEmail.trim();
     const password = loginPassword;
@@ -87,7 +96,12 @@ export default function LoginPage() {
     router.replace('/app');
   };
 
+
+  const handleSignup = async (event) => {
+    event?.preventDefault?.();
+
   const handleSignup = async () => {
+
     setSignupError('');
     setSignupInfo('');
 
@@ -123,6 +137,25 @@ export default function LoginPage() {
 
   if (supabaseError) {
     return (
+
+      <main className={styles.shell}>
+        <div className={styles.errorCard}>
+          <h1>Konfigurationsfel</h1>
+          <p>
+            Inloggningen är beroende av Supabase. Lägg till{' '}
+            <code>NEXT_PUBLIC_SUPABASE_URL</code> och <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> i din
+            miljö tillsammans med server-variablerna <code>SUPABASE_URL</code> och{' '}
+            <code>SUPABASE_SERVICE_ROLE</code>, deploya på nytt och försök igen.
+          </p>
+          <p className={styles.errorDetails}>{supabaseError}</p>
+          <p className={styles.errorHelp}>
+            När variablerna är satta laddar sidan om automatiskt och du kan logga in.
+          </p>
+          <Link href="/" className={styles.backHomeLink}>
+            ← Till startsidan
+          </Link>
+        </div>
+
       <main
         style={{
           maxWidth: '560px',
@@ -147,11 +180,136 @@ export default function LoginPage() {
         <p style={{ fontSize: '0.95rem', color: '#cbd5f5' }}>
           När variablerna är satta laddar sidan om automatiskt och du kan logga in.
         </p>
+
       </main>
     );
   }
 
   return (
+
+    <main className={styles.shell}>
+      <div className={styles.card}>
+        <div className={styles.brandPanel}>
+          <Link href="/" className={styles.logo}>
+            BetSpread
+          </Link>
+          <h2>Kontrollera dina projekt med precision</h2>
+          <p>
+            Följ varje spel, bygg upp ROI och hantera prenumerationer på ett och samma ställe. Logga in
+            eller registrera dig för att fortsätta arbetet.
+          </p>
+          <ul className={styles.featureList}>
+            <li>Projektöversikter och månadsvyn synkade med Supabase.</li>
+            <li>Premiumflöden via Stripe med full kundhistorik.</li>
+            <li>Säkra, GDPR-anpassade verktyg för ditt bettingteam.</li>
+          </ul>
+          <Link href="/" className={styles.backHomeLink}>
+            ← Till startsidan
+          </Link>
+        </div>
+
+        <div className={styles.formPanel}>
+          <div className={styles.tabList} role="tablist" aria-label="Autentisering">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'login'}
+              className={`${styles.tabButton} ${tab === 'login' ? styles.activeTab : ''}`}
+              onClick={() => setTab('login')}
+            >
+              Logga in
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'signup'}
+              className={`${styles.tabButton} ${tab === 'signup' ? styles.activeTab : ''}`}
+              onClick={() => setTab('signup')}
+            >
+              Skapa konto
+            </button>
+          </div>
+
+          {tab === 'login' ? (
+            <form className={styles.form} onSubmit={handleLogin}>
+              <div className={styles.formField}>
+                <label htmlFor="loginEmail">E-post</label>
+                <input
+                  id="loginEmail"
+                  type="email"
+                  placeholder="din@mail.se"
+                  autoComplete="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                />
+              </div>
+              <div className={styles.formField}>
+                <label htmlFor="loginPassword">Lösenord</label>
+                <input
+                  id="loginPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                />
+              </div>
+              {loginError ? (
+                <p className={styles.formError} role="alert">
+                  {loginError}
+                </p>
+              ) : null}
+              <button type="submit" className={styles.primaryButton}>
+                Logga in
+              </button>
+            </form>
+          ) : (
+            <form className={styles.form} onSubmit={handleSignup}>
+              <div className={styles.formField}>
+                <label htmlFor="signupEmail">E-post</label>
+                <input
+                  id="signupEmail"
+                  type="email"
+                  placeholder="din@mail.se"
+                  autoComplete="email"
+                  value={signupEmail}
+                  onChange={(e) => setSignupEmail(e.target.value)}
+                />
+              </div>
+              <div className={styles.formField}>
+                <label htmlFor="signupPassword">Lösenord</label>
+                <input
+                  id="signupPassword"
+                  type="password"
+                  placeholder="Minst 6 tecken"
+                  autoComplete="new-password"
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                />
+              </div>
+              {signupInfo ? (
+                <p className={styles.formSuccess} role="status">
+                  {signupInfo}
+                </p>
+              ) : null}
+              {signupError ? (
+                <p className={styles.formError} role="alert">
+                  {signupError}
+                </p>
+              ) : null}
+              <button type="submit" className={styles.primaryButton}>
+                Skapa konto
+              </button>
+            </form>
+          )}
+
+          <p className={styles.supportText}>
+            Problem att logga in? Kontakta <a href="mailto:support@betspread.se">support@betspread.se</a>.
+          </p>
+        </div>
+      </div>
+    </main>
+
     <div className="center">
       <div className="card">
         <h1>BetSpread</h1>
@@ -348,5 +506,6 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+
   );
 }
