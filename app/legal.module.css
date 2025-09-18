@@ -1,0 +1,108 @@
+.wrapper {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+  display: grid;
+  gap: 32px;
+}
+
+.backRow {
+  margin-bottom: -12px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #93c5fd;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.backLink:hover {
+  color: #bfdbfe;
+}
+
+.header {
+  display: grid;
+  gap: 12px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 38px;
+}
+
+.updated {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.lead {
+  margin: 0;
+  color: #cbd5f5;
+  line-height: 1.7;
+}
+
+.section {
+  background: #0f1720;
+  border: 1px solid #1f2a37;
+  border-radius: 18px;
+  padding: 28px;
+  display: grid;
+  gap: 16px;
+}
+
+.section h2 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.section p {
+  margin: 0;
+  color: #cbd5f5;
+  line-height: 1.7;
+}
+
+.section ul {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+  color: #d6e3ff;
+  line-height: 1.6;
+}
+
+.section li::marker {
+  color: #38bdf8;
+}
+
+.highlight {
+  color: #fbbf24;
+}
+
+.note {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.section a {
+  color: #93c5fd;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .wrapper {
+    padding: 36px 18px 72px;
+    gap: 24px;
+  }
+
+  .header h1 {
+    font-size: 32px;
+  }
+
+  .section {
+    padding: 22px;
+  }
+}
