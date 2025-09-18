@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
-import styles from './page.module.css';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -64,10 +63,7 @@ export default function LoginPage() {
     };
   }, [router, supabase]);
 
-  const handleLogin = async (event) => {
-    if (event && typeof event.preventDefault === 'function') {
-      event.preventDefault();
-    }
+  const handleLogin = async () => {
     setLoginError('');
     const email = loginEmail.trim();
     const password = loginPassword;
@@ -91,10 +87,7 @@ export default function LoginPage() {
     router.replace('/app');
   };
 
-  const handleSignup = async (event) => {
-    if (event && typeof event.preventDefault === 'function') {
-      event.preventDefault();
-    }
+  const handleSignup = async () => {
     setSignupError('');
     setSignupInfo('');
 
@@ -130,148 +123,247 @@ export default function LoginPage() {
 
   if (supabaseError) {
     return (
-      <main className={styles.shell}>
-        <div className={styles.errorCard}>
-          <h1>Konfigurationsfel</h1>
-          <p>
-            Inloggningen är beroende av Supabase. Lägg till <code>NEXT_PUBLIC_SUPABASE_URL</code> och
-            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> i din miljö tillsammans med server-variablerna
-            <code>SUPABASE_URL</code> och <code>SUPABASE_SERVICE_ROLE</code>, deploya på nytt och försök igen.
-          </p>
-          <p className={styles.errorDetails}>{supabaseError}</p>
-          <p className={styles.errorHelp}>
-            När variablerna är satta laddar sidan om automatiskt och du kan logga in.
-          </p>
-          <Link href="/" className={styles.backHomeLink}>
-            ← Till startsidan
-          </Link>
-        </div>
+      <main
+        style={{
+          maxWidth: '560px',
+          margin: '4rem auto',
+          padding: '2.5rem',
+          borderRadius: '1.5rem',
+          background: '#111827',
+          boxShadow: '0 24px 64px rgba(15, 23, 42, 0.28)',
+          color: '#e2e8f0',
+          lineHeight: 1.6,
+          border: '1px solid #1f2937',
+        }}
+      >
+        <h1 style={{ fontSize: '1.75rem', marginBottom: '1rem', color: '#f8fafc' }}>
+          Konfigurationsfel
+        </h1>
+        <p style={{ marginBottom: '1rem' }}>
+          Inloggningen är beroende av Supabase. Lägg till{' '}
+          <code>NEXT_PUBLIC_SUPABASE_URL</code> och <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> i din miljö
+          tillsammans med server-variablerna <code>SUPABASE_URL</code> och{' '}
+          <code>SUPABASE_SERVICE_ROLE</code>, deploya på nytt och försök igen.
+        </p>
+        <p style={{ marginBottom: '1.5rem', fontWeight: 500 }}>{supabaseError}</p>
+        <p style={{ fontSize: '0.95rem', color: '#cbd5f5' }}>
+          När variablerna är satta laddar sidan om automatiskt och du kan logga in.
+        </p>
+        <Link href="/" style={{ color: '#38bdf8' }}>
+          ← Till startsidan
+        </Link>
       </main>
     );
   }
 
   return (
-    <main className={styles.shell}>
-      <div className={styles.card}>
-        <div className={styles.brandPanel}>
-          <Link href="/" className={styles.logo}>
-            BetSpread
-          </Link>
-          <h2>Kontrollera dina projekt med precision</h2>
-          <p>
-            Följ varje spel, bygg upp ROI och hantera prenumerationer på ett och samma ställe. Logga in
-            eller registrera dig för att fortsätta arbetet.
-          </p>
-          <ul className={styles.featureList}>
-            <li>Projektöversikter och månadsvyn synkade med Supabase.</li>
-            <li>Premiumflöden via Stripe med full kundhistorik.</li>
-            <li>Säkra, GDPR-anpassade verktyg för ditt bettingteam.</li>
-          </ul>
-          <Link href="/" className={styles.backHomeLink}>
-            ← Till startsidan
-          </Link>
+    <div className="center">
+      <div className="card">
+        <h1>BetSpread</h1>
+        <p className="muted">Logga in eller skapa konto för att komma åt tjänsten.</p>
+
+        <div className="tab-buttons">
+          <button
+            type="button"
+            className={`btn ${tab === 'login' ? '' : 'btn-ghost'}`}
+            onClick={() => setTab('login')}
+          >
+            Logga in
+          </button>
+          <button
+            type="button"
+            className={`btn ${tab === 'signup' ? '' : 'btn-ghost'}`}
+            onClick={() => setTab('signup')}
+          >
+            Skapa konto
+          </button>
         </div>
 
-        <div className={styles.formPanel}>
-          <div className={styles.tabList} role="tablist" aria-label="Autentisering">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'login'}
-              className={`${styles.tabButton} ${tab === 'login' ? styles.activeTab : ''}`}
-              onClick={() => setTab('login')}
-            >
-              Logga in
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'signup'}
-              className={`${styles.tabButton} ${tab === 'signup' ? styles.activeTab : ''}`}
-              onClick={() => setTab('signup')}
-            >
-              Skapa konto
-            </button>
-          </div>
-
-          {tab === 'login' ? (
-            <form className={styles.form} onSubmit={handleLogin}>
-              <div className={styles.formField}>
-                <label htmlFor="loginEmail">E-post</label>
-                <input
-                  id="loginEmail"
-                  type="email"
-                  placeholder="din@mail.se"
-                  autoComplete="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                />
-              </div>
-              <div className={styles.formField}>
-                <label htmlFor="loginPassword">Lösenord</label>
-                <input
-                  id="loginPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
-              </div>
-              {loginError ? (
-                <p className={styles.formError} role="alert">
-                  {loginError}
-                </p>
-              ) : null}
-              <button type="submit" className={styles.primaryButton}>
+        {tab === 'login' ? (
+          <div className="form-block">
+            <label htmlFor="loginEmail">E-post</label>
+            <input
+              id="loginEmail"
+              type="email"
+              placeholder="din@mail.se"
+              autoComplete="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+            />
+            <label htmlFor="loginPassword">Lösenord</label>
+            <input
+              id="loginPassword"
+              type="password"
+              placeholder="••••••••"
+              autoComplete="current-password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+            />
+            <div className="row">
+              <button type="button" className="btn" onClick={handleLogin}>
                 Logga in
               </button>
-            </form>
-          ) : (
-            <form className={styles.form} onSubmit={handleSignup}>
-              <div className={styles.formField}>
-                <label htmlFor="signupEmail">E-post</label>
-                <input
-                  id="signupEmail"
-                  type="email"
-                  placeholder="din@mail.se"
-                  autoComplete="email"
-                  value={signupEmail}
-                  onChange={(e) => setSignupEmail(e.target.value)}
-                />
+            </div>
+            {loginError ? (
+              <div className="err" role="alert">
+                {loginError}
               </div>
-              <div className={styles.formField}>
-                <label htmlFor="signupPassword">Lösenord</label>
-                <input
-                  id="signupPassword"
-                  type="password"
-                  placeholder="Minst 6 tecken"
-                  autoComplete="new-password"
-                  value={signupPassword}
-                  onChange={(e) => setSignupPassword(e.target.value)}
-                />
-              </div>
-              {signupInfo ? (
-                <p className={styles.formSuccess} role="status">
-                  {signupInfo}
-                </p>
-              ) : null}
-              {signupError ? (
-                <p className={styles.formError} role="alert">
-                  {signupError}
-                </p>
-              ) : null}
-              <button type="submit" className={styles.primaryButton}>
+            ) : null}
+          </div>
+        ) : (
+          <div className="form-block">
+            <label htmlFor="signupEmail">E-post</label>
+            <input
+              id="signupEmail"
+              type="email"
+              placeholder="din@mail.se"
+              autoComplete="email"
+              value={signupEmail}
+              onChange={(e) => setSignupEmail(e.target.value)}
+            />
+            <label htmlFor="signupPassword">Lösenord</label>
+            <input
+              id="signupPassword"
+              type="password"
+              placeholder="Minst 6 tecken"
+              autoComplete="new-password"
+              value={signupPassword}
+              onChange={(e) => setSignupPassword(e.target.value)}
+            />
+            <div className="row">
+              <button type="button" className="btn" onClick={handleSignup}>
                 Skapa konto
               </button>
-            </form>
-          )}
+            </div>
+            {signupInfo ? (
+              <div className="ok" role="status">
+                {signupInfo}
+              </div>
+            ) : null}
+            {signupError ? (
+              <div className="err" role="alert">
+                {signupError}
+              </div>
+            ) : null}
+          </div>
+        )}
 
-          <p className={styles.supportText}>
-            Problem att logga in? Kontakta <a href="mailto:support@betspread.se">support@betspread.se</a>.
-          </p>
+        <div className="row back-link">
+          <Link href="/" className="btn-ghost">
+            Till startsidan
+          </Link>
         </div>
       </div>
-    </main>
+
+      <style jsx global>{`
+        body {
+          background: #0b1116;
+        }
+        .center {
+          min-height: 100svh;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+        .card {
+          width: min(560px, 92vw);
+          background: #0f1720;
+          border: 1px solid #1f2a37;
+          border-radius: 16px;
+          padding: 24px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+        h1 {
+          margin: 0 0 6px;
+          font-size: 22px;
+        }
+        .muted {
+          margin: 0 0 16px;
+          color: #94a3b8;
+        }
+        label {
+          font-size: 12px;
+          color: #b6c2cf;
+          display: block;
+          margin: 14px 0 6px;
+        }
+        input {
+          width: 100%;
+          padding: 12px;
+          border-radius: 10px;
+          border: 1px solid #243244;
+          background: #0b1320;
+          color: #e7eef5;
+        }
+        .row {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 16px;
+        }
+        .btn {
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 0;
+          font-weight: 700;
+          cursor: pointer;
+          background: #22c55e;
+          color: #0b1116;
+        }
+        .btn-ghost {
+          background: transparent;
+          border: 1px solid #334155;
+          color: #e7eef5;
+          padding: 12px 14px;
+          border-radius: 10px;
+        }
+        .tab-buttons {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-bottom: 12px;
+        }
+        .tab-buttons .btn {
+          background: #22c55e;
+          color: #0b1116;
+        }
+        .tab-buttons .btn-ghost {
+          background: transparent;
+          border: 1px solid #334155;
+          color: #e7eef5;
+        }
+        .btn.btn-ghost {
+          background: transparent;
+          border: 1px solid #334155;
+          color: #e7eef5;
+        }
+        .form-block {
+          display: flex;
+          flex-direction: column;
+        }
+        .err {
+          margin-top: 8px;
+          color: #fecaca;
+          background: #3b0a0a;
+          border: 1px solid #6b1212;
+          padding: 10px 12px;
+          border-radius: 10px;
+        }
+        .ok {
+          margin-top: 8px;
+          color: #bbf7d0;
+          background: #083d24;
+          border: 1px solid #195a39;
+          padding: 10px 12px;
+          border-radius: 10px;
+        }
+        .back-link {
+          margin-top: 10px;
+        }
+        .back-link .btn-ghost {
+          padding: 8px 12px;
+        }
+      `}</style>
+    </div>
   );
 }
