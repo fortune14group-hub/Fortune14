@@ -22,8 +22,8 @@ create table if not exists public.bets (
   user_id uuid references public.users(id) on delete cascade,
   project_id uuid references public.projects(id) on delete cascade,
   matchday date not null,
-  match text not null,
-  market text not null,
+  match text,
+  market text,
   odds numeric not null,
   stake numeric not null,
   book text,
@@ -31,6 +31,10 @@ create table if not exists public.bets (
   note text,
   created_at timestamptz default now()
 );
+
+alter table if exists public.bets
+  alter column match drop not null,
+  alter column market drop not null;
 
 -- Enable Row Level Security
 alter table public.users enable row level security;

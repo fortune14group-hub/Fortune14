@@ -521,8 +521,8 @@ export default function AppPage() {
     const result = form.result;
     const note = form.note.trim();
 
-    if (!matchday || !match || !market || !Number.isFinite(odds) || !Number.isFinite(stake)) {
-      window.alert('Fyll i alla fält.');
+    if (!matchday || !Number.isFinite(odds) || !Number.isFinite(stake)) {
+      window.alert('Fyll i datum, odds och insats.');
       return;
     }
 
@@ -535,7 +535,16 @@ export default function AppPage() {
       if (editingBet?.id) {
         const { error } = await supabase
           .from('bets')
-          .update({ matchday, match, market, odds, stake, book, result, note })
+          .update({
+            matchday,
+            match: match || null,
+            market: market || null,
+            odds,
+            stake,
+            book: book || null,
+            result,
+            note: note || null,
+          })
           .eq('id', editingBet.id)
           .eq('user_id', user.id);
         if (error) throw error;
@@ -544,13 +553,13 @@ export default function AppPage() {
           project_id: currentProjectId,
           user_id: user.id,
           matchday,
-          match,
-          market,
+          match: match || null,
+          market: market || null,
           odds,
           stake,
-          book,
+          book: book || null,
           result,
-          note,
+          note: note || null,
         });
         if (error) throw error;
       }
