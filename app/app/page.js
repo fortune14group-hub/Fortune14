@@ -15,8 +15,6 @@ const initialForm = () => ({
   note: '',
 });
 
-const RESULT_OPTIONS = ['Win', 'Loss', 'Pending', 'Void'];
-
 const monthFormatter = new Intl.DateTimeFormat('sv-SE', {
   month: 'long',
   year: 'numeric',
@@ -34,11 +32,16 @@ const formatDay = (isoDate) => {
   return dayFormatter.format(safeDate);
 };
 
-const formatMoney = (value) => {
+const formatUnits = (value, decimals = 2) => {
   const num = Number(value);
-  if (!Number.isFinite(num)) return '0.00';
-  return (Math.round(num * 100) / 100).toFixed(2);
+  if (!Number.isFinite(num)) return '–';
+  const factor = 10 ** decimals;
+  const rounded = Math.round(num * factor) / factor;
+  const text = rounded.toFixed(decimals);
+  return `${text}U`;
 };
+
+const formatMoney = (value) => formatUnits(value);
 
 const formatPercent = (value) => {
   const num = Number(value);
@@ -87,7 +90,7 @@ export default function AppPage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
-  const [openMonths, setOpenMonths] = useState(() => new Set());
+  const [projectOpen, setProjectOpen] = useState(false);
   const [supabaseState] = useState(() => {
     try {
       return { client: getSupabaseBrowserClient(), error: null };
@@ -309,6 +312,19 @@ export default function AppPage() {
     [projects, currentProjectId]
   );
 
+  const projectBadge = useMemo(() => {
+    if (!currentProject?.name) return '---';
+    const compact = currentProject.name.replace(/\s+/g, '');
+    if (!compact) return '---';
+    return compact.slice(0, 4).toUpperCase();
+  }, [currentProject]);
+
+  useEffect(() => {
+    if (!loadingProjects && (projects.length === 0 || !currentProjectId)) {
+      setProjectOpen(true);
+    }
+  }, [currentProjectId, loadingProjects, projects]);
+
   const monthGroups = useMemo(() => {
     const groups = new Map();
     for (const bet of bets) {
@@ -341,55 +357,51 @@ export default function AppPage() {
       const stakeNum = Number(bet.stake);
       return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
     }, 0);
-    const oddsSum = decided.reduce((sum, bet) => {
-      const oddsNum = Number(bet.odds);
-      return Number.isFinite(oddsNum) ? sum + oddsNum : sum;
-    }, 0);
     const profit = decided.reduce((sum, bet) => sum + computeProfit(bet), 0);
     const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
-    const averageOdds = decided.length > 0 ? oddsSum / decided.length : 0;
-    const averageStake = decided.length > 0 ? stakeSum / decided.length : 0;
-    const hitRate = decided.length > 0 ? (wins.length / decided.length) * 100 : 0;
-    const profitPerBet = decided.length > 0 ? profit / decided.length : 0;
     return {
       games: decided.length,
       wins: wins.length,
       profit,
       roi,
-      stake: stakeSum,
-      averageOdds,
-      averageStake,
-      hitRate,
-      profitPerBet,
     };
   }, [filteredBets]);
 
-  const ensureMonthOpen = useCallback((monthKey) => {
-    if (!monthKey) return;
-    setOpenMonths((prev) => {
-      if (prev.has(monthKey)) return prev;
-      const next = new Set(prev);
-      next.add(monthKey);
-      return next;
-    });
-  }, []);
+  const overviewStats = useMemo(() => {
+    const total = filteredBets.length;
+    let pending = 0;
+    let stakeTotal = 0;
+    let oddsSum = 0;
+    let oddsCount = 0;
 
-  useEffect(() => {
-    setOpenMonths((prev) => {
-      const next = new Set();
-      monthGroups.forEach(([key]) => {
-        if (prev.has(key)) {
-          next.add(key);
-        }
-      });
-      if (next.size === prev.size && [...next].every((key) => prev.has(key))) {
-        return prev;
+    for (const bet of filteredBets) {
+      if (bet.result === 'Pending') {
+        pending += 1;
       }
-      return next;
-    });
-  }, [monthGroups]);
+      const stakeNum = Number(bet.stake);
+      if (Number.isFinite(stakeNum)) {
+        stakeTotal += stakeNum;
+      }
+      const oddsNum = Number(bet.odds);
+      if (Number.isFinite(oddsNum) && oddsNum > 0) {
+        oddsSum += oddsNum;
+        oddsCount += 1;
+      }
+    }
 
-  const recentBets = useMemo(() => bets.slice(0, 3), [bets]);
+    const averageOdds = oddsCount > 0 ? oddsSum / oddsCount : 0;
+
+    return {
+      total,
+      pending,
+      roi: summaryData.roi,
+      profit: summaryData.profit,
+      decided: summaryData.games,
+      wins: summaryData.wins,
+      totalStake: stakeTotal,
+      averageOdds,
+    };
+  }, [filteredBets, summaryData]);
 
   const performanceSeries = useMemo(() => {
     const decided = filteredBets
@@ -636,15 +648,12 @@ export default function AppPage() {
     setForm(initialForm());
   };
 
-  const handleUpdateBetResult = async (bet, result) => {
+  const handleUpdateBetResult = async (betId, result) => {
     if (!supabase) {
       window.alert('Supabase är inte konfigurerat.');
       return;
     }
     if (!user?.id) return;
-    const betId = bet?.id;
-    if (!betId) return;
-    const monthKey = bet?.matchday ? bet.matchday.slice(0, 7) : null;
     try {
       const { error } = await supabase
         .from('bets')
@@ -652,9 +661,6 @@ export default function AppPage() {
         .eq('id', betId)
         .eq('user_id', user.id);
       if (error) throw error;
-      if (monthKey) {
-        ensureMonthOpen(monthKey);
-      }
       loadBets(currentProjectId);
     } catch (err) {
       console.error('Kunde inte uppdatera resultat', err);
@@ -683,26 +689,6 @@ export default function AppPage() {
     } catch (err) {
       console.error('Kunde inte ta bort spel', err);
       window.alert('Kunde inte ta bort spel');
-    }
-  };
-
-  const handleBetMenuAction = (bet, value) => {
-    if (!value) return;
-    if (value.startsWith('status:')) {
-      const nextResult = value.split(':')[1] ?? 'Pending';
-      const currentResult = bet?.result || 'Pending';
-      if (nextResult === currentResult) {
-        return;
-      }
-      handleUpdateBetResult(bet, nextResult);
-      return;
-    }
-    if (value === 'action:edit') {
-      handleStartEditBet(bet);
-      return;
-    }
-    if (value === 'action:delete') {
-      handleDeleteBet(bet.id);
     }
   };
 
@@ -756,10 +742,10 @@ export default function AppPage() {
     return Number.isFinite(num) ? num.toFixed(decimals) : '–';
   };
 
-  const formatStake = (value) => {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return '–';
-    return Number.isInteger(num) ? num.toString() : num.toFixed(2);
+  const formatStake = (value, decimals = 2) => {
+    const formatted = formatUnits(value, decimals);
+    if (formatted === '–') return formatted;
+    return formatted.replace(/\.0+U$/, 'U').replace(/\.(\d*[1-9])0+U$/, '.$1U');
   };
 
   const summaryMonthName = monthFilter === 'all' ? 'Alla månader' : formatMonth(monthFilter);
@@ -778,73 +764,6 @@ export default function AppPage() {
   const lastChartPoint = chartHasData
     ? performanceChart.coords[performanceChart.coords.length - 1]
     : null;
-  const chartMaxValue = formatMoney(performanceChart.max ?? 0);
-  const chartMinValue = formatMoney(performanceChart.min ?? 0);
-  const chartZeroValue = formatMoney(0);
-  const projectInitials = useMemo(() => {
-    const name = currentProject?.name ?? '';
-    const trimmed = name.trim();
-    if (!trimmed) return 'BS';
-    const compact = trimmed.replace(/\s+/g, '');
-    if (!compact) return 'BS';
-    if (compact.length <= 4) {
-      return compact.toUpperCase();
-    }
-    return compact.slice(0, 4).toUpperCase();
-  }, [currentProject]);
-  const showRecentPanel = tab !== 'list';
-  const globalOverview = useMemo(() => {
-    if (bets.length === 0) {
-      return {
-        total: 0,
-        pending: 0,
-        decided: 0,
-        wins: 0,
-        losses: 0,
-        voids: 0,
-        profit: 0,
-        roi: 0,
-        hitRate: 0,
-        completion: 0,
-        pendingStake: 0,
-      };
-    }
-
-    const pendingBets = bets.filter((bet) => bet.result === 'Pending');
-    const voidBets = bets.filter((bet) => bet.result === 'Void');
-    const decidedBets = bets.filter((bet) => bet.result === 'Win' || bet.result === 'Loss');
-    const wins = decidedBets.filter((bet) => bet.result === 'Win');
-    const losses = decidedBets.filter((bet) => bet.result === 'Loss');
-
-    const stakeSum = decidedBets.reduce((sum, bet) => {
-      const stakeNum = Number(bet.stake);
-      return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
-    }, 0);
-
-    const profit = decidedBets.reduce((sum, bet) => sum + computeProfit(bet), 0);
-    const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
-    const hitRate = decidedBets.length > 0 ? (wins.length / decidedBets.length) * 100 : 0;
-    const pendingStake = pendingBets.reduce((sum, bet) => {
-      const stakeNum = Number(bet.stake);
-      return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
-    }, 0);
-    const completion =
-      bets.length > 0 ? ((decidedBets.length + voidBets.length) / bets.length) * 100 : 0;
-
-    return {
-      total: bets.length,
-      pending: pendingBets.length,
-      decided: decidedBets.length,
-      wins: wins.length,
-      losses: losses.length,
-      voids: voidBets.length,
-      profit,
-      roi,
-      hitRate,
-      completion,
-      pendingStake,
-    };
-  }, [bets]);
 
   if (supabaseError) {
     return (
@@ -900,101 +819,92 @@ export default function AppPage() {
         </div>
       </header>
 
-      <section className="status-belt" aria-label="Projektöversikt">
-        <article className="status-card">
-          <span className="status-label">Registrerade spel</span>
-          <span className="status-value">{globalOverview.total}</span>
-          <div className="status-meta">
-            <span>{globalOverview.decided} avgjorda</span>
-            <span className="status-chip">Klart {formatPercent(globalOverview.completion)}</span>
+      {PAYWALL_ENABLED && !freeInfo?.premium ? (
+        <div className="banner">
+          <div>
+            <h2>Gratisläge</h2>
+            <p>
+              Du har använt <strong>{freeInfo?.used ?? 0}</strong> av 20 spel.
+              <br />Återstår: <strong>{freeInfo ? Math.max(0, freeInfo.left) : 20}</strong> spel.
+            </p>
           </div>
-        </article>
-        <article className="status-card">
-          <span className="status-label">Nettoresultat</span>
-          <span className={`status-value ${globalOverview.profit >= 0 ? 'positive' : 'negative'}`}>
-            {formatMoney(globalOverview.profit)}
-          </span>
-          <div className="status-meta">
-            <span>ROI</span>
-            <span
-              className={`status-chip ${globalOverview.roi >= 0 ? 'chip-positive' : 'chip-negative'}`}
-            >
-              {formatPercent(globalOverview.roi)}
-            </span>
-          </div>
-        </article>
-        <article className="status-card">
-          <span className="status-label">Träffsäkerhet</span>
-          <span className="status-value">{formatPercent(globalOverview.hitRate)}</span>
-          <div className="status-meta">
-            <span>{globalOverview.wins} vinster</span>
-            <span className="status-chip">{globalOverview.losses} förluster</span>
-          </div>
-        </article>
-        <article className="status-card">
-          <span className="status-label">Öppna spel</span>
-          <span className="status-value">{globalOverview.pending}</span>
-          <div className="status-meta">
-            <span>Insats</span>
-            <span className="status-chip chip-pending">{formatMoney(globalOverview.pendingStake)}</span>
-          </div>
-        </article>
-      </section>
+          <span className="hint">Uppgradera för obegränsade registreringar.</span>
+        </div>
+      ) : null}
 
-      <main className={`workspace${showRecentPanel ? '' : ' no-sidebar'}`}>
+      {!PAYWALL_ENABLED ? (
+        <div className="banner">
+          <div>
+            <h2>BetSpread är kostnadsfritt</h2>
+            <p>
+              Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.
+            </p>
+          </div>
+          <span className="hint">Vi aktiverar betalning igen vid ett senare tillfälle.</span>
+        </div>
+      ) : null}
+
+      <main className="workspace">
         <section className="primary">
-          <div className="panel project-panel">
-            <div className="project-shell">
-              <div className="project-identity">
-                <span className="project-symbol" aria-hidden="true">
-                  {projectInitials}
+          <div className={`panel project-panel ${projectOpen ? 'open' : ''}`}>
+            <button
+              type="button"
+              className="project-toggle"
+              onClick={() => setProjectOpen((prev) => !prev)}
+              aria-expanded={projectOpen}
+            >
+              <div className="project-avatar">
+                <span>{projectBadge}</span>
+              </div>
+              <div className="project-summary">
+                <h2>Projekt</h2>
+                <span className="project-name">{currentProject?.name || 'Inget projekt valt'}</span>
+                <span className="project-count">
+                  Projekt totalt: <strong>{projects.length}</strong>
                 </span>
-                <div>
-                  <h2>Projekt</h2>
-                  <p className="hint">{currentProject?.name || 'Inget projekt valt'}</p>
+              </div>
+              <span className={`chevron ${projectOpen ? 'open' : ''}`} aria-hidden="true" />
+            </button>
+            {projectOpen ? (
+              <div className="project-dropdown">
+                <div className="project-controls">
+                  <label htmlFor="projectSelect">Välj projekt</label>
+                  <div className="control-row">
+                    <select
+                      id="projectSelect"
+                      value={currentProjectId}
+                      onChange={(e) => setCurrentProjectId(e.target.value)}
+                      disabled={loadingProjects}
+                    >
+                      {projects.length === 0 ? (
+                        <option value="">Inga projekt</option>
+                      ) : null}
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="button-cluster">
+                      <button type="button" onClick={handleNewProject}>
+                        Nytt projekt
+                      </button>
+                      <button type="button" onClick={handleRenameProject} disabled={!currentProject}>
+                        Byt namn
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-red"
+                        onClick={handleDeleteProject}
+                        disabled={!currentProject}
+                      >
+                        Radera
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="project-meta-chip">
-                <span>Projekt totalt</span>
-                <strong>{projects.length}</strong>
-              </div>
-            </div>
-            <div className="project-controls">
-              <label htmlFor="projectSelect">Välj projekt</label>
-              <div className="control-row">
-                <select
-                  id="projectSelect"
-                  value={currentProjectId}
-                  onChange={(e) => setCurrentProjectId(e.target.value)}
-                  disabled={loadingProjects}
-                >
-                  {projects.length === 0 ? (
-                    <option value="">Inga projekt</option>
-                  ) : null}
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="button-cluster">
-                  <button type="button" onClick={handleNewProject}>
-                    Nytt projekt
-                  </button>
-                  <button type="button" onClick={handleRenameProject} disabled={!currentProject}>
-                    Byt namn
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-red"
-                    onClick={handleDeleteProject}
-                    disabled={!currentProject}
-                  >
-                    Radera
-                  </button>
-                </div>
-              </div>
-            </div>
+            ) : null}
           </div>
 
           <nav className="tabs" role="tablist">
@@ -1195,7 +1105,7 @@ export default function AppPage() {
             </div>
             <div className="stat-grid">
               <div className="stat-card">
-                <span className="label">Avgjorda spel</span>
+                <span className="label">Spel (avgjorda)</span>
                 <span className="value">{summaryData.games}</span>
               </div>
               <div className="stat-card">
@@ -1228,37 +1138,30 @@ export default function AppPage() {
               </div>
               <div className="chart-body">
                 {chartHasData ? (
-                  <div className="chart-visual">
-                    <div className="y-scale" aria-hidden="true">
-                      <span>{chartMaxValue}</span>
-                      <span>{chartZeroValue}</span>
-                      <span>{chartMinValue}</span>
-                    </div>
-                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Linje som visar projektets utveckling">
-                      <defs>
-                        <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="rgba(56, 189, 248, 0.4)" />
-                          <stop offset="100%" stopColor="rgba(56, 189, 248, 0)" />
-                        </linearGradient>
-                        <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor="#38bdf8" />
-                          <stop offset="100%" stopColor="#a855f7" />
-                        </linearGradient>
-                      </defs>
-                      <polygon points={performanceChart.areaPoints} fill="url(#trendFill)" />
-                      <polyline
-                        points={performanceChart.linePoints}
-                        fill="none"
-                        stroke="url(#trendStroke)"
-                        strokeWidth="1.8"
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                      />
-                      {lastChartPoint ? (
-                        <circle cx={lastChartPoint.x} cy={lastChartPoint.y} r="2.4" fill="#38bdf8" />
-                      ) : null}
-                    </svg>
-                  </div>
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Linje som visar projektets utveckling">
+                    <defs>
+                      <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(56, 189, 248, 0.4)" />
+                        <stop offset="100%" stopColor="rgba(56, 189, 248, 0)" />
+                      </linearGradient>
+                      <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#38bdf8" />
+                        <stop offset="100%" stopColor="#a855f7" />
+                      </linearGradient>
+                    </defs>
+                    <polygon points={performanceChart.areaPoints} fill="url(#trendFill)" />
+                    <polyline
+                      points={performanceChart.linePoints}
+                      fill="none"
+                      stroke="url(#trendStroke)"
+                      strokeWidth="1.8"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    {lastChartPoint ? (
+                      <circle cx={lastChartPoint.x} cy={lastChartPoint.y} r="2.4" fill="#38bdf8" />
+                    ) : null}
+                  </svg>
                 ) : (
                   <div className="chart-empty">Ingen avgjord historik för perioden ännu.</div>
                 )}
@@ -1294,23 +1197,7 @@ export default function AppPage() {
             ) : (
               <div id="playsContainer">
                 {monthGroups.map(([key, list]) => (
-                  <details
-                    key={key}
-                    className="month"
-                    open={openMonths.has(key)}
-                    onToggle={(event) => {
-                      const isOpen = event.currentTarget.open;
-                      setOpenMonths((prev) => {
-                        const next = new Set(prev);
-                        if (isOpen) {
-                          next.add(key);
-                        } else {
-                          next.delete(key);
-                        }
-                        return next;
-                      });
-                    }}
-                  >
+                  <details key={key} className="month">
                     <summary>
                       {formatMonth(key)}
                       <span className="month-count">{list.length} spel</span>
@@ -1324,48 +1211,49 @@ export default function AppPage() {
                       <div>Notering</div>
                       <div>Resultat</div>
                     </div>
-                    {list.map((bet) => {
-                      const result = bet.result || 'Pending';
-                      const statusClass = result.toLowerCase();
-                      return (
-                        <div key={bet.id} className="row">
-                          <div data-label="Datum">{bet.matchday || '–'}</div>
-                          <div data-label="Match &amp; Marknad" className="cell-match">
-                            <span className="match">{bet.match || '–'}</span>
-                            {bet.market ? <span className="market">{bet.market}</span> : null}
-                          </div>
-                          <div data-label="Odds">{formatNumber(bet.odds, 2)}</div>
-                          <div data-label="Insats">{formatStake(bet.stake)}</div>
-                          <div data-label="Spelbolag">{bet.book || '–'}</div>
-                          <div data-label="Notering" className="note-cell">
-                            {bet.note || '–'}
-                          </div>
-                          <div data-label="Resultat" className="result-cell">
-                            <div className="result-stack">
-                              <span className={`status-badge ${statusClass}`}>{result}</span>
-                              <select
-                                className="result-select"
-                                value={`status:${result}`}
-                                onChange={(e) => handleBetMenuAction(bet, e.target.value)}
-                                aria-label="Hantera spel"
-                              >
-                                <optgroup label="Resultat">
-                                  {RESULT_OPTIONS.map((option) => (
-                                    <option key={option} value={`status:${option}`}>
-                                      {option}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="Åtgärder">
-                                  <option value="action:edit">Redigera</option>
-                                  <option value="action:delete">Ta bort</option>
-                                </optgroup>
-                              </select>
-                            </div>
+                    {list.map((bet) => (
+                      <div key={bet.id} className="row">
+                        <div data-label="Datum">{bet.matchday || '–'}</div>
+                        <div data-label="Match &amp; Marknad" className="cell-match">
+                          <span className="match">{bet.match || '–'}</span>
+                          {bet.market ? <span className="market">{bet.market}</span> : null}
+                        </div>
+                        <div data-label="Odds">{formatNumber(bet.odds, 2)}</div>
+                        <div data-label="Insats">{formatStake(bet.stake)}</div>
+                        <div data-label="Spelbolag">{bet.book || '–'}</div>
+                        <div data-label="Notering" className="note-cell">
+                          {bet.note || '–'}
+                        </div>
+                        <div data-label="Resultat">
+                          <div className="result-controls">
+                            <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                              {bet.result || 'Pending'}
+                            </span>
+                            <select
+                              className="result-select"
+                              value={bet.result}
+                              onChange={(e) => handleUpdateBetResult(bet.id, e.target.value)}
+                              aria-label="Uppdatera resultat"
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Win">Win</option>
+                              <option value="Loss">Loss</option>
+                              <option value="Void">Void</option>
+                            </select>
+                            <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
+                              Redigera
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost danger"
+                              onClick={() => handleDeleteBet(bet.id)}
+                            >
+                              Ta bort
+                            </button>
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </details>
                 ))}
               </div>
@@ -1373,500 +1261,355 @@ export default function AppPage() {
           </section>
         </section>
 
-        {showRecentPanel ? (
-          <aside className="secondary">
-            <section className="panel analytics-panel">
-              <div className="section-header compact">
-                <div>
-                  <h2>Analys</h2>
-                  <p className="hint">Nyckeltal baserat på vald period.</p>
-                </div>
+        <aside className="secondary">
+          <section className="panel highlight-panel">
+            <div className="section-header compact">
+              <div>
+                <h2>Snabböversikt</h2>
+                <span className="subtle-tag">Visar: {summaryMonthName}</span>
               </div>
-              <div className="insight-grid">
-                <article className="insight-card">
-                  <span className="insight-label">Träffsäkerhet</span>
-                  <span className={`insight-value ${summaryData.hitRate >= 50 ? 'positive' : ''}`}>
-                    {formatPercent(summaryData.hitRate)}
-                  </span>
-                  <span className="insight-meta">{summaryData.games} avgjorda spel</span>
-                </article>
-                <article className="insight-card">
-                  <span className="insight-label">Snittodds</span>
-                  <span className="insight-value">{formatNumber(summaryData.averageOdds, 2)}</span>
-                  <span className="insight-meta">{summaryData.wins} vinster</span>
-                </article>
-                <article className="insight-card">
-                  <span className="insight-label">Snittinsats</span>
-                  <span className="insight-value">{formatNumber(summaryData.averageStake, 2)}</span>
-                  <span className="insight-meta">Omsatt {formatMoney(summaryData.stake)}</span>
-                </article>
-                <article className="insight-card">
-                  <span className="insight-label">Profit / spel</span>
-                  <span
-                    className={`insight-value ${
-                      summaryData.profitPerBet >= 0 ? 'positive' : 'negative'
-                    }`}
-                  >
-                    {formatMoney(summaryData.profitPerBet)}
-                  </span>
-                  <span className="insight-meta">Totalt {formatMoney(summaryData.profit)}</span>
-                </article>
+            </div>
+            <div className="overview-grid">
+              <div className="overview-card">
+                <span className="label">Spel totalt</span>
+                <span className="value">{overviewStats.total}</span>
               </div>
-            </section>
-            <section className="panel recent-panel">
-              <div className="section-header compact">
-                <div>
-                  <h2>Senaste spel</h2>
-                  <p className="hint">Snabbhantera de tre senaste spelen direkt här.</p>
-                </div>
+              <div className="overview-card">
+                <span className="label">Avgjorda</span>
+                <span className="value">{overviewStats.decided}</span>
               </div>
-              {recentBets.length === 0 ? (
-                <div className="empty-state small">Ingen historik ännu.</div>
-              ) : (
-                <ul className="recent-list">
-                  {recentBets.map((bet) => {
-                    const result = bet.result ?? 'Pending';
-                    const statusClass = (result || 'Pending').toLowerCase();
-                    const matchdayLabel = bet.matchday
-                      ? formatDay(bet.matchday.slice(0, 10))
-                      : '–';
-                    const selectId = `recentResult-${bet.id}`;
-                    return (
-                      <li key={bet.id}>
-                        <div className="recent-summary">
-                          <span className="recent-icon" data-status={statusClass} aria-hidden="true" />
-                          <div className="recent-copy">
-                            <span className="recent-match">{bet.match || 'Okänd match'}</span>
-                            <span className="recent-market">{bet.market || 'Ingen marknad angiven'}</span>
-                            <div className="recent-meta">
-                              <span>{matchdayLabel}</span>
-                              <span>Odds {formatNumber(bet.odds, 2)}</span>
-                              <span>Insats {formatStake(bet.stake)}</span>
-                            </div>
-                          </div>
-                          <div className="recent-menu">
-                            <span className={`recent-status ${statusClass}`}>{result}</span>
-                            <label className="sr-only" htmlFor={selectId}>
-                              Hantera spel
-                            </label>
-                            <select
-                              id={selectId}
-                              className="recent-select"
-                              value={`status:${result}`}
-                              onChange={(e) => handleBetMenuAction(bet, e.target.value)}
-                            >
-                              <optgroup label="Resultat">
-                                {RESULT_OPTIONS.map((option) => (
-                                  <option key={option} value={`status:${option}`}>
-                                    {option}
-                                  </option>
-                                ))}
-                              </optgroup>
-                              <optgroup label="Åtgärder">
-                                <option value="action:edit">Redigera</option>
-                                <option value="action:delete">Ta bort</option>
-                              </optgroup>
-                            </select>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-          </aside>
-        ) : null}
+              <div className="overview-card">
+                <span className="label">Vinster</span>
+                <span className="value">{overviewStats.wins}</span>
+              </div>
+              <div className="overview-card">
+                <span className="label">Snittodds</span>
+                <span className="value">{formatNumber(overviewStats.averageOdds, 2)}</span>
+              </div>
+              <div className="overview-card">
+                <span className="label">Totala insatser</span>
+                <span className="value">{formatStake(overviewStats.totalStake)}</span>
+              </div>
+              <div className="overview-card">
+                <span className="label">ROI</span>
+                <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
+                  {formatPercent(overviewStats.roi)}
+                </span>
+              </div>
+              <div className="overview-card">
+                <span className="label">Nettoresultat</span>
+                <span className={`value ${overviewStats.profit >= 0 ? 'positive' : 'negative'}`}>
+                  {formatMoney(overviewStats.profit)}
+                </span>
+              </div>
+            </div>
+          </section>
+        </aside>
       </main>
 
       <style jsx global>{`
         body {
-          background:
-            radial-gradient(140% 90% at 10% -20%, rgba(56, 189, 248, 0.22), transparent 55%),
-            radial-gradient(120% 120% at 85% 0%, rgba(168, 85, 247, 0.18), transparent 60%),
-            linear-gradient(180deg, #020617 0%, #0b1120 45%, #020617 100%);
-          color: #e2e8f0;
-          font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-          line-height: 1.6;
-          min-height: 100vh;
-          background-attachment: fixed;
-          background-repeat: no-repeat;
+          background: linear-gradient(180deg, #040914, #0d1729);
         }
         .container {
-          position: relative;
-          width: min(1240px, 100%);
+          width: 100%;
+          max-width: 1220px;
           margin: 0 auto;
-          padding: 48px 24px 72px;
-          display: flex;
-          flex-direction: column;
-          gap: 28px;
-          overflow: visible;
-        }
-        .container::before,
-        .container::after {
-          content: '';
-          position: absolute;
-          pointer-events: none;
-          z-index: 0;
-        }
-        .container::before {
-          top: -180px;
-          left: -140px;
-          width: 340px;
-          height: 340px;
-          background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.25), transparent 70%);
-          filter: blur(0px);
-          opacity: 0.85;
-        }
-        .container::after {
-          bottom: -220px;
-          right: -160px;
-          width: 400px;
-          height: 400px;
-          background: radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.2), transparent 70%);
-          opacity: 0.7;
-        }
-        .container > * {
-          position: relative;
-          z-index: 1;
+          padding: 36px 22px 64px;
         }
         header.top-bar {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          display: flex;
           align-items: center;
+          justify-content: space-between;
           gap: 24px;
-          padding: 28px 32px;
-          border-radius: 24px;
-          background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(59, 130, 246, 0.22));
-          border: 1px solid rgba(59, 130, 246, 0.28);
-          box-shadow: 0 32px 60px -38px rgba(15, 23, 42, 0.88), 0 20px 48px -34px rgba(30, 64, 175, 0.6);
-          backdrop-filter: blur(16px);
+          margin-bottom: 24px;
+          padding: 22px 26px;
+          border-radius: 18px;
+          background: rgba(17, 31, 52, 0.95);
+          border: 1px solid rgba(74, 96, 138, 0.38);
+          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
+          backdrop-filter: blur(12px);
         }
         .brand-block {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
         }
         .brand {
-          font-size: clamp(28px, 4vw, 34px);
           font-weight: 800;
-          letter-spacing: 0.015em;
-          background: linear-gradient(135deg, #38bdf8 0%, #a855f7 45%, #f472b6 100%);
+          font-size: 28px;
+          letter-spacing: 0.02em;
+          background: linear-gradient(135deg, #a855f7, #38bdf8);
           -webkit-background-clip: text;
           color: transparent;
         }
         .tagline {
           margin: 0;
-          color: rgba(226, 232, 240, 0.76);
-          font-size: 15px;
+          font-size: 14px;
+          color: rgba(140, 163, 204, 0.9);
         }
         .right-actions {
           display: flex;
+          gap: 12px;
+          align-items: center;
           flex-wrap: wrap;
           justify-content: flex-end;
-          align-items: center;
-          gap: 12px;
         }
-        .status-belt {
-          position: relative;
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-          gap: 18px;
-          padding: 26px 28px;
-          border-radius: 28px;
-          background: linear-gradient(135deg, rgba(10, 21, 40, 0.92), rgba(14, 116, 144, 0.45));
-          border: 1px solid rgba(45, 212, 191, 0.28);
-          box-shadow: 0 36px 80px -44px rgba(14, 165, 233, 0.55);
-          backdrop-filter: blur(24px);
-          overflow: hidden;
-        }
-        .status-belt::before,
-        .status-belt::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          z-index: 0;
-        }
-        .status-belt::before {
-          background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.28), transparent 65%);
-          opacity: 0.9;
-        }
-        .status-belt::after {
-          background: radial-gradient(circle at bottom right, rgba(167, 139, 250, 0.2), transparent 65%);
-          opacity: 0.7;
-        }
-        .status-card {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          padding: 18px 20px;
-          border-radius: 20px;
-          background: rgba(4, 10, 25, 0.62);
-          border: 1px solid rgba(148, 163, 184, 0.28);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-          overflow: hidden;
-          transition: transform 0.2s ease, border-color 0.2s ease;
-        }
-        .status-card::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 20px;
-          background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(45, 212, 191, 0.08));
-          opacity: 0;
-          transition: opacity 0.2s ease;
-          z-index: -1;
-        }
-        .status-card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(59, 130, 246, 0.45);
-        }
-        .status-card:hover::after {
-          opacity: 1;
-        }
-        .status-label {
-          font-size: 11px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(148, 163, 184, 0.8);
-        }
-        .status-value {
-          font-size: 26px;
-          font-weight: 700;
-          letter-spacing: 0.02em;
-          color: #f8fafc;
-        }
-        .status-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          align-items: center;
-          font-size: 13px;
-          color: rgba(203, 213, 225, 0.78);
-        }
-        .status-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 4px 12px;
-          border-radius: 999px;
-          border: 1px solid rgba(148, 163, 184, 0.32);
-          background: rgba(148, 163, 184, 0.12);
-          font-size: 11px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(226, 232, 240, 0.85);
-        }
-        .chip-positive {
-          background: rgba(34, 197, 94, 0.16);
-          border-color: rgba(34, 197, 94, 0.4);
-          color: #4ade80;
-        }
-        .chip-negative {
-          background: rgba(248, 113, 113, 0.16);
-          border-color: rgba(248, 113, 113, 0.4);
-          color: #f87171;
-        }
-        .chip-pending {
-          background: rgba(250, 204, 21, 0.16);
-          border-color: rgba(234, 179, 8, 0.4);
-          color: #facc15;
-        }
-        .badge {
-          padding: 10px 16px;
-          border-radius: 999px;
-          background: rgba(15, 23, 42, 0.72);
-          border: 1px solid rgba(148, 163, 184, 0.35);
-          font-size: 14px;
-          font-weight: 600;
-          letter-spacing: 0.01em;
-        }
-        .container button {
-          border: 1px solid rgba(148, 163, 184, 0.25);
+        button,
+        .btn {
+          background: rgba(42, 60, 100, 0.9);
+          border: 1px solid rgba(96, 119, 173, 0.45);
+          color: #f1f5ff;
           border-radius: 12px;
-          padding: 12px 18px;
+          padding: 10px 16px;
+          cursor: pointer;
+          transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
           font-weight: 600;
           letter-spacing: 0.01em;
-          color: #f8fafc;
-          background: rgba(30, 41, 59, 0.72);
-          cursor: pointer;
-          transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease;
         }
-        .container button:hover:not(:disabled) {
+        button:hover,
+        .btn:hover {
+          background: rgba(58, 82, 134, 0.95);
           transform: translateY(-1px);
-          box-shadow: 0 12px 32px -18px rgba(59, 130, 246, 0.55);
-          background: rgba(30, 64, 175, 0.62);
-          border-color: rgba(59, 130, 246, 0.45);
         }
-        .container button:disabled {
+        button:focus-visible,
+        .btn:focus-visible {
+          outline: 2px solid #60a5fa;
+          outline-offset: 3px;
+        }
+        .btn-green {
+          background: linear-gradient(135deg, #34d399, #10b981);
+          border: none;
+          box-shadow: 0 12px 32px -20px rgba(16, 185, 129, 0.7);
+        }
+        .btn-red {
+          background: linear-gradient(135deg, #f87171, #ef4444);
+          border: none;
+          box-shadow: 0 12px 32px -20px rgba(239, 68, 68, 0.65);
+        }
+        .btn-ghost {
+          background: rgba(26, 39, 66, 0.65);
+          border: 1px solid rgba(78, 106, 150, 0.5);
+          color: rgba(226, 232, 255, 0.88);
+        }
+        .btn-ghost:hover {
+          background: rgba(41, 57, 92, 0.85);
+          border-color: rgba(129, 140, 248, 0.45);
+        }
+        .btn-ghost.danger {
+          color: #fca5a5;
+          border-color: rgba(248, 113, 113, 0.45);
+        }
+        .btn-ghost.danger:hover {
+          background: rgba(127, 29, 29, 0.2);
+        }
+        .btn-red:disabled,
+        .btn-green:disabled,
+        button:disabled {
           opacity: 0.6;
           cursor: not-allowed;
           transform: none;
         }
-        .btn-green {
-          background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
-          border: 1px solid rgba(14, 165, 233, 0.65);
-          box-shadow: 0 18px 34px -20px rgba(14, 165, 233, 0.65);
-        }
-        .btn-green:hover:not(:disabled) {
-          background: linear-gradient(135deg, #0ea5e9, #2563eb);
-        }
-        .btn-red {
-          background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-          border: 1px solid rgba(239, 68, 68, 0.55);
-          box-shadow: 0 18px 34px -20px rgba(248, 113, 113, 0.6);
-        }
-        .btn-red:hover:not(:disabled) {
-          background: linear-gradient(135deg, #ef4444, #b91c1c);
-        }
-        .btn-ghost {
-          background: rgba(15, 23, 42, 0.55);
-          border: 1px solid rgba(148, 163, 184, 0.3);
-          color: rgba(226, 232, 240, 0.85);
-        }
-        .btn-ghost:hover:not(:disabled) {
-          background: rgba(30, 41, 59, 0.7);
-          border-color: rgba(148, 163, 184, 0.45);
-        }
-        .btn-ghost.danger {
-          color: #fca5a5;
-          border-color: rgba(248, 113, 113, 0.35);
-        }
-        .btn-ghost.danger:hover:not(:disabled) {
-          background: rgba(239, 68, 68, 0.18);
-          border-color: rgba(239, 68, 68, 0.55);
-        }
-        .hint {
-          color: rgba(148, 163, 184, 0.9);
-          font-size: 14px;
-          margin: 6px 0 0;
-        }
-        .workspace {
-          display: grid;
-          grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr);
-          gap: 28px;
-          align-items: start;
-        }
-        .workspace.no-sidebar {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .primary {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-        .panel {
-          background: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(11, 22, 43, 0.88));
-          border-radius: 24px;
-          border: 1px solid rgba(51, 65, 85, 0.55);
-          box-shadow: 0 26px 60px -34px rgba(2, 6, 23, 0.85);
-          padding: 28px 30px;
-        }
-        .panel.hide {
-          display: none;
-        }
-        .project-panel {
-          position: relative;
-          overflow: hidden;
-          padding: 26px 28px;
-          background: linear-gradient(160deg, rgba(8, 16, 32, 0.92), rgba(30, 64, 175, 0.14));
-          border: 1px solid rgba(59, 130, 246, 0.2);
-        }
-        .project-panel::after {
-          content: '';
-          position: absolute;
-          inset: -140px -160px auto auto;
-          width: 320px;
-          height: 320px;
-          background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.25), transparent 70%);
-          opacity: 0.55;
-          pointer-events: none;
-        }
-        .project-panel > * {
-          position: relative;
-          z-index: 1;
-        }
-        .project-shell {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 22px;
-        }
-        .project-identity {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-        .project-symbol {
+        .badge {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-width: 52px;
-          height: 52px;
-          padding: 0 18px;
-          border-radius: 18px;
-          background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(56, 189, 248, 0));
-          border: 1px solid rgba(148, 163, 184, 0.35);
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          font-size: 16px;
-          color: rgba(226, 232, 240, 0.92);
-          text-transform: uppercase;
-          white-space: nowrap;
-        }
-        .project-identity h2 {
-          margin: 0;
-          font-size: 22px;
-          letter-spacing: 0.015em;
-        }
-        .project-meta-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 16px;
+          padding: 6px 14px;
           border-radius: 999px;
-          background: rgba(15, 23, 42, 0.6);
-          border: 1px solid rgba(148, 163, 184, 0.35);
-          font-size: 12px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: rgba(148, 163, 184, 0.85);
+          background: rgba(59, 130, 246, 0.12);
+          border: 1px solid rgba(96, 165, 250, 0.35);
+          color: #60a5fa;
+          font-weight: 600;
+          font-size: 14px;
         }
-        .project-meta-chip strong {
+        .banner {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 18px;
+          padding: 18px 22px;
+          margin-bottom: 24px;
+          border-radius: 18px;
+          background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.08));
+          border: 1px solid rgba(248, 113, 113, 0.45);
+          color: #ffe1e1;
+          box-shadow: 0 18px 45px -30px rgba(248, 113, 113, 0.45);
+        }
+        .banner h2 {
+          margin: 0 0 4px;
+          font-size: 18px;
+          color: #ffe1e1;
+        }
+        .banner p {
+          margin: 0;
           font-size: 15px;
-          color: #f8fafc;
+          color: #ffd9d9;
+          line-height: 1.45;
+        }
+        .workspace {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 320px;
+          gap: 24px;
+          align-items: flex-start;
+        }
+        .panel {
+          background: rgba(12, 22, 39, 0.92);
+          border: 1px solid rgba(74, 96, 138, 0.38);
+          border-radius: 18px;
+          padding: 24px;
+          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
+          backdrop-filter: blur(12px);
+        }
+        .panel h2 {
+          margin: 0;
+          font-size: 20px;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+        }
+        .positive {
+          color: #4ade80;
+        }
+        .negative {
+          color: #f87171;
+        }
+        .section-header.compact {
+          margin-bottom: 12px;
+          align-items: baseline;
+        }
+        .subtle-tag {
+          display: inline-block;
+          font-size: 12px;
           letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(140, 163, 204, 0.8);
+          background: rgba(15, 26, 44, 0.7);
+          border: 1px solid rgba(72, 95, 142, 0.4);
+          border-radius: 999px;
+          padding: 4px 10px;
+        }
+        .project-panel {
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .project-toggle {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          width: 100%;
+          padding: 18px 20px;
+          background: transparent;
+          border: none;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: background 0.2s ease, border 0.2s ease;
+        }
+        .project-toggle:hover {
+          background: rgba(17, 31, 52, 0.85);
+        }
+        .project-panel.open .project-toggle {
+          background: rgba(17, 31, 52, 0.92);
+        }
+        .project-avatar {
+          width: 44px;
+          height: 44px;
+          border-radius: 14px;
+          background: rgba(33, 56, 94, 0.85);
+          border: 1px solid rgba(96, 165, 250, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 16px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #cfe0ff;
+        }
+        .project-summary {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .project-summary h2 {
+          font-size: 16px;
+          font-weight: 700;
+          margin: 0;
+        }
+        .project-name {
+          color: rgba(206, 221, 255, 0.95);
+          font-size: 14px;
+        }
+        .project-count {
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(140, 163, 204, 0.85);
+        }
+        .project-count strong {
+          color: #f1f5ff;
+        }
+        .chevron {
+          width: 36px;
+          height: 36px;
+          border-radius: 12px;
+          border: 1px solid rgba(72, 95, 142, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
+        }
+        .chevron::before {
+          content: '';
+          width: 8px;
+          height: 8px;
+          border-right: 2px solid rgba(148, 179, 232, 0.9);
+          border-bottom: 2px solid rgba(148, 179, 232, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.2s ease;
+        }
+        .project-panel.open .chevron {
+          background: rgba(24, 41, 66, 0.95);
+          border-color: rgba(96, 165, 250, 0.45);
+        }
+        .project-panel.open .chevron::before {
+          transform: rotate(-135deg);
+        }
+        .project-dropdown {
+          border-top: 1px solid rgba(72, 103, 152, 0.32);
+          padding: 18px 20px 22px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          background: rgba(13, 24, 41, 0.9);
+        }
+        .hint {
+          color: rgba(140, 163, 204, 0.9);
+          font-size: 14px;
+        }
+        .subtle {
+          color: rgba(140, 163, 204, 0.9);
+          font-size: 13px;
         }
         .section-header {
           display: flex;
+          align-items: flex-start;
           justify-content: space-between;
           gap: 20px;
-          align-items: flex-start;
-          margin-bottom: 24px;
-        }
-        .section-header h2 {
-          margin: 0;
-          font-size: 22px;
-          letter-spacing: 0.015em;
-        }
-        .section-header.compact {
           margin-bottom: 20px;
         }
         .project-controls {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 12px;
         }
         .project-controls label {
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.06em;
+          font-size: 12px;
           text-transform: uppercase;
-          color: rgba(148, 163, 184, 0.95);
+          letter-spacing: 0.08em;
+          color: rgba(140, 163, 204, 0.9);
         }
         .control-row {
           display: flex;
@@ -1877,30 +1620,21 @@ export default function AppPage() {
         select,
         input,
         textarea {
-          font: inherit;
-        }
-        .project-controls select,
-        .form-panel select,
-        .form-panel input,
-        .form-panel textarea,
-        .summary-panel select {
-          background: rgba(8, 16, 32, 0.92);
-          border: 1px solid rgba(71, 85, 105, 0.55);
-          border-radius: 14px;
-          color: #e2e8f0;
-          padding: 12px 16px;
-          min-height: 48px;
+          background: rgba(10, 20, 35, 0.85);
+          border: 1px solid rgba(78, 106, 150, 0.4);
+          color: #f1f5ff;
+          padding: 14px 16px;
+          border-radius: 12px;
+          font-size: 15px;
+          min-height: 46px;
           transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
-        .project-controls select:focus-visible,
-        .form-panel select:focus-visible,
-        .form-panel input:focus-visible,
-        .form-panel textarea:focus-visible,
-        .summary-panel select:focus-visible {
+        select:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible {
+          border-color: rgba(96, 165, 250, 0.8);
+          box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
           outline: none;
-          border-color: rgba(96, 165, 250, 0.65);
-          box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.25);
-          background: rgba(15, 23, 42, 0.95);
         }
         .button-cluster {
           display: flex;
@@ -1911,37 +1645,32 @@ export default function AppPage() {
           display: flex;
           gap: 12px;
           padding: 6px;
+          background: rgba(15, 26, 44, 0.7);
+          border: 1px solid rgba(72, 95, 142, 0.35);
           border-radius: 18px;
-          background: rgba(15, 23, 42, 0.75);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
         }
         .tab {
           flex: 1;
+          padding: 12px 16px;
           border-radius: 12px;
           border: 1px solid transparent;
           background: transparent;
-          color: rgba(203, 213, 225, 0.75);
-          padding: 12px 16px;
+          color: rgba(140, 163, 204, 0.9);
           font-weight: 600;
-          letter-spacing: 0.015em;
+          letter-spacing: 0.02em;
           cursor: pointer;
-          transition: background 0.2s ease, border 0.2s ease, color 0.2s ease, transform 0.2s ease;
+          transition: background 0.2s ease, color 0.2s ease, border 0.2s ease, transform 0.2s ease;
         }
         .tab:hover {
-          color: #f8fafc;
+          color: #f1f5ff;
           transform: translateY(-1px);
         }
         .tab.active {
-          color: #f8fafc;
-          background: linear-gradient(135deg, rgba(56, 189, 248, 0.26), rgba(168, 85, 247, 0.22));
-          border-color: rgba(96, 165, 250, 0.55);
-          box-shadow: 0 14px 30px -18px rgba(56, 189, 248, 0.6);
-        }
-        .form-panel {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
+          background: linear-gradient(135deg, rgba(96, 165, 250, 0.28), rgba(56, 189, 248, 0.16));
+          border-color: rgba(96, 165, 250, 0.5);
+          color: #f1f5ff;
+          box-shadow: 0 12px 28px -20px rgba(96, 165, 250, 0.7);
         }
         .grid {
           display: grid;
@@ -1951,26 +1680,24 @@ export default function AppPage() {
         .field {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
         }
         .field label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(148, 163, 184, 0.85);
-        }
-        textarea {
-          min-height: 96px;
-          resize: vertical;
+          color: rgba(140, 163, 204, 0.9);
         }
         .edit-indicator {
           display: flex;
+          align-items: center;
           justify-content: space-between;
           gap: 16px;
-          padding: 16px 18px;
-          border-radius: 16px;
-          background: rgba(30, 64, 175, 0.22);
-          border: 1px solid rgba(96, 165, 250, 0.35);
+          padding: 14px 18px;
+          border-radius: 14px;
+          background: rgba(37, 99, 235, 0.12);
+          border: 1px solid rgba(129, 140, 248, 0.35);
+          margin-bottom: 18px;
         }
         .edit-copy {
           display: flex;
@@ -1979,86 +1706,130 @@ export default function AppPage() {
         }
         .edit-title {
           font-size: 12px;
-          letter-spacing: 0.08em;
           text-transform: uppercase;
-          color: rgba(191, 219, 254, 0.9);
+          letter-spacing: 0.08em;
+          color: rgba(199, 210, 254, 0.9);
         }
         .edit-meta {
           font-size: 14px;
-          color: rgba(191, 219, 254, 0.8);
+          color: rgba(199, 210, 254, 0.85);
         }
-        .action-field .actions {
+        .col-1 {
+          grid-column: span 1;
+        }
+        .col-2 {
+          grid-column: span 2;
+        }
+        .col-3 {
+          grid-column: span 3;
+        }
+        .col-4 {
+          grid-column: span 4;
+        }
+        .col-5 {
+          grid-column: span 5;
+        }
+        .col-6 {
+          grid-column: span 6;
+        }
+        .col-7 {
+          grid-column: span 7;
+        }
+        .col-8 {
+          grid-column: span 8;
+        }
+        .col-9 {
+          grid-column: span 9;
+        }
+        .col-10 {
+          grid-column: span 10;
+        }
+        .col-11 {
+          grid-column: span 11;
+        }
+        .col-12 {
+          grid-column: span 12;
+        }
+        .actions {
           display: flex;
           flex-wrap: wrap;
           gap: 12px;
           align-items: center;
         }
+        .action-field {
+          align-self: end;
+        }
+        .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
         .summary-panel .filter {
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          min-width: 220px;
+          gap: 8px;
+          min-width: 190px;
+        }
+        .summary-panel select {
+          min-width: 190px;
         }
         .stat-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           gap: 16px;
-          margin-bottom: 24px;
         }
         .stat-card {
+          padding: 18px;
+          border-radius: 14px;
+          background: rgba(18, 32, 54, 0.8);
+          border: 1px solid rgba(73, 103, 152, 0.4);
           display: flex;
           flex-direction: column;
           gap: 6px;
-          padding: 16px 18px;
-          border-radius: 16px;
-          background: rgba(15, 23, 42, 0.65);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
         .stat-card .label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(148, 163, 184, 0.75);
+          color: rgba(140, 163, 204, 0.9);
         }
         .stat-card .value {
-          font-size: 22px;
+          font-size: 26px;
           font-weight: 700;
-          letter-spacing: 0.015em;
-        }
-        .positive {
-          color: #34d399;
-        }
-        .negative {
-          color: #f87171;
         }
         .chart-card {
+          margin-top: 22px;
+          padding: 20px;
+          border-radius: 18px;
+          background: rgba(16, 28, 47, 0.82);
+          border: 1px solid rgba(73, 103, 152, 0.35);
           display: flex;
           flex-direction: column;
-          gap: 20px;
-          padding: 24px 26px 28px;
-          border-radius: 20px;
-          background: rgba(15, 23, 42, 0.72);
-          border: 1px solid rgba(56, 189, 248, 0.18);
-          box-shadow: 0 30px 70px -45px rgba(56, 189, 248, 0.5);
+          gap: 18px;
         }
         .chart-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
           gap: 18px;
+          flex-wrap: wrap;
         }
         .chart-title {
-          display: block;
-          font-size: 16px;
-          font-weight: 600;
-          letter-spacing: 0.02em;
-          margin-bottom: 6px;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgba(140, 163, 204, 0.9);
         }
         .chart-subtitle {
-          margin: 0;
-          color: rgba(148, 163, 184, 0.8);
+          margin: 4px 0 0;
           font-size: 14px;
+          color: rgba(160, 182, 220, 0.9);
         }
         .chart-total {
           display: flex;
@@ -2070,425 +1841,240 @@ export default function AppPage() {
           font-size: 28px;
           font-weight: 700;
         }
+        .chart-total-value.positive {
+          color: #4ade80;
+        }
+        .chart-total-value.negative {
+          color: #f87171;
+        }
         .chart-total-label {
           font-size: 12px;
-          text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(148, 163, 184, 0.75);
+          text-transform: uppercase;
+          color: rgba(140, 163, 204, 0.7);
         }
         .chart-body {
+          position: relative;
           width: 100%;
+          height: 200px;
+        }
+        .chart-body svg {
+          width: 100%;
+          height: 100%;
+        }
+        .chart-empty {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 12px 0;
+          width: 100%;
+          height: 160px;
+          border-radius: 14px;
+          border: 1px dashed rgba(96, 165, 250, 0.35);
+          color: rgba(140, 163, 204, 0.9);
+          font-size: 14px;
+          background: rgba(17, 31, 52, 0.6);
         }
         .chart-footer {
           display: flex;
           justify-content: space-between;
+          align-items: center;
+          gap: 12px;
           font-size: 13px;
-          color: rgba(148, 163, 184, 0.8);
-          letter-spacing: 0.03em;
+          color: rgba(140, 163, 204, 0.85);
         }
-        .list-panel {
+        .chart-footer span:first-child,
+        .chart-footer span:last-child {
+          color: rgba(140, 163, 204, 0.7);
+        }
+        #playsContainer {
           display: flex;
           flex-direction: column;
-          gap: 18px;
-        }
-        .empty-state {
-          padding: 48px 24px;
-          text-align: center;
-          border-radius: 18px;
-          background: rgba(15, 23, 42, 0.6);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          color: rgba(148, 163, 184, 0.85);
-          font-size: 15px;
+          gap: 16px;
         }
         details.month {
-          border: 1px solid rgba(71, 85, 105, 0.4);
           border-radius: 18px;
+          border: 1px solid rgba(72, 103, 152, 0.35);
+          background: rgba(17, 29, 49, 0.75);
           overflow: hidden;
-          background: rgba(11, 18, 38, 0.85);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        }
-        details.month + details.month {
-          margin-top: 14px;
+          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
         }
         details.month summary {
           list-style: none;
-          cursor: pointer;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
           padding: 18px 22px;
-          font-weight: 600;
-          letter-spacing: 0.015em;
-          background: rgba(15, 23, 42, 0.78);
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          cursor: pointer;
+          background: linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(56, 189, 248, 0.08));
         }
         details.month summary::-webkit-details-marker {
           display: none;
         }
+        details.month[open] summary {
+          border-bottom: 1px solid rgba(72, 103, 152, 0.35);
+          background: linear-gradient(135deg, rgba(96, 165, 250, 0.08), rgba(56, 189, 248, 0.05));
+        }
         .month-count {
-          font-size: 13px;
-          color: rgba(148, 163, 184, 0.8);
-          background: rgba(30, 41, 59, 0.6);
-          border-radius: 999px;
-          padding: 6px 12px;
+          font-size: 14px;
+          color: rgba(140, 163, 204, 0.9);
         }
         .row {
           display: grid;
-          grid-template-columns: minmax(80px, 1fr) minmax(180px, 1.8fr) repeat(4, minmax(80px, 1fr));
-          gap: 12px;
+          grid-template-columns: 120px 1.8fr 90px 90px 150px 1.4fr 260px;
+          gap: 16px;
           padding: 16px 22px;
-          align-items: center;
-          border-top: 1px solid rgba(71, 85, 105, 0.35);
+          align-items: flex-start;
         }
         .row-head {
-          background: rgba(30, 41, 59, 0.5);
+          background: rgba(255, 255, 255, 0.02);
           font-size: 12px;
-          text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(148, 163, 184, 0.7);
-        }
-        .row div {
-          font-size: 14px;
-          color: rgba(226, 232, 240, 0.88);
-        }
-        .row .cell-match {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-        .row .match {
+          text-transform: uppercase;
+          color: rgba(140, 163, 204, 0.9);
           font-weight: 600;
+          padding-top: 14px;
+          padding-bottom: 14px;
         }
-        .row .market {
+        .row:not(.row-head):nth-child(odd) {
+          background: rgba(10, 18, 32, 0.3);
+        }
+        .row > div {
+          min-width: 0;
+        }
+        .cell-match .match {
+          font-weight: 600;
+          display: block;
+        }
+        .cell-match .market {
+          display: block;
           font-size: 13px;
-          color: rgba(148, 163, 184, 0.8);
+          color: rgba(140, 163, 204, 0.9);
+          margin-top: 2px;
         }
         .note-cell {
-          color: rgba(148, 163, 184, 0.85);
+          font-size: 14px;
+          line-height: 1.4;
+          opacity: 0.92;
         }
-        .result-cell {
+        .result-controls {
           display: flex;
-          justify-content: flex-end;
-        }
-        .result-stack {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 8px;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
         }
         .result-select {
-          background: rgba(8, 16, 32, 0.92);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          border-radius: 12px;
-          color: #e2e8f0;
-          padding: 8px 12px;
-          min-width: 160px;
-        }
-        .result-select:focus {
-          outline: none;
-          border-color: rgba(56, 189, 248, 0.6);
-          box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+          min-width: 150px;
+          flex: 0 0 auto;
         }
         .status-badge {
           padding: 6px 12px;
           border-radius: 999px;
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.03em;
+          font-size: 11px;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
-        }
-        .status-badge.pending {
-          background: rgba(234, 179, 8, 0.18);
-          color: #fbbf24;
-          border: 1px solid rgba(234, 179, 8, 0.35);
+          font-weight: 700;
+          background: rgba(37, 99, 235, 0.18);
+          border: 1px solid rgba(129, 140, 248, 0.4);
+          color: #c7d2fe;
         }
         .status-badge.win {
-          background: rgba(34, 197, 94, 0.18);
-          color: #4ade80;
-          border: 1px solid rgba(34, 197, 94, 0.4);
+          background: rgba(22, 163, 74, 0.2);
+          border-color: rgba(74, 222, 128, 0.45);
+          color: #bbf7d0;
         }
         .status-badge.loss {
-          background: rgba(248, 113, 113, 0.18);
-          color: #f87171;
-          border: 1px solid rgba(248, 113, 113, 0.4);
+          background: rgba(185, 28, 28, 0.2);
+          border-color: rgba(248, 113, 113, 0.45);
+          color: #fecaca;
+        }
+        .status-badge.pending {
+          background: rgba(37, 99, 235, 0.18);
         }
         .status-badge.void {
-          background: rgba(148, 163, 184, 0.2);
-          color: rgba(148, 163, 184, 0.9);
-          border: 1px solid rgba(148, 163, 184, 0.35);
+          background: rgba(107, 114, 128, 0.18);
+          border-color: rgba(156, 163, 175, 0.35);
+          color: #e5e7eb;
         }
-        .secondary {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-        .chart-body {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 12px 0;
-          min-height: 240px;
-        }
-        .chart-visual {
-          display: grid;
-          grid-template-columns: auto 1fr;
-          gap: 16px;
-          width: 100%;
-          align-items: stretch;
-        }
-        .chart-visual svg {
-          width: 100%;
-          height: 220px;
-          border-radius: 16px;
-          background: radial-gradient(circle at top, rgba(56, 189, 248, 0.08), rgba(15, 23, 42, 0.94));
-          border: 1px solid rgba(56, 189, 248, 0.18);
-        }
-        .y-scale {
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          align-items: flex-end;
-          font-size: 12px;
-          color: rgba(148, 163, 184, 0.75);
-          padding: 8px 0;
-        }
-        .chart-empty {
-          width: 100%;
-          padding: 32px 18px;
+        .empty-state {
+          padding: 32px 24px;
           text-align: center;
-          border-radius: 16px;
-          background: rgba(8, 16, 32, 0.72);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          color: rgba(148, 163, 184, 0.78);
+          background: rgba(17, 31, 52, 0.75);
+          border: 1px dashed rgba(99, 102, 241, 0.35);
+          color: rgba(140, 163, 204, 0.9);
+          font-size: 15px;
+          line-height: 1.6;
+          border-radius: 18px;
         }
-        .analytics-panel {
-          position: relative;
-          overflow: hidden;
-          background: linear-gradient(160deg, rgba(6, 13, 32, 0.96), rgba(56, 189, 248, 0.12));
-          border: 1px solid rgba(56, 189, 248, 0.24);
+        .highlight-panel {
+          position: sticky;
+          top: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
         }
-        .analytics-panel::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.18), transparent 70%);
-          opacity: 0.75;
-        }
-        .analytics-panel > * {
-          position: relative;
-          z-index: 1;
-        }
-        .insight-grid {
+        .overview-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 14px;
+          gap: 16px;
+          margin-top: 6px;
         }
-        .insight-card {
+        .overview-card {
+          padding: 16px;
+          border-radius: 14px;
+          background: rgba(18, 32, 54, 0.72);
+          border: 1px solid rgba(72, 103, 152, 0.35);
           display: flex;
           flex-direction: column;
           gap: 6px;
-          padding: 14px 16px;
-          border-radius: 16px;
-          background: rgba(7, 14, 32, 0.82);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-          transition: border-color 0.2s ease, transform 0.2s ease;
+          transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
         }
-        .insight-card:hover {
-          border-color: rgba(59, 130, 246, 0.45);
-          transform: translateY(-1px);
+        .overview-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(96, 165, 250, 0.5);
+          background: rgba(21, 38, 62, 0.8);
         }
-        .insight-label {
-          font-size: 11px;
-          letter-spacing: 0.1em;
+        .overview-card .label {
+          font-size: 12px;
           text-transform: uppercase;
-          color: rgba(148, 163, 184, 0.78);
-        }
-        .insight-value {
-          font-size: 21px;
-          font-weight: 700;
-          letter-spacing: 0.015em;
-          color: #e2e8f0;
-        }
-        .insight-meta {
-          font-size: 12px;
-          color: rgba(148, 163, 184, 0.72);
-        }
-        .recent-panel {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-          position: sticky;
-          top: 32px;
-        }
-        .recent-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .recent-list li {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-          padding: 16px 18px;
-          border-radius: 16px;
-          background: rgba(8, 16, 32, 0.72);
-          border: 1px solid rgba(51, 65, 85, 0.45);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        }
-        .recent-summary {
-          display: grid;
-          grid-template-columns: auto minmax(0, 1fr) auto;
-          gap: 14px;
-          align-items: start;
-        }
-        .recent-icon {
-          width: 12px;
-          height: 12px;
-          border-radius: 999px;
-          background: rgba(148, 163, 184, 0.5);
-          box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.14);
-        }
-        .recent-icon[data-status='win'] {
-          background: #4ade80;
-          box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
-        }
-        .recent-icon[data-status='loss'] {
-          background: #f87171;
-          box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.2);
-        }
-        .recent-icon[data-status='pending'] {
-          background: #fbbf24;
-          box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.2);
-        }
-        .recent-icon[data-status='void'] {
-          background: rgba(148, 163, 184, 0.8);
-          box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.2);
-        }
-        .recent-copy {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          min-width: 0;
-        }
-        .recent-match {
-          font-weight: 600;
-          color: #e2e8f0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .recent-market {
-          font-size: 13px;
-          color: rgba(148, 163, 184, 0.78);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .recent-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          font-size: 12px;
-          color: rgba(148, 163, 184, 0.65);
-        }
-        .recent-menu {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 8px;
-        }
-        .recent-select {
-          background: rgba(8, 16, 32, 0.92);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          border-radius: 12px;
-          color: #e2e8f0;
-          padding: 8px 12px;
-          font-size: 13px;
-          min-width: 150px;
-        }
-        .recent-select:focus {
-          outline: none;
-          border-color: rgba(56, 189, 248, 0.6);
-          box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
-        }
-        .recent-status {
-          font-size: 12px;
-          font-weight: 700;
           letter-spacing: 0.08em;
-          text-transform: uppercase;
-          justify-self: end;
-          align-self: start;
+          color: rgba(140, 163, 204, 0.9);
         }
-        .recent-status.win {
-          color: #4ade80;
+        .overview-card .value {
+          font-size: 24px;
+          font-weight: 700;
         }
-        .recent-status.loss {
-          color: #f87171;
+        .hide {
+          display: none !important;
         }
-        .recent-status.pending {
-          color: #fbbf24;
-        }
-        .recent-status.void {
-          color: rgba(148, 163, 184, 0.9);
-        }
-        .empty-state.small {
-          font-size: 14px;
-          padding: 12px 0;
-          text-align: left;
-          color: rgba(148, 163, 184, 0.8);
-        }
-        .sr-only {
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          padding: 0;
-          margin: -1px;
-          overflow: hidden;
-          clip: rect(0, 0, 0, 0);
-          border: 0;
-        }
-        @media (max-width: 1024px) {
+        @media (max-width: 1100px) {
           .workspace {
-            grid-template-columns: minmax(0, 1fr);
+            grid-template-columns: 1fr;
           }
-          .recent-panel {
+          .secondary {
+            flex-direction: row;
+            flex-wrap: wrap;
+          }
+          .highlight-panel {
             position: static;
           }
-        }
-        @media (max-width: 820px) {
-          .container {
-            padding: 40px 20px 64px;
+          .row {
+            grid-template-columns: 110px 1.6fr 80px 80px 140px 1.2fr 240px;
           }
-          header.top-bar {
-            grid-template-columns: minmax(0, 1fr);
-            justify-items: flex-start;
-            padding: 24px;
-          }
-          .right-actions {
-            justify-content: flex-start;
-          }
-          .status-belt {
-            padding: 22px;
-            border-radius: 24px;
-          }
-          .tabs {
-            flex-direction: column;
-          }
-        }
-        @media (max-width: 768px) {
           .grid {
             grid-template-columns: repeat(6, minmax(0, 1fr));
           }
+          .col-1,
+          .col-2 {
+            grid-column: span 3;
+          }
+          .col-3,
+          .col-4,
+          .col-5 {
+            grid-column: span 3;
+          }
+          .col-6,
           .col-7,
           .col-8,
           .col-9,
@@ -2497,82 +2083,92 @@ export default function AppPage() {
           .col-12 {
             grid-column: span 6;
           }
-          .row {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
-          }
-          .status-meta {
-            flex-direction: column;
-            align-items: flex-start;
-          }
+        }
+        @media (max-width: 900px) {
           .row-head {
             display: none;
           }
-          .row div {
+          .row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(72, 103, 152, 0.25);
+          }
+          .row:not(.row-head) > div {
             display: flex;
-            justify-content: space-between;
-            width: 100%;
-            gap: 12px;
+            flex-direction: column;
+            gap: 4px;
           }
-          .row div::before {
+          .row:not(.row-head) > div::before {
             content: attr(data-label);
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: rgba(148, 163, 184, 0.7);
+            letter-spacing: 0.08em;
+            color: rgba(140, 163, 204, 0.9);
+            font-weight: 600;
           }
-          .result-cell {
+          .actions {
             justify-content: flex-start;
           }
-          .result-stack {
-            align-items: flex-start;
+        }
+        @media (max-width: 760px) {
+          .secondary {
+            flex-direction: column;
           }
         }
-        @media (max-width: 520px) {
-          .container {
-            padding: 32px 16px 52px;
+        @media (max-width: 720px) {
+          .grid {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
           }
-          .panel {
-            padding: 22px 20px;
+          .col-1,
+          .col-2,
+          .col-3,
+          .col-4,
+          .col-6,
+          .col-12 {
+            grid-column: span 1;
           }
-          .status-belt {
-            padding: 20px;
+          .action-field {
+            align-self: auto;
           }
-          .status-card {
-            padding: 16px;
+          .actions {
+            flex-direction: column;
+            align-items: stretch;
           }
-          .chart-body {
-            min-height: 220px;
+          .tabs {
+            flex-direction: column;
           }
-          .recent-list li {
-            grid-template-columns: minmax(0, 1fr);
+          .edit-indicator {
+            flex-direction: column;
+            align-items: stretch;
+          }
+        }
+        @media (max-width: 640px) {
+          header.top-bar {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .right-actions {
+            justify-content: flex-start;
+            width: 100%;
+          }
+        }
+        @media (max-width: 480px) {
+          .right-actions {
             gap: 10px;
           }
-          .recent-status {
-            align-self: flex-start;
+          .right-actions button {
+            width: 100%;
           }
-          .recent-menu {
+          .badge {
+            width: 100%;
+            justify-content: center;
+          }
+          .banner {
+            flex-direction: column;
             align-items: flex-start;
-            width: 100%;
-          }
-          .recent-select {
-            width: 100%;
           }
         }
-        .col-1 { grid-column: span 1; }
-        .col-2 { grid-column: span 2; }
-        .col-3 { grid-column: span 3; }
-        .col-4 { grid-column: span 4; }
-        .col-5 { grid-column: span 5; }
-        .col-6 { grid-column: span 6; }
-        .col-7 { grid-column: span 7; }
-        .col-8 { grid-column: span 8; }
-        .col-9 { grid-column: span 9; }
-        .col-10 { grid-column: span 10; }
-        .col-11 { grid-column: span 11; }
-        .col-12 { grid-column: span 12; }
       `}</style>
-
     </div>
   );
 }
