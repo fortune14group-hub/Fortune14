@@ -15,6 +15,8 @@ const initialForm = () => ({
   note: '',
 });
 
+const RESULT_OPTIONS = ['Win', 'Loss', 'Pending', 'Void'];
+
 const monthFormatter = new Intl.DateTimeFormat('sv-SE', {
   month: 'long',
   year: 'numeric',
@@ -362,26 +364,6 @@ export default function AppPage() {
     };
   }, [filteredBets]);
 
-  const quickStats = useMemo(() => {
-    const total = bets.length;
-    const decided = bets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
-    const wins = decided.filter((bet) => bet.result === 'Win');
-    const stakeSum = decided.reduce((sum, bet) => {
-      const stakeNum = Number(bet.stake);
-      return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
-    }, 0);
-    const profit = bets.reduce((sum, bet) => sum + computeProfit(bet), 0);
-    const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
-    const hitRate = decided.length > 0 ? (wins.length / decided.length) * 100 : 0;
-    return {
-      total,
-      profit,
-      roi,
-      hitRate,
-      decided: decided.length,
-    };
-  }, [bets]);
-
   const ensureMonthOpen = useCallback((monthKey) => {
     if (!monthKey) return;
     setOpenMonths((prev) => {
@@ -407,7 +389,7 @@ export default function AppPage() {
     });
   }, [monthGroups]);
 
-  const recentBets = useMemo(() => bets.slice(0, 6), [bets]);
+  const recentBets = useMemo(() => bets.slice(0, 3), [bets]);
 
   const performanceSeries = useMemo(() => {
     const decided = filteredBets
@@ -783,11 +765,12 @@ export default function AppPage() {
     const name = currentProject?.name ?? '';
     const trimmed = name.trim();
     if (!trimmed) return 'BS';
-    const parts = trimmed.split(/\s+/).filter(Boolean);
-    if (parts.length === 1) {
-      return parts[0].slice(0, 2).toUpperCase();
+    const compact = trimmed.replace(/\s+/g, '');
+    if (!compact) return 'BS';
+    if (compact.length <= 4) {
+      return compact.toUpperCase();
     }
-    return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+    return compact.slice(0, 4).toUpperCase();
   }, [currentProject]);
 
   if (supabaseError) {
@@ -1106,12 +1089,6 @@ export default function AppPage() {
                 <span className="value">{summaryData.wins}</span>
               </div>
               <div className="stat-card">
-                <span className="label">Vinst%</span>
-                <span className={`value ${summaryData.hitRate >= 50 ? 'positive' : 'negative'}`}>
-                  {formatPercent(summaryData.hitRate)}
-                </span>
-              </div>
-              <div className="stat-card">
                 <span className="label">Nettoresultat</span>
                 <span className={`value ${summaryData.profit >= 0 ? 'positive' : 'negative'}`}>
                   {formatMoney(summaryData.profit)}
@@ -1122,20 +1099,6 @@ export default function AppPage() {
                 <span className={`value ${summaryData.roi >= 0 ? 'positive' : 'negative'}`}>
                   {formatPercent(summaryData.roi)}
                 </span>
-              </div>
-              <div className="stat-card">
-                <span className="label">Resultat / spel</span>
-                <span className={`value ${summaryData.profitPerBet >= 0 ? 'positive' : 'negative'}`}>
-                  {formatMoney(summaryData.profitPerBet)}
-                </span>
-              </div>
-              <div className="stat-card">
-                <span className="label">Snittodds</span>
-                <span className="value">{formatNumber(summaryData.averageOdds, 2)}</span>
-              </div>
-              <div className="stat-card">
-                <span className="label">Snittinsats</span>
-                <span className="value">{formatStake(summaryData.averageStake)}</span>
               </div>
             </div>
             <div className="chart-card">
@@ -1190,20 +1153,6 @@ export default function AppPage() {
                 <span>{chartStartLabel}</span>
                 <span>{summaryMonthName}</span>
                 <span>{chartEndLabel}</span>
-              </div>
-              <div className="axis-meta">
-                <div>
-                  <span className="axis-label">Y-axel</span>
-                  <span className="axis-value">max {chartMaxValue}</span>
-                  <span className="axis-value">{chartZeroValue}</span>
-                  <span className="axis-value">min {chartMinValue}</span>
-                </div>
-                <div>
-                  <span className="axis-label">X-axel</span>
-                  <span className="axis-value">start {chartStartLabel}</span>
-                  <span className="axis-value">mitt {summaryMonthName}</span>
-                  <span className="axis-value">slut {chartEndLabel}</span>
-                </div>
               </div>
             </div>
           </section>
@@ -1312,42 +1261,11 @@ export default function AppPage() {
         </section>
 
         <aside className="secondary">
-          <section className="panel highlight-panel">
-            <div className="section-header compact">
-              <div>
-                <h2>Snabböversikt</h2>
-                <span className="subtle-tag">Summering: Alla månader</span>
-              </div>
-            </div>
-            <div className="overview-mini">
-              <div className="mini-card emphasis">
-                <span className="label">Totala spel</span>
-                <span className="value">{quickStats.total}</span>
-              </div>
-              <div className="mini-card">
-                <span className="label">Nettoresultat</span>
-                <span className={`value ${quickStats.profit >= 0 ? 'positive' : 'negative'}`}>
-                  {formatMoney(quickStats.profit)}
-                </span>
-              </div>
-              <div className="mini-card">
-                <span className="label">ROI</span>
-                <span className={`value ${quickStats.roi >= 0 ? 'positive' : 'negative'}`}>
-                  {formatPercent(quickStats.roi)}
-                </span>
-              </div>
-              <div className="mini-card">
-                <span className="label">Hitrate</span>
-                <span className="value">{formatPercent(quickStats.hitRate)}</span>
-                <span className="value-sub">{quickStats.decided} avgjorda spel</span>
-              </div>
-            </div>
-          </section>
           <section className="panel recent-panel">
             <div className="section-header compact">
               <div>
                 <h2>Senaste spel</h2>
-                <span className="subtle-tag">Senaste uppdateringar</span>
+                <p className="hint">Snabbhantera de tre senaste spelen direkt här.</p>
               </div>
             </div>
             {recentBets.length === 0 ? (
@@ -1357,19 +1275,55 @@ export default function AppPage() {
                 {recentBets.map((bet) => {
                   const result = bet.result ?? 'Pending';
                   const statusClass = (result || 'Pending').toLowerCase();
+                  const matchdayLabel = bet.matchday
+                    ? formatDay(bet.matchday.slice(0, 10))
+                    : '–';
                   return (
                     <li key={bet.id}>
-                      <span className="recent-icon" data-status={statusClass} aria-hidden="true" />
-                      <div className="recent-copy">
-                        <span className="recent-match">{bet.match || 'Okänd match'}</span>
-                        <span className="recent-market">{bet.market || 'Ingen marknad angiven'}</span>
-                        <div className="recent-meta">
-                          <span>{bet.matchday || '–'}</span>
-                          <span>Odds {formatNumber(bet.odds, 2)}</span>
-                          <span>Insats {formatStake(bet.stake)}</span>
+                      <div className="recent-summary">
+                        <span className="recent-icon" data-status={statusClass} aria-hidden="true" />
+                        <div className="recent-copy">
+                          <span className="recent-match">{bet.match || 'Okänd match'}</span>
+                          <span className="recent-market">{bet.market || 'Ingen marknad angiven'}</span>
+                          <div className="recent-meta">
+                            <span>{matchdayLabel}</span>
+                            <span>Odds {formatNumber(bet.odds, 2)}</span>
+                            <span>Insats {formatStake(bet.stake)}</span>
+                          </div>
+                        </div>
+                        <span className={`recent-status ${statusClass}`}>{result}</span>
+                      </div>
+                      <div className="recent-actions">
+                        <div className="quick-status-group" role="group" aria-label="Snabbuppdatera resultat">
+                          {RESULT_OPTIONS.map((option) => {
+                            const optionKey = option.toLowerCase();
+                            const isActive = option === result;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                className={`quick-status-btn ${optionKey} ${isActive ? 'active' : ''}`}
+                                onClick={() => handleUpdateBetResult(bet, option)}
+                                disabled={isActive}
+                              >
+                                {option}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="quick-manage">
+                          <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
+                            Redigera
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost danger"
+                            onClick={() => handleDeleteBet(bet.id)}
+                          >
+                            Ta bort
+                          </button>
                         </div>
                       </div>
-                      <span className={`recent-status ${statusClass}`}>{result}</span>
                     </li>
                   );
                 })}
@@ -1525,16 +1479,8 @@ export default function AppPage() {
           position: relative;
           overflow: hidden;
           padding: 26px 28px;
-          background: rgba(8, 16, 32, 0.9);
-          border: 1px solid rgba(59, 130, 246, 0.18);
-        }
-        .project-panel::before {
-          content: '';
-          position: absolute;
-          inset: 18px;
-          border-radius: 20px;
-          border: 1px dashed rgba(148, 163, 184, 0.18);
-          pointer-events: none;
+          background: linear-gradient(160deg, rgba(8, 16, 32, 0.92), rgba(30, 64, 175, 0.14));
+          border: 1px solid rgba(59, 130, 246, 0.2);
         }
         .project-panel::after {
           content: '';
@@ -1566,15 +1512,18 @@ export default function AppPage() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 52px;
+          min-width: 52px;
           height: 52px;
+          padding: 0 18px;
           border-radius: 18px;
           background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(56, 189, 248, 0));
           border: 1px solid rgba(148, 163, 184, 0.35);
           font-weight: 700;
-          letter-spacing: 0.12em;
+          letter-spacing: 0.08em;
+          font-size: 16px;
           color: rgba(226, 232, 240, 0.92);
           text-transform: uppercase;
+          white-space: nowrap;
         }
         .project-identity h2 {
           margin: 0;
@@ -1975,55 +1924,6 @@ export default function AppPage() {
           flex-direction: column;
           gap: 24px;
         }
-        .highlight-panel {
-          position: sticky;
-          top: 32px;
-        }
-        .subtle-tag {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 13px;
-          color: rgba(148, 163, 184, 0.8);
-          padding: 6px 12px;
-          border-radius: 999px;
-          background: rgba(30, 41, 59, 0.55);
-          border: 1px solid rgba(71, 85, 105, 0.4);
-        }
-        .overview-mini {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px;
-        }
-        .mini-card {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          padding: 18px 20px;
-          border-radius: 16px;
-          background: rgba(15, 23, 42, 0.68);
-          border: 1px solid rgba(71, 85, 105, 0.42);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        }
-        .mini-card.emphasis {
-          background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(56, 189, 248, 0));
-          border-color: rgba(56, 189, 248, 0.32);
-        }
-        .mini-card .label {
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: rgba(148, 163, 184, 0.78);
-        }
-        .mini-card .value {
-          font-size: 24px;
-          font-weight: 700;
-          letter-spacing: 0.015em;
-        }
-        .value-sub {
-          font-size: 13px;
-          color: rgba(148, 163, 184, 0.75);
-        }
         .chart-body {
           width: 100%;
           display: flex;
@@ -2064,37 +1964,12 @@ export default function AppPage() {
           border: 1px solid rgba(71, 85, 105, 0.45);
           color: rgba(148, 163, 184, 0.78);
         }
-        .axis-meta {
-          margin-top: 16px;
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 12px;
-          font-size: 13px;
-          color: rgba(148, 163, 184, 0.8);
-        }
-        .axis-meta div {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          padding: 12px 14px;
-          border-radius: 14px;
-          background: rgba(15, 23, 42, 0.55);
-          border: 1px solid rgba(71, 85, 105, 0.4);
-        }
-        .axis-label {
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: rgba(148, 163, 184, 0.7);
-        }
-        .axis-value {
-          font-size: 13px;
-          color: rgba(226, 232, 240, 0.85);
-        }
         .recent-panel {
           display: flex;
           flex-direction: column;
           gap: 18px;
+          position: sticky;
+          top: 32px;
         }
         .recent-list {
           list-style: none;
@@ -2105,15 +1980,20 @@ export default function AppPage() {
           gap: 12px;
         }
         .recent-list li {
-          display: grid;
-          grid-template-columns: auto minmax(0, 1fr) auto;
-          gap: 14px;
-          align-items: center;
-          padding: 12px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          padding: 16px 18px;
           border-radius: 16px;
           background: rgba(8, 16, 32, 0.72);
           border: 1px solid rgba(51, 65, 85, 0.45);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        .recent-summary {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          gap: 14px;
+          align-items: start;
         }
         .recent-icon {
           width: 12px;
@@ -2165,11 +2045,73 @@ export default function AppPage() {
           font-size: 12px;
           color: rgba(148, 163, 184, 0.65);
         }
+        .recent-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .quick-status-group {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .quick-status-btn {
+          border-radius: 999px;
+          border: 1px solid rgba(71, 85, 105, 0.4);
+          background: rgba(15, 23, 42, 0.55);
+          color: rgba(226, 232, 240, 0.85);
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 6px 12px;
+          transition: background 0.2s ease, border 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+        .quick-status-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          border-color: rgba(96, 165, 250, 0.45);
+          background: rgba(30, 64, 175, 0.4);
+        }
+        .quick-status-btn.pending.active,
+        .quick-status-btn.pending:disabled {
+          background: rgba(234, 179, 8, 0.18);
+          border-color: rgba(234, 179, 8, 0.35);
+          color: #fbbf24;
+        }
+        .quick-status-btn.win.active,
+        .quick-status-btn.win:disabled {
+          background: rgba(34, 197, 94, 0.18);
+          border-color: rgba(34, 197, 94, 0.4);
+          color: #4ade80;
+        }
+        .quick-status-btn.loss.active,
+        .quick-status-btn.loss:disabled {
+          background: rgba(248, 113, 113, 0.18);
+          border-color: rgba(248, 113, 113, 0.4);
+          color: #f87171;
+        }
+        .quick-status-btn.void.active,
+        .quick-status-btn.void:disabled {
+          background: rgba(148, 163, 184, 0.2);
+          border-color: rgba(148, 163, 184, 0.35);
+          color: rgba(148, 163, 184, 0.9);
+        }
+        .quick-status-btn:disabled {
+          cursor: default;
+          transform: none;
+        }
+        .quick-manage {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
         .recent-status {
           font-size: 12px;
           font-weight: 700;
           letter-spacing: 0.08em;
           text-transform: uppercase;
+          justify-self: end;
+          align-self: start;
         }
         .recent-status.win {
           color: #4ade80;
@@ -2203,7 +2145,7 @@ export default function AppPage() {
           .workspace {
             grid-template-columns: minmax(0, 1fr);
           }
-          .highlight-panel {
+          .recent-panel {
             position: static;
           }
         }
