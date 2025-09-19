@@ -1,9 +1,136 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
+
+function ConfirmEmailShell({ children }) {
+  return (
+    <div className="center">
+      <div className="card">{children}</div>
+
+      <style jsx global>{`
+        body {
+          background: #0b1116;
+        }
+        .center {
+          min-height: 100svh;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+        .card {
+          width: min(560px, 92vw);
+          background: #0f1720;
+          border: 1px solid #1f2a37;
+          border-radius: 16px;
+          padding: 24px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+        h1 {
+          margin: 0 0 6px;
+          font-size: 22px;
+        }
+        .muted {
+          margin: 0 0 16px;
+          color: #94a3b8;
+        }
+        .status-block {
+          padding: 16px;
+          border-radius: 12px;
+          border: 1px solid #1f2a37;
+          background: #101d2b;
+          margin-bottom: 24px;
+        }
+        .status-loading {
+          border-color: #1f2a37;
+          background: #101d2b;
+        }
+        .status-success {
+          border-color: #195a39;
+          background: #083d24;
+        }
+        .status-error {
+          border-color: #6b1212;
+          background: #3b0a0a;
+        }
+        .row {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 16px;
+        }
+        .btn {
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 0;
+          font-weight: 700;
+          cursor: pointer;
+          background: #22c55e;
+          color: #0b1116;
+        }
+        .btn[disabled] {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+        .btn-ghost {
+          background: transparent;
+          border: 1px solid #334155;
+          color: #e7eef5;
+          padding: 12px 14px;
+          border-radius: 10px;
+        }
+        .form-block {
+          display: flex;
+          flex-direction: column;
+        }
+        label {
+          font-size: 12px;
+          color: #b6c2cf;
+          display: block;
+          margin: 14px 0 6px;
+        }
+        input {
+          width: 100%;
+          padding: 12px;
+          border-radius: 10px;
+          border: 1px solid #243244;
+          background: #0b1320;
+          color: #e7eef5;
+        }
+        .err {
+          margin-top: 8px;
+          color: #fecaca;
+          background: #3b0a0a;
+          border: 1px solid #6b1212;
+          padding: 10px 12px;
+          border-radius: 10px;
+        }
+        .ok {
+          margin-top: 8px;
+          color: #bbf7d0;
+          background: #083d24;
+          border: 1px solid #195a39;
+          padding: 10px 12px;
+          border-radius: 10px;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <ConfirmEmailShell>
+      <h1>Bekräfta e-post</h1>
+      <p className="muted">Vi kontrollerar din länk...</p>
+      <div className="status-block status-loading">
+        <p>Bekräftar din e-postadress...</p>
+      </div>
+    </ConfirmEmailShell>
+  );
+}
 
 function formatErrorMessage(rawMessage, queryMessage) {
   if (queryMessage) {
@@ -26,7 +153,7 @@ function formatErrorMessage(rawMessage, queryMessage) {
   return `Kunde inte bekräfta e-postadressen: ${rawMessage}`;
 }
 
-export default function ConfirmEmailPage() {
+function ConfirmEmailContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('Bekräftar din e-postadress...');
@@ -189,165 +316,64 @@ export default function ConfirmEmailPage() {
   }
 
   return (
-    <div className="center">
-      <div className="card">
-        <h1>Bekräfta e-post</h1>
-        <p className="muted">
-          {status === 'loading'
-            ? 'Vi kontrollerar din länk...'
-            : status === 'success'
-              ? 'Din e-postadress är klar och du kan gå vidare.'
-              : 'Vi kunde inte bekräfta din e-postadress.'}
-        </p>
+    <ConfirmEmailShell>
+      <h1>Bekräfta e-post</h1>
+      <p className="muted">
+        {status === 'loading'
+          ? 'Vi kontrollerar din länk...'
+          : status === 'success'
+            ? 'Din e-postadress är klar och du kan gå vidare.'
+            : 'Vi kunde inte bekräfta din e-postadress.'}
+      </p>
 
-        <div className={`status-block status-${status}`}>
-          <p>{message}</p>
-        </div>
-
-        {status === 'success' ? (
-          <div className="row">
-            <Link href="/app" className="btn">
-              Till appen
-            </Link>
-            <Link href="/login" className="btn-ghost">
-              Gå till inloggningen
-            </Link>
-          </div>
-        ) : null}
-
-        {status === 'error' ? (
-          <form className="form-block" onSubmit={handleResend}>
-            <label htmlFor="resendEmail">Skicka nytt bekräftelsemail</label>
-            <input
-              id="resendEmail"
-              type="email"
-              placeholder="din@mail.se"
-              autoComplete="email"
-              value={resendEmail}
-              onChange={(event) => setResendEmail(event.target.value)}
-              required
-            />
-            <div className="row">
-              <button type="submit" className="btn" disabled={isResending}>
-                {isResending ? 'Skickar...' : 'Skicka nytt mejl'}
-              </button>
-              <Link href="/login" className="btn-ghost">
-                Till inloggningen
-              </Link>
-            </div>
-            {resendFeedback ? (
-              <div className={resendFeedback.type === 'error' ? 'err' : 'ok'}>{resendFeedback.message}</div>
-            ) : null}
-          </form>
-        ) : null}
+      <div className={`status-block status-${status}`}>
+        <p>{message}</p>
       </div>
 
-      <style jsx global>{`
-        body {
-          background: #0b1116;
-        }
-        .center {
-          min-height: 100svh;
-          display: grid;
-          place-items: center;
-          padding: 24px;
-        }
-        .card {
-          width: min(560px, 92vw);
-          background: #0f1720;
-          border: 1px solid #1f2a37;
-          border-radius: 16px;
-          padding: 24px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-        }
-        h1 {
-          margin: 0 0 6px;
-          font-size: 22px;
-        }
-        .muted {
-          margin: 0 0 16px;
-          color: #94a3b8;
-        }
-        .status-block {
-          padding: 16px;
-          border-radius: 12px;
-          border: 1px solid #1f2a37;
-          background: #101d2b;
-          margin-bottom: 24px;
-        }
-        .status-loading {
-          border-color: #1f2a37;
-          background: #101d2b;
-        }
-        .status-success {
-          border-color: #195a39;
-          background: #083d24;
-        }
-        .status-error {
-          border-color: #6b1212;
-          background: #3b0a0a;
-        }
-        .row {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-          margin-top: 16px;
-        }
-        .btn {
-          padding: 12px 14px;
-          border-radius: 10px;
-          border: 0;
-          font-weight: 700;
-          cursor: pointer;
-          background: #22c55e;
-          color: #0b1116;
-        }
-        .btn[disabled] {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-        .btn-ghost {
-          background: transparent;
-          border: 1px solid #334155;
-          color: #e7eef5;
-          padding: 12px 14px;
-          border-radius: 10px;
-        }
-        .form-block {
-          display: flex;
-          flex-direction: column;
-        }
-        label {
-          font-size: 12px;
-          color: #b6c2cf;
-          display: block;
-          margin: 14px 0 6px;
-        }
-        input {
-          width: 100%;
-          padding: 12px;
-          border-radius: 10px;
-          border: 1px solid #243244;
-          background: #0b1320;
-          color: #e7eef5;
-        }
-        .err {
-          margin-top: 8px;
-          color: #fecaca;
-          background: #3b0a0a;
-          border: 1px solid #6b1212;
-          padding: 10px 12px;
-          border-radius: 10px;
-        }
-        .ok {
-          margin-top: 8px;
-          color: #bbf7d0;
-          background: #083d24;
-          border: 1px solid #195a39;
-          padding: 10px 12px;
-          border-radius: 10px;
-        }
-      `}</style>
-    </div>
+      {status === 'success' ? (
+        <div className="row">
+          <Link href="/app" className="btn">
+            Till appen
+          </Link>
+          <Link href="/login" className="btn-ghost">
+            Gå till inloggningen
+          </Link>
+        </div>
+      ) : null}
+
+      {status === 'error' ? (
+        <form className="form-block" onSubmit={handleResend}>
+          <label htmlFor="resendEmail">Skicka nytt bekräftelsemail</label>
+          <input
+            id="resendEmail"
+            type="email"
+            placeholder="din@mail.se"
+            autoComplete="email"
+            value={resendEmail}
+            onChange={(event) => setResendEmail(event.target.value)}
+            required
+          />
+          <div className="row">
+            <button type="submit" className="btn" disabled={isResending}>
+              {isResending ? 'Skickar...' : 'Skicka nytt mejl'}
+            </button>
+            <Link href="/login" className="btn-ghost">
+              Till inloggningen
+            </Link>
+          </div>
+          {resendFeedback ? (
+            <div className={resendFeedback.type === 'error' ? 'err' : 'ok'}>{resendFeedback.message}</div>
+          ) : null}
+        </form>
+      ) : null}
+    </ConfirmEmailShell>
+  );
+}
+
+export default function ConfirmEmailPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ConfirmEmailContent />
+    </Suspense>
   );
 }
