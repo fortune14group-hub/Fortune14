@@ -81,8 +81,8 @@ export default function DisclaimerPage() {
         <h2>6. Kontakt</h2>
         <p>
           Har du frågor om denna ansvarsfriskrivning kontaktar du oss på{' '}
-          <a href="mailto:support@betspread.se">support@betspread.se</a>. För övriga juridiska
-          dokument, se våra <Link href="/terms">köpvillkor</Link> och{' '}
+          <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a>. För övriga juridiska
+          dokument, se våra <Link href="/terms">villkor &amp; datahantering</Link> och{' '}
           <Link href="/privacy">integritetspolicy</Link>.
         </p>
       </section>

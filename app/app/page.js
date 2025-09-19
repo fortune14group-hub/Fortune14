@@ -44,6 +44,14 @@ const formatPercent = (value) => {
   return `${(Math.round(num * 10) / 10).toFixed(1)}%`;
 };
 
+const PAYWALL_ENABLED = false;
+
+const unlimitedFreeInfo = () => ({
+  premium: true,
+  used: 0,
+  left: Infinity,
+});
+
 const formatMonth = (key) => {
   const [year, month] = key.split('-').map(Number);
   if (!year || !month) return key;
@@ -73,7 +81,7 @@ export default function AppPage() {
   const [tab, setTab] = useState('reg');
   const [form, setForm] = useState(initialForm);
   const [monthFilter, setMonthFilter] = useState('all');
-  const [freeInfo, setFreeInfo] = useState(null);
+  const [freeInfo, setFreeInfo] = useState(() => (PAYWALL_ENABLED ? null : unlimitedFreeInfo()));
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
@@ -94,6 +102,9 @@ export default function AppPage() {
   });
   const supabase = supabaseState.client;
   const supabaseError = supabaseState.error;
+
+  const paywallLimitReached =
+    PAYWALL_ENABLED && freeInfo && !freeInfo.premium && freeInfo.left <= 0;
 
   useEffect(() => {
     if (!supabase) {
@@ -150,6 +161,10 @@ export default function AppPage() {
   );
 
   const updateFreeUsage = useCallback(async () => {
+    if (!PAYWALL_ENABLED) {
+      setFreeInfo(unlimitedFreeInfo());
+      return;
+    }
     if (!supabase) {
       setFreeInfo(null);
       return;
@@ -171,7 +186,7 @@ export default function AppPage() {
 
       const isPremium = !!profile?.is_premium;
       if (isPremium) {
-        setFreeInfo({ premium: true, used: 0, left: Infinity });
+        setFreeInfo(unlimitedFreeInfo());
         return;
       }
 
@@ -186,7 +201,11 @@ export default function AppPage() {
       setFreeInfo({ premium: false, used, left });
     } catch (err) {
       console.error('updateFreeUsage fel', err);
-      setFreeInfo({ premium: false, used: 0, left: 20 });
+      if (PAYWALL_ENABLED) {
+        setFreeInfo({ premium: false, used: 0, left: 20 });
+      } else {
+        setFreeInfo(unlimitedFreeInfo());
+      }
     }
   }, [ensureProfileRow, supabase, user]);
 
@@ -526,7 +545,7 @@ export default function AppPage() {
       return;
     }
 
-    if (!editingBet && freeInfo && !freeInfo.premium && freeInfo.left <= 0) {
+    if (!editingBet && paywallLimitReached) {
       window.alert('Du har använt alla 20 gratis spel. Uppgradera för fler.');
       return;
     }
@@ -674,8 +693,7 @@ export default function AppPage() {
   };
 
   const isEditing = !!editingBet;
-  const isSubmitDisabled =
-    !currentProjectId || (!isEditing && freeInfo && !freeInfo.premium && freeInfo.left <= 0);
+  const isSubmitDisabled = !currentProjectId || (!isEditing && paywallLimitReached);
 
   const formatNumber = (value, decimals = 2) => {
     const num = Number(value);
@@ -743,12 +761,12 @@ export default function AppPage() {
         </div>
         <div className="right-actions">
           <span className="badge">{user?.email || 'Ingen e-post'}</span>
-          {freeInfo?.premium ? (
+          {PAYWALL_ENABLED && freeInfo?.premium ? (
             <button type="button" id="manageBillingBtn" onClick={handleManageBilling}>
               Hantera
             </button>
           ) : null}
-          {!freeInfo?.premium ? (
+          {PAYWALL_ENABLED && !freeInfo?.premium ? (
             <button type="button" id="upgradeBtn" className="btn-green" onClick={handleUpgrade}>
               Uppgradera
             </button>
@@ -759,7 +777,7 @@ export default function AppPage() {
         </div>
       </header>
 
-      {!freeInfo?.premium ? (
+      {PAYWALL_ENABLED && !freeInfo?.premium ? (
         <div className="banner">
           <div>
             <h2>Gratisläge</h2>
@@ -769,6 +787,18 @@ export default function AppPage() {
             </p>
           </div>
           <span className="hint">Uppgradera för obegränsade registreringar.</span>
+        </div>
+      ) : null}
+
+      {!PAYWALL_ENABLED ? (
+        <div className="banner">
+          <div>
+            <h2>BetSpread är kostnadsfritt</h2>
+            <p>
+              Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.
+            </p>
+          </div>
+          <span className="hint">Vi aktiverar betalning igen vid ett senare tillfälle.</span>
         </div>
       ) : null}
 

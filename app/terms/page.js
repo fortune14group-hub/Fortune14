@@ -2,9 +2,9 @@ import Link from 'next/link';
 import styles from '../legal.module.css';
 
 export const metadata = {
-  title: 'Köpvillkor | BetSpread',
+  title: 'Villkor & datahantering | BetSpread',
   description:
-    'Köpvillkoren beskriver hur abonnemang, betalningar, ångerrätt och support fungerar för BetSpreads premiumtjänster.',
+    'Översikt över användarvillkor, datainsamling och hur BetSpread hanterar personuppgifter i den kostnadsfria tjänsten.',
 };
 
 export default function TermsPage() {
@@ -17,133 +17,103 @@ export default function TermsPage() {
       </div>
 
       <header className={styles.header}>
-        <h1>Köpvillkor för BetSpread</h1>
-        <p className={styles.updated}>Senast uppdaterad: 20 maj 2024</p>
+        <h1>Villkor &amp; datahantering för BetSpread</h1>
+        <p className={styles.updated}>Senast uppdaterad: 5 juni 2024</p>
         <p className={styles.lead}>
-          Dessa köpvillkor gäller när du tecknar eller använder ett BetSpread Premium-abonnemang.
-          BetSpread är en digital plattform för att logga och analysera egna sportspel. Genom att
-          slutföra ett köp via Stripe accepterar du villkoren nedan.
+          BetSpread är ett kostnadsfritt verktyg för att logga egna sportspel och analysera resultat.
+          Denna sida beskriver vilka uppgifter vi behandlar, hur de skyddas och vilket ansvar du har
+          som användare.
+        </p>
+        <p className={styles.note}>
+          För fördjupad information om personuppgifter och rättigheter, se även vår{' '}
+          <Link href="/privacy">integritetspolicy</Link> samt{' '}
+          <Link href="/disclaimer">ansvarsfriskrivning</Link>.
         </p>
       </header>
 
       <section className={styles.section}>
-        <h2>1. Tjänsten och avtalsparter</h2>
+        <h2>1. Tjänsten</h2>
         <p>
-          Avtalet ingås mellan dig som kund ("kunden") och BetSpread ("vi" eller "oss"). Tjänsten
-          omfattar åtkomst till verktyg för projekthantering, registrering av spel och analyser som
-          beskrivs på{' '}
-          <Link href="/">betspread.se</Link>. Plattformen ger inga spelrekommendationer och
-          förmedlar inte vadslagning – du ansvarar själv för alla beslut och insatser.
-        </p>
-        <p className={styles.note}>
-          För ytterligare juridisk information, se även vår{' '}
-          <Link href="/privacy">integritetspolicy</Link> och{' '}
-          <Link href="/disclaimer">ansvarsfriskrivning</Link>.
+          BetSpread tillhandahålls utan avgift. Du skapar ett konto med e-postadress och lösenord för
+          att logga in. Tjänsten erbjuder projekt för olika spelstrategier, registrering av matcher,
+          insatser och resultat samt översikter och grafer baserade på dina egna data. Vi ger inga
+          spelrekommendationer och förmedlar inte vadslagning – alla spelbeslut fattas av dig.
         </p>
       </section>
 
       <section className={styles.section}>
-        <h2>2. Abonnemang och betalning</h2>
+        <h2>2. Uppgifter vi hanterar</h2>
         <ul>
           <li>
-            BetSpread Premium säljs som ett löpande abonnemang som faktureras via Stripe. Betalningen
-            sker i förskott per period (månad om inget annat anges).
+            <strong>Konto:</strong> e-postadress, lösenord (lagrat som hash) och tidsstämplar för
+            inloggning lagras för att kunna autentisera och skydda konton.
           </li>
           <li>
-            Stripe är vår betalningsleverantör. Kassan och kundportalen använder säkra anslutningar och
-            kräver stark kundautentisering (SCA/PSD2) när det behövs.
+            <strong>Spelposter:</strong> projekt, matcher, marknader, insatser, odds, resultat och egna
+            anteckningar kopplas till ditt konto för att kunna visa statistik.
           </li>
           <li>
-            Kortuppgifter lagras endast av Stripe. Vi sparar aldrig hela kortnummer i våra system.
+            <strong>Supportärenden:</strong> meddelanden och metadata från kontakten med oss sparas så
+            länge det behövs för att lösa ärendet och följa upp incidenter.
           </li>
           <li>
-            För att betalflödena ska fungera måste miljövariablerna{' '}
-            <code>STRIPE_SECRET_KEY</code>, <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code> och{' '}
-            <code>STRIPE_WEBHOOK_SECRET</code> sättas i den säkra driftmiljön.
+            <strong>Tekniska loggar:</strong> vi sparar begränsade loggar över fel, inloggningar och
+            administrativa åtgärder för att kunna felsöka och upprätthålla säkerheten.
           </li>
         </ul>
       </section>
 
       <section className={styles.section}>
-        <h2>3. Priser, skatter och kvitton</h2>
+        <h2>3. Lagring och säkerhet</h2>
+        <ul>
+          <li>
+            Data lagras i Supabase inom EU. Row Level Security begränsar åtkomst så att varje användare
+            endast ser sina egna poster.
+          </li>
+          <li>
+            Backuper tas dagligen och sparas krypterat i minst 30 dagar för att möjliggöra återställning
+            vid incidenter.
+          </li>
+          <li>
+            Administrativ åtkomst skyddas med stark autentisering och principen om minsta privilegium.
+            Hemliga nycklar lagras endast i säkra servermiljöer.
+          </li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2>4. Användarens ansvar</h2>
+        <ul>
+          <li>Håll dina inloggningsuppgifter hemliga och välj starka lösenord.</li>
+          <li>
+            Registrera endast spel som du själv har placerat och se till att informationen du lägger in
+            är korrekt.
+          </li>
+          <li>
+            Följ svensk lag och spelbolagens regler. BetSpread ansvarar inte för beslut eller förluster
+            kopplade till dina spel.
+          </li>
+          <li>Missbruk, manipulation eller försök att bryta mot säkerheten kan leda till avstängning.</li>
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2>5. Dina rättigheter och kontakt</h2>
         <p>
-          Aktuellt pris framgår alltid i kassan innan du godkänner köpet. Priser anges i svenska kronor
-          inklusive gällande moms. Kvitton tillhandahålls via Stripe och skickas till den e-postadress
-          du anger i betalflödet. Vid ändrade priser informerar vi minst 30 dagar innan nästa
-          faktureringsperiod.
+          Du har rätt att få tillgång till, rätta eller radera uppgifter om dig samt invända mot viss
+          behandling. Kontakta <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a> för att
+          utöva dina rättigheter eller ställa frågor om dessa villkor. Mer information finns i vår{' '}
+          <Link href="/privacy">integritetspolicy</Link>.
         </p>
       </section>
 
       <section className={styles.section}>
-        <h2>4. Ångerrätt och uppsägning</h2>
-        <ul>
-          <li>
-            Konsumenter har 14 dagars ångerrätt från köpet. Kontakta supporten för återbetalning om du
-            vill utnyttja ångerrätten och inte har börjat använda Premiumfunktionerna.
-          </li>
-          <li>
-            Abonnemanget kan sägas upp när som helst via kundportalen i Stripe eller genom att kontakta
-            oss. Avslutet gäller inför nästa faktureringsperiod.
-          </li>
-          <li>
-            Om du säger upp efter att perioden påbörjats tillhandahåller vi tjänsten tills perioden löpt
-            ut. Ingen ytterligare debitering sker därefter.
-          </li>
-        </ul>
-      </section>
-
-      <section className={styles.section}>
-        <h2>5. Användning av tjänsten</h2>
-        <ul>
-          <li>
-            Du ansvarar för att kontouppgifter hålls hemliga. All aktivitet som sker via ditt konto
-            betraktas som utförd av dig.
-          </li>
-          <li>
-            Det är inte tillåtet att dela premiuminnehåll offentligt, kringgå användarbegränsningar eller
-            manipulera tjänsten tekniskt.
-          </li>
-          <li>
-            Vi kan stänga av konton som bryter mot villkoren, misstänks för missbruk eller inte
-            uppfyller lagkraven kring spelansvar.
-          </li>
-        </ul>
-      </section>
-
-      <section className={styles.section}>
-        <h2>6. Ansvar och begränsningar</h2>
-        <ul>
-          <li>
-            BetSpread tillhandahåller statistik- och administrationsverktyg. Vi ansvarar inte för
-            resultat, vinster eller förluster kopplade till dina spel.
-          </li>
-          <li>
-            Vi ansvarar inte för indirekta skador, utebliven vinst eller följdskador såvida inte grov
-            oaktsamhet föreligger.
-          </li>
-          <li>
-            Tjänsten kan tillfälligt vara otillgänglig vid planerat underhåll eller oförutsedda driftfel.
-            Vi informerar via e-post och statuskanaler vid längre avbrott.
-          </li>
-        </ul>
-      </section>
-
-      <section className={styles.section}>
-        <h2>7. Support och kontakt</h2>
+        <h2>6. Förändringar</h2>
         <p>
-          Support nås via <a href="mailto:support@betspread.se">support@betspread.se</a>. Vi besvarar
-          normalt ärenden vardagar 09.00–17.00 och återkommer inom 24 timmar vid driftstörningar eller
-          betalningsproblem. Vid säkerhetsincidenter följer vi rutinen som beskrivs på sidan{' '}
-          <Link href="/drift-krav">Drift &amp; juridik</Link>.
-        </p>
-      </section>
-
-      <section className={styles.section}>
-        <h2>8. Tvister</h2>
-        <p>
-          Tvister ska i första hand lösas i dialog med vår support. Om en överenskommelse inte nås kan
-          du som konsument vända dig till Allmänna reklamationsnämnden (ARN). Svensk lag tillämpas på
-          avtalet.
+          Vi kan uppdatera villkoren vid förändringar i funktioner, lagkrav eller leverantörer. Vid
+          större ändringar informerar vi registrerade användare via e-post och uppdaterar
+          versionsdatumet ovan. Genom att fortsätta använda BetSpread accepterar du den senaste
+          versionen.
         </p>
       </section>
     </main>

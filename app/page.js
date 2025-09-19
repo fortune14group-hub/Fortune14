@@ -9,8 +9,11 @@ export default function LandingPage() {
       <div className={styles.landingTopbar}>
         <div className={styles.brand}><strong>BetSpread</strong></div>
         <div className={styles.topbarActions}>
-          <Link href="/drift-krav" className={styles.topbarLink}>
-            Drift & juridik
+          <Link href="/terms" className={styles.topbarLink}>
+            Villkor
+          </Link>
+          <Link href="/privacy" className={styles.topbarLink}>
+            Integritet
           </Link>
           <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
             Logga in
@@ -23,15 +26,15 @@ export default function LandingPage() {
           <div>
             <h1>Spreadsheets för sports betting – snabbt, snyggt och enkelt</h1>
             <p>
-              Bokför dina spel, följ dina resultat månadsvis och lås upp obegränsat med Premium. För
-              hobbybettare och proffs.
+              Bokför dina spel, följ din statistik och analysera utvecklingen utan att lämna
+              webbläsaren. BetSpread är kostnadsfritt att använda och byggt för hobbybettare och
+              analytiker.
             </p>
             <div className={styles.ctaRow}>
               <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
-                Kom igång gratis
+                Kom igång
               </Link>
             </div>
-            <p className={styles.ctaNote}>Bokför de första 20 spelen gratis. Inga kort krävs.</p>
           </div>
           <div className={styles.feature}>
             <strong>Hur funkar det?</strong>
@@ -47,7 +50,7 @@ export default function LandingPage() {
 
       <section className={styles.featureGrid}>
         <div className={styles.feature}>
-          <strong>Snabb registrering</strong>
+          <strong>Snabb registrering av spel</strong>
           <p>Matchdag, odds, insats, marknad, spelbolag.</p>
         </div>
         <div className={styles.feature}>
@@ -55,15 +58,15 @@ export default function LandingPage() {
           <p>ROI, profit och win/loss per månad.</p>
         </div>
         <div className={styles.feature}>
-          <strong>Gratis → Premium</strong>
-          <p>20 spel gratis, uppgradera när du vill.</p>
+          <strong>Helt gratis</strong>
+          <p>Bokför obegränsat med spel.</p>
         </div>
       </section>
 
       <footer className={styles.landingFooter}>
         <nav className={styles.footerNav} aria-label="Juridik och policy">
           <Link href="/terms" className={styles.footerLink}>
-            Köpvillkor
+            Villkor &amp; datahantering
           </Link>
           <Link href="/privacy" className={styles.footerLink}>
             Integritetspolicy
@@ -71,12 +74,9 @@ export default function LandingPage() {
           <Link href="/disclaimer" className={styles.footerLink}>
             Ansvarsfriskrivning
           </Link>
-          <Link href="/drift-krav" className={styles.footerLink}>
-            Drift & juridik
-          </Link>
         </nav>
         <p className={styles.footerContact}>
-          Support: <a href="mailto:support@betspread.se">support@betspread.se</a>
+          Support: <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a>
         </p>
         <p className={styles.footerMessage}>
           Spela ansvarsfullt. Behöver du stöd? Besök{' '}

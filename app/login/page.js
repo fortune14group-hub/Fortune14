@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [signupError, setSignupError] = useState('');
   const [signupInfo, setSignupInfo] = useState('');
   const [supabaseState] = useState(() => {
@@ -93,9 +94,15 @@ export default function LoginPage() {
 
     const email = signupEmail.trim();
     const password = signupPassword;
+    const confirmPassword = signupConfirmPassword;
 
     if (!email || !password) {
       setSignupError('Fyll i e-post och lösenord.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setSignupError('Lösenorden matchar inte.');
       return;
     }
 
@@ -109,7 +116,9 @@ export default function LoginPage() {
       password,
       options: {
         emailRedirectTo:
-          typeof window !== 'undefined' ? `${window.location.origin}/app` : undefined,
+          typeof window !== 'undefined'
+            ? `${window.location.origin}/confirm-email`
+            : undefined,
       },
     });
 
@@ -118,7 +127,10 @@ export default function LoginPage() {
       return;
     }
 
-    setSignupInfo('Konto skapat. Du kan nu logga in.');
+    setSignupInfo('Konto skapat. Kontrollera din e-post för att bekräfta kontot.');
+    setSignupEmail('');
+    setSignupPassword('');
+    setSignupConfirmPassword('');
   };
 
   if (supabaseError) {
@@ -175,29 +187,32 @@ export default function LoginPage() {
         </div>
 
         {tab === 'login' ? (
-          <div className="form-block">
-            <label htmlFor="loginEmail">E-post</label>
-            <input
-              id="loginEmail"
-              type="email"
+            <div className="form-block">
+              <label htmlFor="loginEmail">E-post</label>
+              <input
+                id="loginEmail"
+                type="email"
               placeholder="din@mail.se"
               autoComplete="email"
               value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
             />
             <label htmlFor="loginPassword">Lösenord</label>
-            <input
-              id="loginPassword"
-              type="password"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-            />
-            <div className="row">
+              <input
+                id="loginPassword"
+                type="password"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+              />
+            <div className="row row-between">
               <button type="button" className="btn" onClick={handleLogin}>
                 Logga in
               </button>
+              <Link href="/reset-password" className="text-link">
+                Glömt lösenord?
+              </Link>
             </div>
             {loginError ? <div className="err">{loginError}</div> : null}
           </div>
@@ -221,6 +236,15 @@ export default function LoginPage() {
               value={signupPassword}
               onChange={(e) => setSignupPassword(e.target.value)}
             />
+            <label htmlFor="signupConfirmPassword">Upprepa lösenord</label>
+            <input
+              id="signupConfirmPassword"
+              type="password"
+              placeholder="Upprepa lösenordet"
+              autoComplete="new-password"
+              value={signupConfirmPassword}
+              onChange={(e) => setSignupConfirmPassword(e.target.value)}
+            />
             <div className="row">
               <button type="button" className="btn" onClick={handleSignup}>
                 Skapa konto
@@ -233,7 +257,7 @@ export default function LoginPage() {
 
         <div className="row back-link">
           <Link href="/" className="btn-ghost">
-            Till landningssidan
+            Till startsida
           </Link>
         </div>
       </div>
@@ -283,6 +307,10 @@ export default function LoginPage() {
           gap: 10px;
           flex-wrap: wrap;
           margin-top: 16px;
+        }
+        .row-between {
+          justify-content: space-between;
+          align-items: center;
         }
         .btn {
           padding: 12px 14px;
@@ -345,6 +373,16 @@ export default function LoginPage() {
         }
         .back-link .btn-ghost {
           padding: 8px 12px;
+        }
+        .text-link {
+          color: #38bdf8;
+          font-weight: 600;
+          text-decoration: none;
+          padding: 0;
+        }
+        .text-link:hover,
+        .text-link:focus {
+          text-decoration: underline;
         }
       `}</style>
     </div>
