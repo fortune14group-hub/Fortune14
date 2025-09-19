@@ -772,6 +772,7 @@ export default function AppPage() {
     }
     return compact.slice(0, 4).toUpperCase();
   }, [currentProject]);
+  const showRecentPanel = tab !== 'list';
 
   if (supabaseError) {
     return (
@@ -827,7 +828,7 @@ export default function AppPage() {
         </div>
       </header>
 
-      <main className="workspace">
+      <main className={`workspace${showRecentPanel ? '' : ' no-sidebar'}`}>
         <section className="primary">
           <div className="panel project-panel">
             <div className="project-shell">
@@ -1260,77 +1261,98 @@ export default function AppPage() {
           </section>
         </section>
 
-        <aside className="secondary">
-          <section className="panel recent-panel">
-            <div className="section-header compact">
-              <div>
-                <h2>Senaste spel</h2>
-                <p className="hint">Snabbhantera de tre senaste spelen direkt här.</p>
+        {showRecentPanel ? (
+          <aside className="secondary">
+            <section className="panel recent-panel">
+              <div className="section-header compact">
+                <div>
+                  <h2>Senaste spel</h2>
+                  <p className="hint">Snabbhantera de tre senaste spelen direkt här.</p>
+                </div>
               </div>
-            </div>
-            {recentBets.length === 0 ? (
-              <div className="empty-state small">Ingen historik ännu.</div>
-            ) : (
-              <ul className="recent-list">
-                {recentBets.map((bet) => {
-                  const result = bet.result ?? 'Pending';
-                  const statusClass = (result || 'Pending').toLowerCase();
-                  const matchdayLabel = bet.matchday
-                    ? formatDay(bet.matchday.slice(0, 10))
-                    : '–';
-                  return (
-                    <li key={bet.id}>
-                      <div className="recent-summary">
-                        <span className="recent-icon" data-status={statusClass} aria-hidden="true" />
-                        <div className="recent-copy">
-                          <span className="recent-match">{bet.match || 'Okänd match'}</span>
-                          <span className="recent-market">{bet.market || 'Ingen marknad angiven'}</span>
-                          <div className="recent-meta">
-                            <span>{matchdayLabel}</span>
-                            <span>Odds {formatNumber(bet.odds, 2)}</span>
-                            <span>Insats {formatStake(bet.stake)}</span>
+              {recentBets.length === 0 ? (
+                <div className="empty-state small">Ingen historik ännu.</div>
+              ) : (
+                <ul className="recent-list">
+                  {recentBets.map((bet) => {
+                    const result = bet.result ?? 'Pending';
+                    const statusClass = (result || 'Pending').toLowerCase();
+                    const matchdayLabel = bet.matchday
+                      ? formatDay(bet.matchday.slice(0, 10))
+                      : '–';
+                    const selectId = `recentResult-${bet.id}`;
+                    return (
+                      <li key={bet.id}>
+                        <div className="recent-summary">
+                          <span className="recent-icon" data-status={statusClass} aria-hidden="true" />
+                          <div className="recent-copy">
+                            <span className="recent-match">{bet.match || 'Okänd match'}</span>
+                            <span className="recent-market">{bet.market || 'Ingen marknad angiven'}</span>
+                            <div className="recent-meta">
+                              <span>{matchdayLabel}</span>
+                              <span>Odds {formatNumber(bet.odds, 2)}</span>
+                              <span>Insats {formatStake(bet.stake)}</span>
+                            </div>
+                          </div>
+                          <span className={`recent-status ${statusClass}`}>{result}</span>
+                        </div>
+                        <div className="recent-actions">
+                          <div className="recent-control-row" role="group" aria-label="Snabbuppdatera resultat">
+                            <div className="quick-status-group">
+                              {RESULT_OPTIONS.map((option) => {
+                                const optionKey = option.toLowerCase();
+                                const isActive = option === result;
+                                return (
+                                  <button
+                                    key={option}
+                                    type="button"
+                                    className={`quick-status-btn ${optionKey} ${isActive ? 'active' : ''}`}
+                                    onClick={() => handleUpdateBetResult(bet, option)}
+                                    disabled={isActive}
+                                  >
+                                    {option}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="quick-select">
+                              <label className="sr-only" htmlFor={selectId}>
+                                Ändra resultat
+                              </label>
+                              <select
+                                id={selectId}
+                                value={result}
+                                onChange={(e) => handleUpdateBetResult(bet, e.target.value)}
+                              >
+                                {RESULT_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="quick-manage">
+                            <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
+                              Redigera
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost danger"
+                              onClick={() => handleDeleteBet(bet.id)}
+                            >
+                              Ta bort
+                            </button>
                           </div>
                         </div>
-                        <span className={`recent-status ${statusClass}`}>{result}</span>
-                      </div>
-                      <div className="recent-actions">
-                        <div className="quick-status-group" role="group" aria-label="Snabbuppdatera resultat">
-                          {RESULT_OPTIONS.map((option) => {
-                            const optionKey = option.toLowerCase();
-                            const isActive = option === result;
-                            return (
-                              <button
-                                key={option}
-                                type="button"
-                                className={`quick-status-btn ${optionKey} ${isActive ? 'active' : ''}`}
-                                onClick={() => handleUpdateBetResult(bet, option)}
-                                disabled={isActive}
-                              >
-                                {option}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div className="quick-manage">
-                          <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
-                            Redigera
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-ghost danger"
-                            onClick={() => handleDeleteBet(bet.id)}
-                          >
-                            Ta bort
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </aside>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </aside>
+        ) : null}
       </main>
 
       <style jsx global>{`
@@ -1459,6 +1481,9 @@ export default function AppPage() {
           grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr);
           gap: 28px;
           align-items: start;
+        }
+        .workspace.no-sidebar {
+          grid-template-columns: minmax(0, 1fr);
         }
         .primary {
           display: flex;
@@ -2048,12 +2073,31 @@ export default function AppPage() {
         .recent-actions {
           display: flex;
           flex-direction: column;
+          gap: 12px;
+        }
+        .recent-control-row {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
           gap: 10px;
         }
         .quick-status-group {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
+        }
+        .quick-select select {
+          background: rgba(8, 16, 32, 0.92);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          border-radius: 12px;
+          color: #e2e8f0;
+          padding: 8px 12px;
+          font-size: 13px;
+        }
+        .quick-select select:focus {
+          outline: none;
+          border-color: rgba(56, 189, 248, 0.6);
+          box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
         }
         .quick-status-btn {
           border-radius: 999px;
