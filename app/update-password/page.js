@@ -1,11 +1,131 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
 
-export default function UpdatePasswordPage() {
+function UpdatePasswordLayout({ children }) {
+  return (
+    <div className="center">
+      <div className="card">{children}</div>
+
+      <style jsx global>{`
+        body {
+          background: #0b1116;
+        }
+        .center {
+          min-height: 100svh;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+        .card {
+          width: min(560px, 92vw);
+          background: #0f1720;
+          border: 1px solid #1f2a37;
+          border-radius: 16px;
+          padding: 24px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+        h1 {
+          margin: 0 0 6px;
+          font-size: 22px;
+        }
+        .muted {
+          margin: 0 0 16px;
+          color: #94a3b8;
+        }
+        label {
+          font-size: 12px;
+          color: #b6c2cf;
+          display: block;
+          margin: 14px 0 6px;
+        }
+        input {
+          width: 100%;
+          padding: 12px;
+          border-radius: 10px;
+          border: 1px solid #243244;
+          background: #0b1320;
+          color: #e7eef5;
+        }
+        input:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .row {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 16px;
+        }
+        .btn {
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 0;
+          font-weight: 700;
+          cursor: pointer;
+          background: #22c55e;
+          color: #0b1116;
+        }
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .btn-ghost {
+          background: transparent;
+          border: 1px solid #334155;
+          color: #e7eef5;
+          padding: 12px 14px;
+          border-radius: 10px;
+        }
+        .form-block {
+          display: flex;
+          flex-direction: column;
+        }
+        .err {
+          margin-top: 12px;
+          color: #fecaca;
+          background: #3b0a0a;
+          border: 1px solid #6b1212;
+          padding: 10px 12px;
+          border-radius: 10px;
+        }
+        .ok {
+          margin-top: 12px;
+          color: #bbf7d0;
+          background: #083d24;
+          border: 1px solid #195a39;
+          padding: 10px 12px;
+          border-radius: 10px;
+        }
+        .info {
+          margin-top: 12px;
+          color: #bfdbfe;
+          background: #0f2746;
+          border: 1px solid #1e3a8a;
+          padding: 10px 12px;
+          border-radius: 10px;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function UpdatePasswordFallback() {
+  return (
+    <UpdatePasswordLayout>
+      <h1>Uppdatera lösenord</h1>
+      <p className="muted">
+        Ange ett nytt lösenord för ditt konto. Formuläret låses upp via länken i e-postmeddelandet.
+      </p>
+      <div className="info">Laddar återställningslänken...</div>
+    </UpdatePasswordLayout>
+  );
+}
+
+function UpdatePasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [supabaseState] = useState(() => {
@@ -325,159 +445,65 @@ export default function UpdatePasswordPage() {
   const disableForm = !hasSession || isProcessingLink || isSubmitting;
 
   return (
-    <div className="center">
-      <div className="card">
-        <h1>Uppdatera lösenord</h1>
-        <p className="muted">
-          Ange ett nytt lösenord för ditt konto. Formuläret låses upp via länken i e-postmeddelandet.
-        </p>
+    <UpdatePasswordLayout>
+      <h1>Uppdatera lösenord</h1>
+      <p className="muted">
+        Ange ett nytt lösenord för ditt konto. Formuläret låses upp via länken i e-postmeddelandet.
+      </p>
 
-        {isProcessingLink ? <div className="info">Verifierar återställningslänken...</div> : null}
-        {status ? <div className="ok">{status}</div> : null}
-        {error && !sessionExpired ? <div className="err">{error}</div> : null}
-        {sessionExpired ? (
-          <div className="err">Återställningssessionen har gått ut. Begär en ny länk via e-postmeddelandet.</div>
-        ) : null}
+      {isProcessingLink ? <div className="info">Verifierar återställningslänken...</div> : null}
+      {status ? <div className="ok">{status}</div> : null}
+      {error && !sessionExpired ? <div className="err">{error}</div> : null}
+      {sessionExpired ? (
+        <div className="err">Återställningssessionen har gått ut. Begär en ny länk via e-postmeddelandet.</div>
+      ) : null}
 
-        <form className="form-block" onSubmit={handleSubmit}>
-          <label htmlFor="newPassword">Nytt lösenord</label>
-          <input
-            id="newPassword"
-            type="password"
-            placeholder="Minst 6 tecken"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={disableForm}
-          />
+      <form className="form-block" onSubmit={handleSubmit}>
+        <label htmlFor="newPassword">Nytt lösenord</label>
+        <input
+          id="newPassword"
+          type="password"
+          placeholder="Minst 6 tecken"
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          disabled={disableForm}
+        />
 
-          <label htmlFor="confirmPassword">Bekräfta nytt lösenord</label>
-          <input
-            id="confirmPassword"
-            type="password"
-            placeholder="Upprepa lösenordet"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            disabled={disableForm}
-          />
+        <label htmlFor="confirmPassword">Bekräfta nytt lösenord</label>
+        <input
+          id="confirmPassword"
+          type="password"
+          placeholder="Upprepa lösenordet"
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          disabled={disableForm}
+        />
 
-          <div className="row">
-            <button type="submit" className="btn" disabled={disableForm}>
-              {isSubmitting ? 'Uppdaterar...' : 'Spara nytt lösenord'}
-            </button>
-            <Link href="/login" className="btn-ghost">
-              Till inloggningen
-            </Link>
-          </div>
-        </form>
+        <div className="row">
+          <button type="submit" className="btn" disabled={disableForm}>
+            {isSubmitting ? 'Uppdaterar...' : 'Spara nytt lösenord'}
+          </button>
+          <Link href="/login" className="btn-ghost">
+            Till inloggningen
+          </Link>
+        </div>
+      </form>
 
-        {!hasSession && !isProcessingLink ? (
-          <div className="info">
-            Formuläret kräver en aktiv återställningssession. Öppna länken i e-postmeddelandet för att låsa upp det.
-          </div>
-        ) : null}
-      </div>
+      {!hasSession && !isProcessingLink ? (
+        <div className="info">
+          Formuläret kräver en aktiv återställningssession. Öppna länken i e-postmeddelandet för att låsa upp det.
+        </div>
+      ) : null}
+    </UpdatePasswordLayout>
+  );
+}
 
-      <style jsx global>{`
-        body {
-          background: #0b1116;
-        }
-        .center {
-          min-height: 100svh;
-          display: grid;
-          place-items: center;
-          padding: 24px;
-        }
-        .card {
-          width: min(560px, 92vw);
-          background: #0f1720;
-          border: 1px solid #1f2a37;
-          border-radius: 16px;
-          padding: 24px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-        }
-        h1 {
-          margin: 0 0 6px;
-          font-size: 22px;
-        }
-        .muted {
-          margin: 0 0 16px;
-          color: #94a3b8;
-        }
-        label {
-          font-size: 12px;
-          color: #b6c2cf;
-          display: block;
-          margin: 14px 0 6px;
-        }
-        input {
-          width: 100%;
-          padding: 12px;
-          border-radius: 10px;
-          border: 1px solid #243244;
-          background: #0b1320;
-          color: #e7eef5;
-        }
-        input:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .row {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-          margin-top: 16px;
-        }
-        .btn {
-          padding: 12px 14px;
-          border-radius: 10px;
-          border: 0;
-          font-weight: 700;
-          cursor: pointer;
-          background: #22c55e;
-          color: #0b1116;
-        }
-        .btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .btn-ghost {
-          background: transparent;
-          border: 1px solid #334155;
-          color: #e7eef5;
-          padding: 12px 14px;
-          border-radius: 10px;
-        }
-        .form-block {
-          display: flex;
-          flex-direction: column;
-        }
-        .err {
-          margin-top: 12px;
-          color: #fecaca;
-          background: #3b0a0a;
-          border: 1px solid #6b1212;
-          padding: 10px 12px;
-          border-radius: 10px;
-        }
-        .ok {
-          margin-top: 12px;
-          color: #bbf7d0;
-          background: #083d24;
-          border: 1px solid #195a39;
-          padding: 10px 12px;
-          border-radius: 10px;
-        }
-        .info {
-          margin-top: 12px;
-          color: #bfdbfe;
-          background: #0f2746;
-          border: 1px solid #1e3a8a;
-          padding: 10px 12px;
-          border-radius: 10px;
-        }
-      `}</style>
-    </div>
+export default function UpdatePasswordPage() {
+  return (
+    <Suspense fallback={<UpdatePasswordFallback />}>
+      <UpdatePasswordContent />
+    </Suspense>
   );
 }
