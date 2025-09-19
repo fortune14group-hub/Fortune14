@@ -338,13 +338,26 @@ export default function AppPage() {
       const stakeNum = Number(bet.stake);
       return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
     }, 0);
+    const oddsSum = decided.reduce((sum, bet) => {
+      const oddsNum = Number(bet.odds);
+      return Number.isFinite(oddsNum) ? sum + oddsNum : sum;
+    }, 0);
     const profit = decided.reduce((sum, bet) => sum + computeProfit(bet), 0);
     const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
+    const averageOdds = decided.length > 0 ? oddsSum / decided.length : 0;
+    const averageStake = decided.length > 0 ? stakeSum / decided.length : 0;
+    const hitRate = decided.length > 0 ? (wins.length / decided.length) * 100 : 0;
+    const profitPerBet = decided.length > 0 ? profit / decided.length : 0;
     return {
       games: decided.length,
       wins: wins.length,
       profit,
       roi,
+      stake: stakeSum,
+      averageOdds,
+      averageStake,
+      hitRate,
+      profitPerBet,
     };
   }, [filteredBets]);
 
@@ -786,6 +799,22 @@ export default function AppPage() {
               <br />Återstår: <strong>{freeInfo ? Math.max(0, freeInfo.left) : 20}</strong> spel.
             </p>
           </div>
+          <div className="banner-metrics" aria-hidden="true">
+            <div className="metric">
+              <span className="metric-label">Loggade spel</span>
+              <span className="metric-value">{overviewStats.total}</span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">Avgjorda</span>
+              <span className="metric-value">{overviewStats.decided}</span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">ROI</span>
+              <span className={`metric-value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
+                {formatPercent(overviewStats.roi)}
+              </span>
+            </div>
+          </div>
           <span className="hint">Uppgradera för obegränsade registreringar.</span>
         </div>
       ) : null}
@@ -797,6 +826,22 @@ export default function AppPage() {
             <p>
               Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.
             </p>
+          </div>
+          <div className="banner-metrics" aria-hidden="true">
+            <div className="metric">
+              <span className="metric-label">Loggade spel</span>
+              <span className="metric-value">{overviewStats.total}</span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">Avgjorda</span>
+              <span className="metric-value">{overviewStats.decided}</span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">ROI</span>
+              <span className={`metric-value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
+                {formatPercent(overviewStats.roi)}
+              </span>
+            </div>
           </div>
           <span className="hint">Vi aktiverar betalning igen vid ett senare tillfälle.</span>
         </div>
@@ -1048,12 +1093,18 @@ export default function AppPage() {
             </div>
             <div className="stat-grid">
               <div className="stat-card">
-                <span className="label">Spel (avgjorda)</span>
+                <span className="label">Avgjorda spel</span>
                 <span className="value">{summaryData.games}</span>
               </div>
               <div className="stat-card">
                 <span className="label">Vinster</span>
                 <span className="value">{summaryData.wins}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Vinst%</span>
+                <span className={`value ${summaryData.hitRate >= 50 ? 'positive' : 'negative'}`}>
+                  {formatPercent(summaryData.hitRate)}
+                </span>
               </div>
               <div className="stat-card">
                 <span className="label">Nettoresultat</span>
@@ -1066,6 +1117,20 @@ export default function AppPage() {
                 <span className={`value ${summaryData.roi >= 0 ? 'positive' : 'negative'}`}>
                   {formatPercent(summaryData.roi)}
                 </span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Resultat / spel</span>
+                <span className={`value ${summaryData.profitPerBet >= 0 ? 'positive' : 'negative'}`}>
+                  {formatMoney(summaryData.profitPerBet)}
+                </span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Snittodds</span>
+                <span className="value">{formatNumber(summaryData.averageOdds, 2)}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Snittinsats</span>
+                <span className="value">{formatStake(summaryData.averageStake)}</span>
               </div>
             </div>
             <div className="chart-card">
@@ -1218,6 +1283,10 @@ export default function AppPage() {
                 <span className="value">{overviewStats.total}</span>
               </div>
               <div className="overview-card">
+                <span className="label">Pågående</span>
+                <span className="value">{overviewStats.pending}</span>
+              </div>
+              <div className="overview-card">
                 <span className="label">Avgjorda</span>
                 <span className="value">{overviewStats.decided}</span>
               </div>
@@ -1244,229 +1313,243 @@ export default function AppPage() {
 
       <style jsx global>{`
         body {
-          background: linear-gradient(180deg, #040914, #0d1729);
+          background: radial-gradient(120% 120% at 20% -10%, #1e293b 0%, #0b1120 50%, #020617 100%);
+          color: #e2e8f0;
+          font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          line-height: 1.6;
         }
         .container {
-          width: 100%;
-          max-width: 1220px;
+          width: min(1240px, 100%);
           margin: 0 auto;
-          padding: 36px 22px 64px;
+          padding: 48px 24px 72px;
+          display: flex;
+          flex-direction: column;
+          gap: 28px;
         }
         header.top-bar {
-          display: flex;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
           align-items: center;
-          justify-content: space-between;
           gap: 24px;
-          margin-bottom: 24px;
-          padding: 22px 26px;
-          border-radius: 18px;
-          background: rgba(17, 31, 52, 0.95);
-          border: 1px solid rgba(74, 96, 138, 0.38);
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
-          backdrop-filter: blur(12px);
+          padding: 28px 32px;
+          border-radius: 24px;
+          background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(59, 130, 246, 0.22));
+          border: 1px solid rgba(59, 130, 246, 0.28);
+          box-shadow: 0 32px 60px -38px rgba(15, 23, 42, 0.88), 0 20px 48px -34px rgba(30, 64, 175, 0.6);
+          backdrop-filter: blur(16px);
         }
         .brand-block {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 8px;
         }
         .brand {
+          font-size: clamp(28px, 4vw, 34px);
           font-weight: 800;
-          font-size: 28px;
-          letter-spacing: 0.02em;
-          background: linear-gradient(135deg, #a855f7, #38bdf8);
+          letter-spacing: 0.015em;
+          background: linear-gradient(135deg, #38bdf8 0%, #a855f7 45%, #f472b6 100%);
           -webkit-background-clip: text;
           color: transparent;
         }
         .tagline {
           margin: 0;
-          font-size: 14px;
-          color: rgba(140, 163, 204, 0.9);
+          color: rgba(226, 232, 240, 0.76);
+          font-size: 15px;
         }
         .right-actions {
           display: flex;
-          gap: 12px;
-          align-items: center;
           flex-wrap: wrap;
           justify-content: flex-end;
+          align-items: center;
+          gap: 12px;
         }
-        button,
-        .btn {
-          background: rgba(42, 60, 100, 0.9);
-          border: 1px solid rgba(96, 119, 173, 0.45);
-          color: #f1f5ff;
-          border-radius: 12px;
+        .badge {
           padding: 10px 16px;
-          cursor: pointer;
-          transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.72);
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          font-size: 14px;
           font-weight: 600;
           letter-spacing: 0.01em;
         }
-        button:hover,
-        .btn:hover {
-          background: rgba(58, 82, 134, 0.95);
+        .container button {
+          border: 1px solid rgba(148, 163, 184, 0.25);
+          border-radius: 12px;
+          padding: 12px 18px;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          color: #f8fafc;
+          background: rgba(30, 41, 59, 0.72);
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease;
+        }
+        .container button:hover:not(:disabled) {
           transform: translateY(-1px);
+          box-shadow: 0 12px 32px -18px rgba(59, 130, 246, 0.55);
+          background: rgba(30, 64, 175, 0.62);
+          border-color: rgba(59, 130, 246, 0.45);
         }
-        button:focus-visible,
-        .btn:focus-visible {
-          outline: 2px solid #60a5fa;
-          outline-offset: 3px;
-        }
-        .btn-green {
-          background: linear-gradient(135deg, #34d399, #10b981);
-          border: none;
-          box-shadow: 0 12px 32px -20px rgba(16, 185, 129, 0.7);
-        }
-        .btn-red {
-          background: linear-gradient(135deg, #f87171, #ef4444);
-          border: none;
-          box-shadow: 0 12px 32px -20px rgba(239, 68, 68, 0.65);
-        }
-        .btn-ghost {
-          background: rgba(26, 39, 66, 0.65);
-          border: 1px solid rgba(78, 106, 150, 0.5);
-          color: rgba(226, 232, 255, 0.88);
-        }
-        .btn-ghost:hover {
-          background: rgba(41, 57, 92, 0.85);
-          border-color: rgba(129, 140, 248, 0.45);
-        }
-        .btn-ghost.danger {
-          color: #fca5a5;
-          border-color: rgba(248, 113, 113, 0.45);
-        }
-        .btn-ghost.danger:hover {
-          background: rgba(127, 29, 29, 0.2);
-        }
-        .btn-red:disabled,
-        .btn-green:disabled,
-        button:disabled {
+        .container button:disabled {
           opacity: 0.6;
           cursor: not-allowed;
           transform: none;
         }
-        .badge {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 6px 14px;
-          border-radius: 999px;
-          background: rgba(59, 130, 246, 0.12);
-          border: 1px solid rgba(96, 165, 250, 0.35);
-          color: #60a5fa;
-          font-weight: 600;
-          font-size: 14px;
+        .btn-green {
+          background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
+          border: 1px solid rgba(14, 165, 233, 0.65);
+          box-shadow: 0 18px 34px -20px rgba(14, 165, 233, 0.65);
+        }
+        .btn-green:hover:not(:disabled) {
+          background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        }
+        .btn-red {
+          background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+          border: 1px solid rgba(239, 68, 68, 0.55);
+          box-shadow: 0 18px 34px -20px rgba(248, 113, 113, 0.6);
+        }
+        .btn-red:hover:not(:disabled) {
+          background: linear-gradient(135deg, #ef4444, #b91c1c);
+        }
+        .btn-ghost {
+          background: rgba(15, 23, 42, 0.55);
+          border: 1px solid rgba(148, 163, 184, 0.3);
+          color: rgba(226, 232, 240, 0.85);
+        }
+        .btn-ghost:hover:not(:disabled) {
+          background: rgba(30, 41, 59, 0.7);
+          border-color: rgba(148, 163, 184, 0.45);
+        }
+        .btn-ghost.danger {
+          color: #fca5a5;
+          border-color: rgba(248, 113, 113, 0.35);
+        }
+        .btn-ghost.danger:hover:not(:disabled) {
+          background: rgba(239, 68, 68, 0.18);
+          border-color: rgba(239, 68, 68, 0.55);
         }
         .banner {
           display: flex;
-          align-items: flex-start;
+          flex-wrap: wrap;
           justify-content: space-between;
-          gap: 18px;
-          padding: 18px 22px;
-          margin-bottom: 24px;
-          border-radius: 18px;
-          background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.08));
-          border: 1px solid rgba(248, 113, 113, 0.45);
-          color: #ffe1e1;
-          box-shadow: 0 18px 45px -30px rgba(248, 113, 113, 0.45);
+          align-items: flex-start;
+          gap: 20px;
+          padding: 24px 28px;
+          border-radius: 22px;
+          background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(14, 165, 233, 0.24));
+          border: 1px solid rgba(56, 189, 248, 0.28);
+          box-shadow: 0 30px 70px -42px rgba(14, 165, 233, 0.55);
         }
         .banner h2 {
-          margin: 0 0 4px;
-          font-size: 18px;
-          color: #ffe1e1;
+          margin: 0 0 6px;
+          font-size: 20px;
         }
         .banner p {
           margin: 0;
-          font-size: 15px;
-          color: #ffd9d9;
-          line-height: 1.45;
+          color: rgba(226, 232, 240, 0.72);
         }
-        .workspace {
+        .banner-metrics {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 320px;
-          gap: 24px;
-          align-items: flex-start;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+          padding: 12px 18px;
+          border-radius: 16px;
+          background: rgba(8, 16, 32, 0.7);
+          border: 1px solid rgba(71, 85, 105, 0.4);
         }
-        .panel {
-          background: rgba(12, 22, 39, 0.92);
-          border: 1px solid rgba(74, 96, 138, 0.38);
-          border-radius: 18px;
-          padding: 24px;
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
-          backdrop-filter: blur(12px);
+        .banner-metrics .metric {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
-        .panel h2 {
-          margin: 0;
-          font-size: 20px;
+        .metric-label {
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(148, 163, 184, 0.75);
+        }
+        .metric-value {
+          font-size: 18px;
           font-weight: 700;
           letter-spacing: 0.01em;
         }
-        .positive {
-          color: #4ade80;
-        }
-        .negative {
-          color: #f87171;
-        }
-        .section-header.compact {
-          margin-bottom: 12px;
-          align-items: baseline;
-        }
-        .subtle-tag {
-          display: inline-block;
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.8);
-          background: rgba(15, 26, 44, 0.7);
-          border: 1px solid rgba(72, 95, 142, 0.4);
-          border-radius: 999px;
-          padding: 4px 10px;
-        }
-        .project-panel {
-          padding: 18px 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-        }
-        .project-panel .section-header {
-          margin-bottom: 12px;
+        .banner .hint {
+          align-self: center;
+          font-size: 14px;
+          font-weight: 600;
+          color: rgba(125, 211, 252, 0.92);
+          letter-spacing: 0.02em;
         }
         .hint {
-          color: rgba(140, 163, 204, 0.9);
+          color: rgba(148, 163, 184, 0.9);
           font-size: 14px;
+          margin: 6px 0 0;
         }
-        .subtle {
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 13px;
+        .workspace {
+          display: grid;
+          grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr);
+          gap: 28px;
+          align-items: start;
+        }
+        .primary {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+        .panel {
+          background: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(11, 22, 43, 0.88));
+          border-radius: 24px;
+          border: 1px solid rgba(51, 65, 85, 0.55);
+          box-shadow: 0 26px 60px -34px rgba(2, 6, 23, 0.85);
+          padding: 28px 30px;
+        }
+        .panel.hide {
+          display: none;
+        }
+        .project-panel {
+          position: relative;
+          overflow: hidden;
+        }
+        .project-panel::after {
+          content: '';
+          position: absolute;
+          inset: -120px -140px auto auto;
+          width: 280px;
+          height: 280px;
+          background: radial-gradient(circle, rgba(96, 165, 250, 0.18), transparent 65%);
+          pointer-events: none;
         }
         .section-header {
           display: flex;
-          align-items: flex-start;
           justify-content: space-between;
           gap: 20px;
+          align-items: flex-start;
+          margin-bottom: 24px;
+        }
+        .section-header h2 {
+          margin: 0;
+          font-size: 22px;
+          letter-spacing: 0.015em;
+        }
+        .section-header.compact {
           margin-bottom: 20px;
         }
         .project-meta {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 13px;
-        }
-        .project-meta strong {
-          color: #f1f5ff;
-          font-size: 16px;
+          font-size: 14px;
+          color: rgba(148, 163, 184, 0.88);
+          font-weight: 600;
+          letter-spacing: 0.01em;
         }
         .project-controls {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 16px;
         }
         .project-controls label {
-          font-size: 12px;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0.06em;
           text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: rgba(148, 163, 184, 0.95);
         }
         .control-row {
           display: flex;
@@ -1477,21 +1560,30 @@ export default function AppPage() {
         select,
         input,
         textarea {
-          background: rgba(10, 20, 35, 0.85);
-          border: 1px solid rgba(78, 106, 150, 0.4);
-          color: #f1f5ff;
-          padding: 14px 16px;
-          border-radius: 12px;
-          font-size: 15px;
-          min-height: 46px;
+          font: inherit;
+        }
+        .project-controls select,
+        .form-panel select,
+        .form-panel input,
+        .form-panel textarea,
+        .summary-panel select {
+          background: rgba(8, 16, 32, 0.92);
+          border: 1px solid rgba(71, 85, 105, 0.55);
+          border-radius: 14px;
+          color: #e2e8f0;
+          padding: 12px 16px;
+          min-height: 48px;
           transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
-        select:focus-visible,
-        input:focus-visible,
-        textarea:focus-visible {
-          border-color: rgba(96, 165, 250, 0.8);
-          box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+        .project-controls select:focus-visible,
+        .form-panel select:focus-visible,
+        .form-panel input:focus-visible,
+        .form-panel textarea:focus-visible,
+        .summary-panel select:focus-visible {
           outline: none;
+          border-color: rgba(96, 165, 250, 0.65);
+          box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.25);
+          background: rgba(15, 23, 42, 0.95);
         }
         .button-cluster {
           display: flex;
@@ -1502,32 +1594,37 @@ export default function AppPage() {
           display: flex;
           gap: 12px;
           padding: 6px;
-          background: rgba(15, 26, 44, 0.7);
-          border: 1px solid rgba(72, 95, 142, 0.35);
           border-radius: 18px;
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
+          background: rgba(15, 23, 42, 0.75);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
         }
         .tab {
           flex: 1;
-          padding: 12px 16px;
           border-radius: 12px;
           border: 1px solid transparent;
           background: transparent;
-          color: rgba(140, 163, 204, 0.9);
+          color: rgba(203, 213, 225, 0.75);
+          padding: 12px 16px;
           font-weight: 600;
-          letter-spacing: 0.02em;
+          letter-spacing: 0.015em;
           cursor: pointer;
-          transition: background 0.2s ease, color 0.2s ease, border 0.2s ease, transform 0.2s ease;
+          transition: background 0.2s ease, border 0.2s ease, color 0.2s ease, transform 0.2s ease;
         }
         .tab:hover {
-          color: #f1f5ff;
+          color: #f8fafc;
           transform: translateY(-1px);
         }
         .tab.active {
-          background: linear-gradient(135deg, rgba(96, 165, 250, 0.28), rgba(56, 189, 248, 0.16));
-          border-color: rgba(96, 165, 250, 0.5);
-          color: #f1f5ff;
-          box-shadow: 0 12px 28px -20px rgba(96, 165, 250, 0.7);
+          color: #f8fafc;
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.26), rgba(168, 85, 247, 0.22));
+          border-color: rgba(96, 165, 250, 0.55);
+          box-shadow: 0 14px 30px -18px rgba(56, 189, 248, 0.6);
+        }
+        .form-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
         }
         .grid {
           display: grid;
@@ -1537,24 +1634,26 @@ export default function AppPage() {
         .field {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 8px;
         }
         .field label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: rgba(148, 163, 184, 0.85);
+        }
+        textarea {
+          min-height: 96px;
+          resize: vertical;
         }
         .edit-indicator {
           display: flex;
-          align-items: center;
           justify-content: space-between;
           gap: 16px;
-          padding: 14px 18px;
-          border-radius: 14px;
-          background: rgba(37, 99, 235, 0.12);
-          border: 1px solid rgba(129, 140, 248, 0.35);
-          margin-bottom: 18px;
+          padding: 16px 18px;
+          border-radius: 16px;
+          background: rgba(30, 64, 175, 0.22);
+          border: 1px solid rgba(96, 165, 250, 0.35);
         }
         .edit-copy {
           display: flex;
@@ -1563,130 +1662,86 @@ export default function AppPage() {
         }
         .edit-title {
           font-size: 12px;
-          text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(199, 210, 254, 0.9);
+          text-transform: uppercase;
+          color: rgba(191, 219, 254, 0.9);
         }
         .edit-meta {
           font-size: 14px;
-          color: rgba(199, 210, 254, 0.85);
+          color: rgba(191, 219, 254, 0.8);
         }
-        .col-1 {
-          grid-column: span 1;
-        }
-        .col-2 {
-          grid-column: span 2;
-        }
-        .col-3 {
-          grid-column: span 3;
-        }
-        .col-4 {
-          grid-column: span 4;
-        }
-        .col-5 {
-          grid-column: span 5;
-        }
-        .col-6 {
-          grid-column: span 6;
-        }
-        .col-7 {
-          grid-column: span 7;
-        }
-        .col-8 {
-          grid-column: span 8;
-        }
-        .col-9 {
-          grid-column: span 9;
-        }
-        .col-10 {
-          grid-column: span 10;
-        }
-        .col-11 {
-          grid-column: span 11;
-        }
-        .col-12 {
-          grid-column: span 12;
-        }
-        .actions {
+        .action-field .actions {
           display: flex;
           flex-wrap: wrap;
           gap: 12px;
           align-items: center;
         }
-        .action-field {
-          align-self: end;
-        }
-        .sr-only {
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          padding: 0;
-          margin: -1px;
-          overflow: hidden;
-          clip: rect(0, 0, 0, 0);
-          white-space: nowrap;
-          border: 0;
-        }
         .summary-panel .filter {
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          min-width: 190px;
-        }
-        .summary-panel select {
-          min-width: 190px;
+          gap: 10px;
+          min-width: 220px;
         }
         .stat-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
           gap: 16px;
+          margin-bottom: 24px;
         }
         .stat-card {
-          padding: 18px;
-          border-radius: 14px;
-          background: rgba(18, 32, 54, 0.8);
-          border: 1px solid rgba(73, 103, 152, 0.4);
           display: flex;
           flex-direction: column;
           gap: 6px;
+          padding: 16px 18px;
+          border-radius: 16px;
+          background: rgba(15, 23, 42, 0.65);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
         .stat-card .label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: rgba(148, 163, 184, 0.75);
         }
         .stat-card .value {
-          font-size: 26px;
+          font-size: 22px;
           font-weight: 700;
+          letter-spacing: 0.015em;
+        }
+        .positive {
+          color: #34d399;
+        }
+        .negative {
+          color: #f87171;
         }
         .chart-card {
-          margin-top: 22px;
-          padding: 20px;
-          border-radius: 18px;
-          background: rgba(16, 28, 47, 0.82);
-          border: 1px solid rgba(73, 103, 152, 0.35);
           display: flex;
           flex-direction: column;
-          gap: 18px;
+          gap: 20px;
+          padding: 24px 26px 28px;
+          border-radius: 20px;
+          background: rgba(15, 23, 42, 0.72);
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          box-shadow: 0 30px 70px -45px rgba(56, 189, 248, 0.5);
         }
         .chart-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
           gap: 18px;
-          flex-wrap: wrap;
         }
         .chart-title {
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          display: block;
+          font-size: 16px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          margin-bottom: 6px;
         }
         .chart-subtitle {
-          margin: 4px 0 0;
+          margin: 0;
+          color: rgba(148, 163, 184, 0.8);
           font-size: 14px;
-          color: rgba(160, 182, 220, 0.9);
         }
         .chart-total {
           display: flex;
@@ -1698,240 +1753,247 @@ export default function AppPage() {
           font-size: 28px;
           font-weight: 700;
         }
-        .chart-total-value.positive {
-          color: #4ade80;
-        }
-        .chart-total-value.negative {
-          color: #f87171;
-        }
         .chart-total-label {
           font-size: 12px;
-          letter-spacing: 0.08em;
           text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.7);
+          letter-spacing: 0.08em;
+          color: rgba(148, 163, 184, 0.75);
         }
         .chart-body {
-          position: relative;
           width: 100%;
-          height: 200px;
+          height: 280px;
+          border-radius: 16px;
+          background: radial-gradient(circle at top, rgba(56, 189, 248, 0.08), rgba(15, 23, 42, 0.94));
+          border: 1px solid rgba(56, 189, 248, 0.15);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
         }
         .chart-body svg {
           width: 100%;
           height: 100%;
         }
         .chart-empty {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 100%;
-          height: 160px;
-          border-radius: 14px;
-          border: 1px dashed rgba(96, 165, 250, 0.35);
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 14px;
-          background: rgba(17, 31, 52, 0.6);
+          color: rgba(148, 163, 184, 0.75);
+          font-size: 15px;
         }
         .chart-footer {
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          gap: 12px;
           font-size: 13px;
-          color: rgba(140, 163, 204, 0.85);
+          color: rgba(148, 163, 184, 0.8);
+          letter-spacing: 0.03em;
         }
-        .chart-footer span:first-child,
-        .chart-footer span:last-child {
-          color: rgba(140, 163, 204, 0.7);
-        }
-        #playsContainer {
+        .list-panel {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 18px;
+        }
+        .empty-state {
+          padding: 48px 24px;
+          text-align: center;
+          border-radius: 18px;
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          color: rgba(148, 163, 184, 0.85);
+          font-size: 15px;
         }
         details.month {
+          border: 1px solid rgba(71, 85, 105, 0.4);
           border-radius: 18px;
-          border: 1px solid rgba(72, 103, 152, 0.35);
-          background: rgba(17, 29, 49, 0.75);
           overflow: hidden;
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
+          background: rgba(11, 18, 38, 0.85);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        details.month + details.month {
+          margin-top: 14px;
         }
         details.month summary {
           list-style: none;
-          padding: 18px 22px;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
           cursor: pointer;
-          background: linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(56, 189, 248, 0.08));
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 18px 22px;
+          font-weight: 600;
+          letter-spacing: 0.015em;
+          background: rgba(15, 23, 42, 0.78);
         }
         details.month summary::-webkit-details-marker {
           display: none;
         }
-        details.month[open] summary {
-          border-bottom: 1px solid rgba(72, 103, 152, 0.35);
-          background: linear-gradient(135deg, rgba(96, 165, 250, 0.08), rgba(56, 189, 248, 0.05));
-        }
         .month-count {
-          font-size: 14px;
-          color: rgba(140, 163, 204, 0.9);
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.8);
+          background: rgba(30, 41, 59, 0.6);
+          border-radius: 999px;
+          padding: 6px 12px;
         }
         .row {
           display: grid;
-          grid-template-columns: 120px 1.8fr 90px 90px 150px 1.4fr 260px;
-          gap: 16px;
+          grid-template-columns: minmax(80px, 1fr) minmax(180px, 1.8fr) repeat(4, minmax(80px, 1fr));
+          gap: 12px;
           padding: 16px 22px;
-          align-items: flex-start;
+          align-items: center;
+          border-top: 1px solid rgba(71, 85, 105, 0.35);
         }
         .row-head {
-          background: rgba(255, 255, 255, 0.02);
+          background: rgba(30, 41, 59, 0.5);
           font-size: 12px;
-          letter-spacing: 0.08em;
           text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.9);
+          letter-spacing: 0.08em;
+          color: rgba(148, 163, 184, 0.7);
+        }
+        .row div {
+          font-size: 14px;
+          color: rgba(226, 232, 240, 0.88);
+        }
+        .row .cell-match {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .row .match {
           font-weight: 600;
-          padding-top: 14px;
-          padding-bottom: 14px;
         }
-        .row:not(.row-head):nth-child(odd) {
-          background: rgba(10, 18, 32, 0.3);
-        }
-        .row > div {
-          min-width: 0;
-        }
-        .cell-match .match {
-          font-weight: 600;
-          display: block;
-        }
-        .cell-match .market {
-          display: block;
+        .row .market {
           font-size: 13px;
-          color: rgba(140, 163, 204, 0.9);
-          margin-top: 2px;
+          color: rgba(148, 163, 184, 0.8);
         }
         .note-cell {
-          font-size: 14px;
-          line-height: 1.4;
-          opacity: 0.92;
+          color: rgba(148, 163, 184, 0.85);
         }
         .result-controls {
           display: flex;
           flex-wrap: wrap;
           gap: 10px;
           align-items: center;
+          justify-content: flex-end;
         }
         .result-select {
-          min-width: 150px;
-          flex: 0 0 auto;
+          background: rgba(8, 16, 32, 0.92);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          border-radius: 12px;
+          color: #e2e8f0;
+          padding: 8px 12px;
         }
         .status-badge {
           padding: 6px 12px;
           border-radius: 999px;
-          font-size: 11px;
-          letter-spacing: 0.08em;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0.03em;
           text-transform: uppercase;
-          font-weight: 700;
-          background: rgba(37, 99, 235, 0.18);
-          border: 1px solid rgba(129, 140, 248, 0.4);
-          color: #c7d2fe;
-        }
-        .status-badge.win {
-          background: rgba(22, 163, 74, 0.2);
-          border-color: rgba(74, 222, 128, 0.45);
-          color: #bbf7d0;
-        }
-        .status-badge.loss {
-          background: rgba(185, 28, 28, 0.2);
-          border-color: rgba(248, 113, 113, 0.45);
-          color: #fecaca;
         }
         .status-badge.pending {
-          background: rgba(37, 99, 235, 0.18);
+          background: rgba(234, 179, 8, 0.18);
+          color: #fbbf24;
+          border: 1px solid rgba(234, 179, 8, 0.35);
+        }
+        .status-badge.win {
+          background: rgba(34, 197, 94, 0.18);
+          color: #4ade80;
+          border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+        .status-badge.loss {
+          background: rgba(248, 113, 113, 0.18);
+          color: #f87171;
+          border: 1px solid rgba(248, 113, 113, 0.4);
         }
         .status-badge.void {
-          background: rgba(107, 114, 128, 0.18);
-          border-color: rgba(156, 163, 175, 0.35);
-          color: #e5e7eb;
+          background: rgba(148, 163, 184, 0.2);
+          color: rgba(148, 163, 184, 0.9);
+          border: 1px solid rgba(148, 163, 184, 0.35);
         }
-        .empty-state {
-          padding: 32px 24px;
-          text-align: center;
-          background: rgba(17, 31, 52, 0.75);
-          border: 1px dashed rgba(99, 102, 241, 0.35);
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 15px;
-          line-height: 1.6;
-          border-radius: 18px;
+        .secondary {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
         }
         .highlight-panel {
           position: sticky;
-          top: 24px;
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
+          top: 32px;
+        }
+        .subtle-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.8);
+          padding: 6px 12px;
+          border-radius: 999px;
+          background: rgba(30, 41, 59, 0.55);
+          border: 1px solid rgba(71, 85, 105, 0.4);
         }
         .overview-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           gap: 16px;
-          margin-top: 6px;
         }
         .overview-card {
-          padding: 16px;
-          border-radius: 14px;
-          background: rgba(18, 32, 54, 0.72);
-          border: 1px solid rgba(72, 103, 152, 0.35);
           display: flex;
           flex-direction: column;
           gap: 6px;
-          transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
-        }
-        .overview-card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(96, 165, 250, 0.5);
-          background: rgba(21, 38, 62, 0.8);
+          padding: 18px 20px;
+          border-radius: 16px;
+          background: rgba(15, 23, 42, 0.7);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
         .overview-card .label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: rgba(148, 163, 184, 0.75);
         }
         .overview-card .value {
           font-size: 24px;
           font-weight: 700;
+          letter-spacing: 0.015em;
         }
-        .hide {
-          display: none !important;
+        .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          border: 0;
         }
-        @media (max-width: 1100px) {
+        @media (max-width: 1024px) {
           .workspace {
-            grid-template-columns: 1fr;
-          }
-          .secondary {
-            flex-direction: row;
-            flex-wrap: wrap;
+            grid-template-columns: minmax(0, 1fr);
           }
           .highlight-panel {
             position: static;
           }
-          .row {
-            grid-template-columns: 110px 1.6fr 80px 80px 140px 1.2fr 240px;
+        }
+        @media (max-width: 820px) {
+          .container {
+            padding: 40px 20px 64px;
           }
+          header.top-bar {
+            grid-template-columns: minmax(0, 1fr);
+            justify-items: flex-start;
+            padding: 24px;
+          }
+          .right-actions {
+            justify-content: flex-start;
+          }
+          .tabs {
+            flex-direction: column;
+          }
+          .banner-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 768px) {
           .grid {
             grid-template-columns: repeat(6, minmax(0, 1fr));
           }
-          .col-1,
-          .col-2 {
-            grid-column: span 3;
-          }
-          .col-3,
-          .col-4,
-          .col-5 {
-            grid-column: span 3;
-          }
-          .col-6,
           .col-7,
           .col-8,
           .col-9,
@@ -1940,92 +2002,62 @@ export default function AppPage() {
           .col-12 {
             grid-column: span 6;
           }
-        }
-        @media (max-width: 900px) {
+          .row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+          }
           .row-head {
             display: none;
           }
-          .row {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            padding: 14px 18px;
-            border-bottom: 1px solid rgba(72, 103, 152, 0.25);
-          }
-          .row:not(.row-head) > div {
+          .row div {
             display: flex;
-            flex-direction: column;
-            gap: 4px;
+            justify-content: space-between;
+            width: 100%;
+            gap: 12px;
           }
-          .row:not(.row-head) > div::before {
+          .row div::before {
             content: attr(data-label);
-            font-size: 11px;
+            font-size: 12px;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: rgba(140, 163, 204, 0.9);
-            font-weight: 600;
+            letter-spacing: 0.06em;
+            color: rgba(148, 163, 184, 0.7);
           }
-          .actions {
+          .result-controls {
             justify-content: flex-start;
           }
         }
-        @media (max-width: 760px) {
-          .secondary {
-            flex-direction: column;
-          }
-        }
-        @media (max-width: 720px) {
-          .grid {
-            grid-template-columns: repeat(1, minmax(0, 1fr));
-          }
-          .col-1,
-          .col-2,
-          .col-3,
-          .col-4,
-          .col-6,
-          .col-12 {
-            grid-column: span 1;
-          }
-          .action-field {
-            align-self: auto;
-          }
-          .actions {
-            flex-direction: column;
-            align-items: stretch;
-          }
-          .tabs {
-            flex-direction: column;
-          }
-          .edit-indicator {
-            flex-direction: column;
-            align-items: stretch;
-          }
-        }
-        @media (max-width: 640px) {
-          header.top-bar {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          .right-actions {
-            justify-content: flex-start;
-            width: 100%;
-          }
-        }
-        @media (max-width: 480px) {
-          .right-actions {
-            gap: 10px;
-          }
-          .right-actions button {
-            width: 100%;
-          }
-          .badge {
-            width: 100%;
-            justify-content: center;
+        @media (max-width: 520px) {
+          .container {
+            padding: 32px 16px 52px;
           }
           .banner {
-            flex-direction: column;
-            align-items: flex-start;
+            padding: 20px;
+          }
+          .panel {
+            padding: 22px 20px;
+          }
+          .chart-body {
+            height: 220px;
+          }
+          .banner-metrics {
+            grid-template-columns: minmax(0, 1fr);
+            padding: 16px;
           }
         }
+        .col-1 { grid-column: span 1; }
+        .col-2 { grid-column: span 2; }
+        .col-3 { grid-column: span 3; }
+        .col-4 { grid-column: span 4; }
+        .col-5 { grid-column: span 5; }
+        .col-6 { grid-column: span 6; }
+        .col-7 { grid-column: span 7; }
+        .col-8 { grid-column: span 8; }
+        .col-9 { grid-column: span 9; }
+        .col-10 { grid-column: span 10; }
+        .col-11 { grid-column: span 11; }
+        .col-12 { grid-column: span 12; }
       `}</style>
+
     </div>
   );
 }
