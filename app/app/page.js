@@ -85,6 +85,7 @@ export default function AppPage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
+  const [openMonths, setOpenMonths] = useState(() => new Set());
   const [supabaseState] = useState(() => {
     try {
       return { client: getSupabaseBrowserClient(), error: null };
@@ -361,75 +362,50 @@ export default function AppPage() {
     };
   }, [filteredBets]);
 
-  const overviewStats = useMemo(() => {
-    const total = filteredBets.length;
-    const pending = filteredBets.filter((bet) => bet.result === 'Pending').length;
-    return {
-      total,
-      pending,
-      roi: summaryData.roi,
-      profit: summaryData.profit,
-      decided: summaryData.games,
-      wins: summaryData.wins,
-    };
-  }, [filteredBets, summaryData]);
-
-  const resultBreakdown = useMemo(() => {
-    const wins = filteredBets.filter((bet) => bet.result === 'Win');
-    const losses = filteredBets.filter((bet) => bet.result === 'Loss');
-    const voids = filteredBets.filter((bet) => bet.result === 'Void');
-    const pending = filteredBets.filter((bet) => bet.result === 'Pending');
-    const sumOdds = (list) =>
-      list.reduce((sum, bet) => {
-        const oddsNum = Number(bet.odds);
-        return Number.isFinite(oddsNum) ? sum + oddsNum : sum;
-      }, 0);
-    const pendingStake = pending.reduce((sum, bet) => {
+  const quickStats = useMemo(() => {
+    const total = bets.length;
+    const decided = bets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
+    const wins = decided.filter((bet) => bet.result === 'Win');
+    const stakeSum = decided.reduce((sum, bet) => {
       const stakeNum = Number(bet.stake);
       return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
     }, 0);
+    const profit = bets.reduce((sum, bet) => sum + computeProfit(bet), 0);
+    const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
+    const hitRate = decided.length > 0 ? (wins.length / decided.length) * 100 : 0;
     return {
-      wins: wins.length,
-      losses: losses.length,
-      voids: voids.length,
-      pending: pending.length,
-      pendingStake,
-      avgWinOdds: wins.length > 0 ? sumOdds(wins) / wins.length : 0,
-      avgLossOdds: losses.length > 0 ? sumOdds(losses) / losses.length : 0,
+      total,
+      profit,
+      roi,
+      hitRate,
+      decided: decided.length,
     };
-  }, [filteredBets]);
+  }, [bets]);
 
-  const freeUsageProgress = useMemo(() => {
-    if (!PAYWALL_ENABLED || freeInfo?.premium) return null;
-    const used = Math.min(20, freeInfo?.used ?? 0);
-    const total = 20;
-    const percent = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
-    const remaining = Math.max(0, freeInfo?.left ?? total - used);
-    return { used, total, percent, remaining };
-  }, [freeInfo]);
+  const ensureMonthOpen = useCallback((monthKey) => {
+    if (!monthKey) return;
+    setOpenMonths((prev) => {
+      if (prev.has(monthKey)) return prev;
+      const next = new Set(prev);
+      next.add(monthKey);
+      return next;
+    });
+  }, []);
 
-  const statusDetails = useMemo(() => {
-    if (PAYWALL_ENABLED && !freeInfo?.premium) {
-      return {
-        eyebrow: 'Gratisläge aktivt',
-        title: 'Utforska BetSpread kostnadsfritt',
-        body: `Du har använt ${freeUsageProgress?.used ?? freeInfo?.used ?? 0} av 20 spel. ${
-          freeUsageProgress?.remaining ?? Math.max(0, freeInfo?.left ?? 20)
-        } återstår.`,
-        hint: 'Uppgradera för obegränsade registreringar.',
-        usagePercent: freeUsageProgress?.percent ?? 0,
-        showUsage: true,
-      };
-    }
-    return {
-      eyebrow: 'Öppet läge',
-      title: 'BetSpread är kostnadsfritt',
-      body: 'Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.',
-      hint: 'Vi aktiverar betalning igen vid ett senare tillfälle.',
-      usagePercent: null,
-      showUsage: false,
-    };
-  }, [freeInfo, freeUsageProgress]);
+  useEffect(() => {
+    setOpenMonths((prev) => {
+      const next = new Set();
+      monthGroups.forEach(([key]) => {
+        if (prev.has(key)) {
+          next.add(key);
+        }
+      });
+      if (next.size === prev.size && [...next].every((key) => prev.has(key))) {
+        return prev;
+      }
+      return next;
+    });
+  }, [monthGroups]);
 
   const recentBets = useMemo(() => bets.slice(0, 6), [bets]);
 
@@ -678,12 +654,15 @@ export default function AppPage() {
     setForm(initialForm());
   };
 
-  const handleUpdateBetResult = async (betId, result) => {
+  const handleUpdateBetResult = async (bet, result) => {
     if (!supabase) {
       window.alert('Supabase är inte konfigurerat.');
       return;
     }
     if (!user?.id) return;
+    const betId = bet?.id;
+    if (!betId) return;
+    const monthKey = bet?.matchday ? bet.matchday.slice(0, 7) : null;
     try {
       const { error } = await supabase
         .from('bets')
@@ -691,6 +670,9 @@ export default function AppPage() {
         .eq('id', betId)
         .eq('user_id', user.id);
       if (error) throw error;
+      if (monthKey) {
+        ensureMonthOpen(monthKey);
+      }
       loadBets(currentProjectId);
     } catch (err) {
       console.error('Kunde inte uppdatera resultat', err);
@@ -794,6 +776,19 @@ export default function AppPage() {
   const lastChartPoint = chartHasData
     ? performanceChart.coords[performanceChart.coords.length - 1]
     : null;
+  const chartMaxValue = formatMoney(performanceChart.max ?? 0);
+  const chartMinValue = formatMoney(performanceChart.min ?? 0);
+  const chartZeroValue = formatMoney(0);
+  const projectInitials = useMemo(() => {
+    const name = currentProject?.name ?? '';
+    const trimmed = name.trim();
+    if (!trimmed) return 'BS';
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+  }, [currentProject]);
 
   if (supabaseError) {
     return (
@@ -849,61 +844,23 @@ export default function AppPage() {
         </div>
       </header>
 
-      <section className="status-strip" aria-live="polite">
-        <div className="status-callout">
-          <span className="status-glow" aria-hidden="true" />
-          <div className="status-copy">
-            <span className="eyebrow">{statusDetails.eyebrow}</span>
-            <h2 className="status-title">{statusDetails.title}</h2>
-            <p>{statusDetails.body}</p>
-            {statusDetails.showUsage ? (
-              <div className="usage-wrapper">
-                <div
-                  className="usage-bar"
-                  role="progressbar"
-                  aria-valuenow={statusDetails.usagePercent ?? 0}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <span style={{ width: `${statusDetails.usagePercent ?? 0}%` }} />
-                </div>
-                <span className="usage-label">{statusDetails.usagePercent ?? 0}% avklarat</span>
-              </div>
-            ) : null}
-            <span className="status-hint">{statusDetails.hint}</span>
-          </div>
-        </div>
-        <div className="status-metrics" role="list">
-          <div className="status-card" role="listitem">
-            <span className="label">Loggade spel</span>
-            <span className="value">{overviewStats.total}</span>
-          </div>
-          <div className="status-card" role="listitem">
-            <span className="label">Avgjorda</span>
-            <span className="value">{overviewStats.decided}</span>
-          </div>
-          <div className="status-card" role="listitem">
-            <span className="label">Träffsäkerhet</span>
-            <span className="value">{formatPercent(summaryData.hitRate)}</span>
-          </div>
-          <div className="status-card" role="listitem">
-            <span className="label">ROI</span>
-            <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
-              {formatPercent(overviewStats.roi)}
-            </span>
-          </div>
-        </div>
-      </section>
-
       <main className="workspace">
         <section className="primary">
           <div className="panel project-panel">
-            <div className="section-header">
-              <div>
-                <h2>Projekt</h2>
-                <p className="hint">{currentProject?.name || 'Inget projekt valt'}</p>
+            <div className="project-shell">
+              <div className="project-identity">
+                <span className="project-symbol" aria-hidden="true">
+                  {projectInitials}
+                </span>
+                <div>
+                  <h2>Projekt</h2>
+                  <p className="hint">{currentProject?.name || 'Inget projekt valt'}</p>
+                </div>
               </div>
-              <div className="project-meta">Projekt totalt: <strong>{projects.length}</strong></div>
+              <div className="project-meta-chip">
+                <span>Projekt totalt</span>
+                <strong>{projects.length}</strong>
+              </div>
             </div>
             <div className="project-controls">
               <label htmlFor="projectSelect">Välj projekt</label>
@@ -1194,30 +1151,37 @@ export default function AppPage() {
               </div>
               <div className="chart-body">
                 {chartHasData ? (
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Linje som visar projektets utveckling">
-                    <defs>
-                      <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(56, 189, 248, 0.4)" />
-                        <stop offset="100%" stopColor="rgba(56, 189, 248, 0)" />
-                      </linearGradient>
-                      <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#38bdf8" />
-                        <stop offset="100%" stopColor="#a855f7" />
-                      </linearGradient>
-                    </defs>
-                    <polygon points={performanceChart.areaPoints} fill="url(#trendFill)" />
-                    <polyline
-                      points={performanceChart.linePoints}
-                      fill="none"
-                      stroke="url(#trendStroke)"
-                      strokeWidth="1.8"
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                    />
-                    {lastChartPoint ? (
-                      <circle cx={lastChartPoint.x} cy={lastChartPoint.y} r="2.4" fill="#38bdf8" />
-                    ) : null}
-                  </svg>
+                  <div className="chart-visual">
+                    <div className="y-scale" aria-hidden="true">
+                      <span>{chartMaxValue}</span>
+                      <span>{chartZeroValue}</span>
+                      <span>{chartMinValue}</span>
+                    </div>
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Linje som visar projektets utveckling">
+                      <defs>
+                        <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="rgba(56, 189, 248, 0.4)" />
+                          <stop offset="100%" stopColor="rgba(56, 189, 248, 0)" />
+                        </linearGradient>
+                        <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#38bdf8" />
+                          <stop offset="100%" stopColor="#a855f7" />
+                        </linearGradient>
+                      </defs>
+                      <polygon points={performanceChart.areaPoints} fill="url(#trendFill)" />
+                      <polyline
+                        points={performanceChart.linePoints}
+                        fill="none"
+                        stroke="url(#trendStroke)"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                      />
+                      {lastChartPoint ? (
+                        <circle cx={lastChartPoint.x} cy={lastChartPoint.y} r="2.4" fill="#38bdf8" />
+                      ) : null}
+                    </svg>
+                  </div>
                 ) : (
                   <div className="chart-empty">Ingen avgjord historik för perioden ännu.</div>
                 )}
@@ -1226,6 +1190,20 @@ export default function AppPage() {
                 <span>{chartStartLabel}</span>
                 <span>{summaryMonthName}</span>
                 <span>{chartEndLabel}</span>
+              </div>
+              <div className="axis-meta">
+                <div>
+                  <span className="axis-label">Y-axel</span>
+                  <span className="axis-value">max {chartMaxValue}</span>
+                  <span className="axis-value">{chartZeroValue}</span>
+                  <span className="axis-value">min {chartMinValue}</span>
+                </div>
+                <div>
+                  <span className="axis-label">X-axel</span>
+                  <span className="axis-value">start {chartStartLabel}</span>
+                  <span className="axis-value">mitt {summaryMonthName}</span>
+                  <span className="axis-value">slut {chartEndLabel}</span>
+                </div>
               </div>
             </div>
           </section>
@@ -1253,7 +1231,23 @@ export default function AppPage() {
             ) : (
               <div id="playsContainer">
                 {monthGroups.map(([key, list]) => (
-                  <details key={key} className="month">
+                  <details
+                    key={key}
+                    className="month"
+                    open={openMonths.has(key)}
+                    onToggle={(event) => {
+                      const isOpen = event.currentTarget.open;
+                      setOpenMonths((prev) => {
+                        const next = new Set(prev);
+                        if (isOpen) {
+                          next.add(key);
+                        } else {
+                          next.delete(key);
+                        }
+                        return next;
+                      });
+                    }}
+                  >
                     <summary>
                       {formatMonth(key)}
                       <span className="month-count">{list.length} spel</span>
@@ -1288,7 +1282,7 @@ export default function AppPage() {
                             <select
                               className="result-select"
                               value={bet.result}
-                              onChange={(e) => handleUpdateBetResult(bet.id, e.target.value)}
+                              onChange={(e) => handleUpdateBetResult(bet, e.target.value)}
                               aria-label="Uppdatera resultat"
                             >
                               <option value="Pending">Pending</option>
@@ -1322,92 +1316,30 @@ export default function AppPage() {
             <div className="section-header compact">
               <div>
                 <h2>Snabböversikt</h2>
-                <span className="subtle-tag">Visar: {summaryMonthName}</span>
+                <span className="subtle-tag">Summering: Alla månader</span>
               </div>
             </div>
-            <div className="overview-grid">
-              <div className="overview-card">
-                <span className="label">Spel totalt</span>
-                <span className="value">{overviewStats.total}</span>
+            <div className="overview-mini">
+              <div className="mini-card emphasis">
+                <span className="label">Totala spel</span>
+                <span className="value">{quickStats.total}</span>
               </div>
-              <div className="overview-card">
-                <span className="label">Pågående</span>
-                <span className="value">{overviewStats.pending}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Avgjorda</span>
-                <span className="value">{overviewStats.decided}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Vinster</span>
-                <span className="value">{overviewStats.wins}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">ROI</span>
-                <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
-                  {formatPercent(overviewStats.roi)}
-                </span>
-              </div>
-              <div className="overview-card">
+              <div className="mini-card">
                 <span className="label">Nettoresultat</span>
-                <span className={`value ${overviewStats.profit >= 0 ? 'positive' : 'negative'}`}>
-                  {formatMoney(overviewStats.profit)}
+                <span className={`value ${quickStats.profit >= 0 ? 'positive' : 'negative'}`}>
+                  {formatMoney(quickStats.profit)}
                 </span>
               </div>
-            </div>
-            <div className="insight-grid">
-              <div className="insight-card accent">
-                <span className="label">Träffsäkerhet</span>
-                <div className="value-row">
-                  <span className="value">{formatPercent(summaryData.hitRate)}</span>
-                  <span className="value-sub">{overviewStats.decided} avgjorda</span>
-                </div>
-                <div className="mini-bar" role="presentation">
-                  <span style={{ width: `${Math.max(0, Math.min(100, summaryData.hitRate))}%` }} />
-                </div>
-              </div>
-              <div className="insight-card">
-                <span className="label">Snittodds</span>
-                <span className="value">{formatNumber(summaryData.averageOdds, 2)}</span>
-                <span className="value-sub">Snittinsats {formatStake(summaryData.averageStake)}</span>
-              </div>
-              <div className="insight-card">
-                <span className="label">Profit per spel</span>
-                <span className={`value ${summaryData.profitPerBet >= 0 ? 'positive' : 'negative'}`}>
-                  {formatMoney(summaryData.profitPerBet)}
-                </span>
-                <span className="value-sub">Totalt {formatMoney(summaryData.profit)}</span>
-              </div>
-            </div>
-            <div className="distribution-row">
-              <span className="label">Resultatfördelning</span>
-              <div className="distribution-pills" role="list">
-                <span className="pill win" role="listitem">
-                  Vinster <strong>{resultBreakdown.wins}</strong>
-                </span>
-                <span className="pill loss" role="listitem">
-                  Förluster <strong>{resultBreakdown.losses}</strong>
-                </span>
-                <span className="pill void" role="listitem">
-                  Void <strong>{resultBreakdown.voids}</strong>
-                </span>
-                <span className="pill pending" role="listitem">
-                  Pending <strong>{resultBreakdown.pending}</strong>
+              <div className="mini-card">
+                <span className="label">ROI</span>
+                <span className={`value ${quickStats.roi >= 0 ? 'positive' : 'negative'}`}>
+                  {formatPercent(quickStats.roi)}
                 </span>
               </div>
-              <div className="distribution-note">
-                <div className="note-block">
-                  <span>Utestående insats</span>
-                  <strong>{formatMoney(resultBreakdown.pendingStake)}</strong>
-                </div>
-                <div className="note-block">
-                  <span>Snittodds vinster</span>
-                  <strong>{formatNumber(resultBreakdown.avgWinOdds, 2)}</strong>
-                </div>
-                <div className="note-block">
-                  <span>Snittodds förluster</span>
-                  <strong>{formatNumber(resultBreakdown.avgLossOdds, 2)}</strong>
-                </div>
+              <div className="mini-card">
+                <span className="label">Hitrate</span>
+                <span className="value">{formatPercent(quickStats.hitRate)}</span>
+                <span className="value-sub">{quickStats.decided} avgjorda spel</span>
               </div>
             </div>
           </section>
@@ -1563,101 +1495,6 @@ export default function AppPage() {
           background: rgba(239, 68, 68, 0.18);
           border-color: rgba(239, 68, 68, 0.55);
         }
-        .status-strip {
-          display: grid;
-          grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-          gap: 24px;
-          align-items: center;
-          padding: 0 8px;
-        }
-        .status-callout {
-          display: grid;
-          grid-template-columns: auto minmax(0, 1fr);
-          gap: 16px;
-          align-items: center;
-        }
-        .status-glow {
-          width: 52px;
-          height: 52px;
-          border-radius: 50%;
-          background: radial-gradient(circle at 32% 32%, rgba(56, 189, 248, 0.85), rgba(56, 189, 248, 0));
-          box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.32), 0 0 40px -12px rgba(56, 189, 248, 0.8);
-        }
-        .status-copy {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .status-title {
-          margin: 0;
-          font-size: 20px;
-          letter-spacing: 0.01em;
-        }
-        .status-copy p {
-          margin: 0;
-          color: rgba(226, 232, 240, 0.78);
-        }
-        .eyebrow {
-          font-size: 11px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: rgba(148, 163, 184, 0.72);
-        }
-        .usage-wrapper {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          margin-top: 4px;
-        }
-        .usage-bar {
-          position: relative;
-          width: 100%;
-          height: 6px;
-          border-radius: 999px;
-          background: rgba(15, 23, 42, 0.65);
-          overflow: hidden;
-        }
-        .usage-bar span {
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          background: linear-gradient(135deg, rgba(56, 189, 248, 0.85), rgba(168, 85, 247, 0.85));
-          box-shadow: 0 12px 20px -18px rgba(56, 189, 248, 0.8);
-        }
-        .usage-label {
-          font-size: 12px;
-          color: rgba(148, 163, 184, 0.75);
-        }
-        .status-hint {
-          font-size: 13px;
-          color: rgba(148, 163, 184, 0.85);
-        }
-        .status-metrics {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 12px;
-        }
-        .status-card {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          padding: 16px 18px;
-          border-radius: 18px;
-          background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(56, 189, 248, 0.2));
-          border: 1px solid rgba(59, 130, 246, 0.28);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 18px 40px -30px rgba(56, 189, 248, 0.6);
-        }
-        .status-card .label {
-          font-size: 11px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(148, 163, 184, 0.75);
-        }
-        .status-card .value {
-          font-size: 22px;
-          font-weight: 700;
-          letter-spacing: 0.02em;
-        }
         .hint {
           color: rgba(148, 163, 184, 0.9);
           font-size: 14px;
@@ -1687,15 +1524,80 @@ export default function AppPage() {
         .project-panel {
           position: relative;
           overflow: hidden;
+          padding: 26px 28px;
+          background: rgba(8, 16, 32, 0.9);
+          border: 1px solid rgba(59, 130, 246, 0.18);
+        }
+        .project-panel::before {
+          content: '';
+          position: absolute;
+          inset: 18px;
+          border-radius: 20px;
+          border: 1px dashed rgba(148, 163, 184, 0.18);
+          pointer-events: none;
         }
         .project-panel::after {
           content: '';
           position: absolute;
-          inset: -120px -140px auto auto;
-          width: 280px;
-          height: 280px;
-          background: radial-gradient(circle, rgba(96, 165, 250, 0.18), transparent 65%);
+          inset: -140px -160px auto auto;
+          width: 320px;
+          height: 320px;
+          background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.25), transparent 70%);
+          opacity: 0.55;
           pointer-events: none;
+        }
+        .project-panel > * {
+          position: relative;
+          z-index: 1;
+        }
+        .project-shell {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 22px;
+        }
+        .project-identity {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .project-symbol {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 52px;
+          height: 52px;
+          border-radius: 18px;
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(56, 189, 248, 0));
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          color: rgba(226, 232, 240, 0.92);
+          text-transform: uppercase;
+        }
+        .project-identity h2 {
+          margin: 0;
+          font-size: 22px;
+          letter-spacing: 0.015em;
+        }
+        .project-meta-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 16px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          font-size: 12px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(148, 163, 184, 0.85);
+        }
+        .project-meta-chip strong {
+          font-size: 15px;
+          color: #f8fafc;
+          letter-spacing: 0.08em;
         }
         .section-header {
           display: flex;
@@ -1711,12 +1613,6 @@ export default function AppPage() {
         }
         .section-header.compact {
           margin-bottom: 20px;
-        }
-        .project-meta {
-          font-size: 14px;
-          color: rgba(148, 163, 184, 0.88);
-          font-weight: 600;
-          letter-spacing: 0.01em;
         }
         .project-controls {
           display: flex;
@@ -1940,22 +1836,10 @@ export default function AppPage() {
         }
         .chart-body {
           width: 100%;
-          height: 280px;
-          border-radius: 16px;
-          background: radial-gradient(circle at top, rgba(56, 189, 248, 0.08), rgba(15, 23, 42, 0.94));
-          border: 1px solid rgba(56, 189, 248, 0.15);
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 16px;
-        }
-        .chart-body svg {
-          width: 100%;
-          height: 100%;
-        }
-        .chart-empty {
-          color: rgba(148, 163, 184, 0.75);
-          font-size: 15px;
+          padding: 12px 0;
         }
         .chart-footer {
           display: flex;
@@ -2106,132 +1990,89 @@ export default function AppPage() {
           background: rgba(30, 41, 59, 0.55);
           border: 1px solid rgba(71, 85, 105, 0.4);
         }
-        .overview-grid {
+        .overview-mini {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           gap: 16px;
         }
-        .overview-card {
+        .mini-card {
           display: flex;
           flex-direction: column;
           gap: 6px;
           padding: 18px 20px;
           border-radius: 16px;
-          background: rgba(15, 23, 42, 0.7);
-          border: 1px solid rgba(71, 85, 105, 0.45);
+          background: rgba(15, 23, 42, 0.68);
+          border: 1px solid rgba(71, 85, 105, 0.42);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
-        .overview-card .label {
+        .mini-card.emphasis {
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(56, 189, 248, 0));
+          border-color: rgba(56, 189, 248, 0.32);
+        }
+        .mini-card .label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(148, 163, 184, 0.75);
+          color: rgba(148, 163, 184, 0.78);
         }
-        .overview-card .value {
+        .mini-card .value {
           font-size: 24px;
           font-weight: 700;
           letter-spacing: 0.015em;
-        }
-        .insight-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 14px;
-          margin-top: 24px;
-        }
-        .insight-card {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          padding: 16px 18px;
-          border-radius: 16px;
-          background: rgba(8, 16, 32, 0.7);
-          border: 1px solid rgba(71, 85, 105, 0.45);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        }
-        .insight-card.accent {
-          background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(168, 85, 247, 0.18));
-          border-color: rgba(168, 85, 247, 0.35);
-        }
-        .insight-card .value {
-          font-size: 22px;
-          font-weight: 700;
-          letter-spacing: 0.015em;
-        }
-        .value-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          gap: 12px;
         }
         .value-sub {
           font-size: 13px;
           color: rgba(148, 163, 184, 0.75);
         }
-        .mini-bar {
-          position: relative;
+        .chart-body {
           width: 100%;
-          height: 6px;
-          border-radius: 999px;
-          background: rgba(15, 23, 42, 0.6);
-          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px 0;
+          min-height: 240px;
         }
-        .mini-bar span {
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          background: linear-gradient(135deg, rgba(56, 189, 248, 0.85), rgba(125, 211, 252, 0.9));
-          box-shadow: 0 8px 18px -16px rgba(56, 189, 248, 0.7);
+        .chart-visual {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 16px;
+          width: 100%;
+          align-items: stretch;
         }
-        .distribution-row {
-          margin-top: 24px;
+        .chart-visual svg {
+          width: 100%;
+          height: 220px;
+          border-radius: 16px;
+          background: radial-gradient(circle at top, rgba(56, 189, 248, 0.08), rgba(15, 23, 42, 0.94));
+          border: 1px solid rgba(56, 189, 248, 0.18);
+        }
+        .y-scale {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          justify-content: space-between;
+          align-items: flex-end;
+          font-size: 12px;
+          color: rgba(148, 163, 184, 0.75);
+          padding: 8px 0;
         }
-        .distribution-pills {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-        .distribution-pills .pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 14px;
-          border-radius: 999px;
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.02em;
+        .chart-empty {
+          width: 100%;
+          padding: 32px 18px;
+          text-align: center;
+          border-radius: 16px;
+          background: rgba(8, 16, 32, 0.72);
           border: 1px solid rgba(71, 85, 105, 0.45);
-          background: rgba(15, 23, 42, 0.65);
-        }
-        .distribution-pills .pill strong {
-          font-weight: 700;
-        }
-        .distribution-pills .win {
-          border-color: rgba(34, 197, 94, 0.4);
-          color: #4ade80;
-        }
-        .distribution-pills .loss {
-          border-color: rgba(248, 113, 113, 0.45);
-          color: #f87171;
-        }
-        .distribution-pills .void {
-          border-color: rgba(148, 163, 184, 0.35);
-          color: rgba(148, 163, 184, 0.85);
-        }
-        .distribution-pills .pending {
-          border-color: rgba(234, 179, 8, 0.45);
-          color: #fbbf24;
-        }
-        .distribution-note {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 12px;
-          font-size: 13px;
           color: rgba(148, 163, 184, 0.78);
         }
-        .distribution-note .note-block {
+        .axis-meta {
+          margin-top: 16px;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px;
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.8);
+        }
+        .axis-meta div {
           display: flex;
           flex-direction: column;
           gap: 4px;
@@ -2240,15 +2081,15 @@ export default function AppPage() {
           background: rgba(15, 23, 42, 0.55);
           border: 1px solid rgba(71, 85, 105, 0.4);
         }
-        .distribution-note .note-block span {
+        .axis-label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: rgba(148, 163, 184, 0.7);
         }
-        .distribution-note .note-block strong {
-          font-size: 18px;
-          color: #f8fafc;
+        .axis-value {
+          font-size: 13px;
+          color: rgba(226, 232, 240, 0.85);
         }
         .recent-panel {
           display: flex;
@@ -2381,17 +2222,6 @@ export default function AppPage() {
           .tabs {
             flex-direction: column;
           }
-          .status-strip {
-            grid-template-columns: minmax(0, 1fr);
-            gap: 18px;
-            padding: 0;
-          }
-          .status-callout {
-            grid-template-columns: minmax(0, 1fr);
-          }
-          .status-metrics {
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          }
         }
         @media (max-width: 768px) {
           .grid {
@@ -2437,28 +2267,7 @@ export default function AppPage() {
             padding: 22px 20px;
           }
           .chart-body {
-            height: 220px;
-          }
-          .status-strip {
-            padding: 0;
-            gap: 16px;
-          }
-          .status-callout {
-            grid-template-columns: minmax(0, 1fr);
-            gap: 10px;
-          }
-          .status-glow {
-            width: 44px;
-            height: 44px;
-          }
-          .status-metrics {
-            grid-template-columns: minmax(0, 1fr);
-          }
-          .insight-grid {
-            grid-template-columns: minmax(0, 1fr);
-          }
-          .distribution-note {
-            grid-template-columns: minmax(0, 1fr);
+            min-height: 220px;
           }
           .recent-list li {
             grid-template-columns: minmax(0, 1fr);
