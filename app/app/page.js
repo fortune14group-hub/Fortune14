@@ -32,11 +32,16 @@ const formatDay = (isoDate) => {
   return dayFormatter.format(safeDate);
 };
 
-const formatMoney = (value) => {
+const formatUnits = (value, decimals = 2) => {
   const num = Number(value);
-  if (!Number.isFinite(num)) return '0.00';
-  return (Math.round(num * 100) / 100).toFixed(2);
+  if (!Number.isFinite(num)) return '–';
+  const factor = 10 ** decimals;
+  const rounded = Math.round(num * factor) / factor;
+  const text = rounded.toFixed(decimals);
+  return `${text}U`;
 };
+
+const formatMoney = (value) => formatUnits(value);
 
 const formatPercent = (value) => {
   const num = Number(value);
@@ -85,6 +90,7 @@ export default function AppPage() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
+  const [projectOpen, setProjectOpen] = useState(false);
   const [supabaseState] = useState(() => {
     try {
       return { client: getSupabaseBrowserClient(), error: null };
@@ -306,6 +312,19 @@ export default function AppPage() {
     [projects, currentProjectId]
   );
 
+  const projectBadge = useMemo(() => {
+    if (!currentProject?.name) return '---';
+    const compact = currentProject.name.replace(/\s+/g, '');
+    if (!compact) return '---';
+    return compact.slice(0, 4).toUpperCase();
+  }, [currentProject]);
+
+  useEffect(() => {
+    if (!loadingProjects && (projects.length === 0 || !currentProjectId)) {
+      setProjectOpen(true);
+    }
+  }, [currentProjectId, loadingProjects, projects]);
+
   const monthGroups = useMemo(() => {
     const groups = new Map();
     for (const bet of bets) {
@@ -350,7 +369,28 @@ export default function AppPage() {
 
   const overviewStats = useMemo(() => {
     const total = filteredBets.length;
-    const pending = filteredBets.filter((bet) => bet.result === 'Pending').length;
+    let pending = 0;
+    let stakeTotal = 0;
+    let oddsSum = 0;
+    let oddsCount = 0;
+
+    for (const bet of filteredBets) {
+      if (bet.result === 'Pending') {
+        pending += 1;
+      }
+      const stakeNum = Number(bet.stake);
+      if (Number.isFinite(stakeNum)) {
+        stakeTotal += stakeNum;
+      }
+      const oddsNum = Number(bet.odds);
+      if (Number.isFinite(oddsNum) && oddsNum > 0) {
+        oddsSum += oddsNum;
+        oddsCount += 1;
+      }
+    }
+
+    const averageOdds = oddsCount > 0 ? oddsSum / oddsCount : 0;
+
     return {
       total,
       pending,
@@ -358,6 +398,8 @@ export default function AppPage() {
       profit: summaryData.profit,
       decided: summaryData.games,
       wins: summaryData.wins,
+      totalStake: stakeTotal,
+      averageOdds,
     };
   }, [filteredBets, summaryData]);
 
@@ -700,10 +742,10 @@ export default function AppPage() {
     return Number.isFinite(num) ? num.toFixed(decimals) : '–';
   };
 
-  const formatStake = (value) => {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return '–';
-    return Number.isInteger(num) ? num.toString() : num.toFixed(2);
+  const formatStake = (value, decimals = 2) => {
+    const formatted = formatUnits(value, decimals);
+    if (formatted === '–') return formatted;
+    return formatted.replace(/\.0+U$/, 'U').replace(/\.(\d*[1-9])0+U$/, '.$1U');
   };
 
   const summaryMonthName = monthFilter === 'all' ? 'Alla månader' : formatMonth(monthFilter);
@@ -804,50 +846,65 @@ export default function AppPage() {
 
       <main className="workspace">
         <section className="primary">
-          <div className="panel project-panel">
-            <div className="section-header">
-              <div>
-                <h2>Projekt</h2>
-                <p className="hint">{currentProject?.name || 'Inget projekt valt'}</p>
+          <div className={`panel project-panel ${projectOpen ? 'open' : ''}`}>
+            <button
+              type="button"
+              className="project-toggle"
+              onClick={() => setProjectOpen((prev) => !prev)}
+              aria-expanded={projectOpen}
+            >
+              <div className="project-avatar">
+                <span>{projectBadge}</span>
               </div>
-              <div className="project-meta">Projekt totalt: <strong>{projects.length}</strong></div>
-            </div>
-            <div className="project-controls">
-              <label htmlFor="projectSelect">Välj projekt</label>
-              <div className="control-row">
-                <select
-                  id="projectSelect"
-                  value={currentProjectId}
-                  onChange={(e) => setCurrentProjectId(e.target.value)}
-                  disabled={loadingProjects}
-                >
-                  {projects.length === 0 ? (
-                    <option value="">Inga projekt</option>
-                  ) : null}
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="button-cluster">
-                  <button type="button" onClick={handleNewProject}>
-                    Nytt projekt
-                  </button>
-                  <button type="button" onClick={handleRenameProject} disabled={!currentProject}>
-                    Byt namn
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-red"
-                    onClick={handleDeleteProject}
-                    disabled={!currentProject}
-                  >
-                    Radera
-                  </button>
+              <div className="project-summary">
+                <h2>Projekt</h2>
+                <span className="project-name">{currentProject?.name || 'Inget projekt valt'}</span>
+                <span className="project-count">
+                  Projekt totalt: <strong>{projects.length}</strong>
+                </span>
+              </div>
+              <span className={`chevron ${projectOpen ? 'open' : ''}`} aria-hidden="true" />
+            </button>
+            {projectOpen ? (
+              <div className="project-dropdown">
+                <div className="project-controls">
+                  <label htmlFor="projectSelect">Välj projekt</label>
+                  <div className="control-row">
+                    <select
+                      id="projectSelect"
+                      value={currentProjectId}
+                      onChange={(e) => setCurrentProjectId(e.target.value)}
+                      disabled={loadingProjects}
+                    >
+                      {projects.length === 0 ? (
+                        <option value="">Inga projekt</option>
+                      ) : null}
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="button-cluster">
+                      <button type="button" onClick={handleNewProject}>
+                        Nytt projekt
+                      </button>
+                      <button type="button" onClick={handleRenameProject} disabled={!currentProject}>
+                        Byt namn
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-red"
+                        onClick={handleDeleteProject}
+                        disabled={!currentProject}
+                      >
+                        Radera
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
           </div>
 
           <nav className="tabs" role="tablist">
@@ -1226,6 +1283,14 @@ export default function AppPage() {
                 <span className="value">{overviewStats.wins}</span>
               </div>
               <div className="overview-card">
+                <span className="label">Snittodds</span>
+                <span className="value">{formatNumber(overviewStats.averageOdds, 2)}</span>
+              </div>
+              <div className="overview-card">
+                <span className="label">Totala insatser</span>
+                <span className="value">{formatStake(overviewStats.totalStake)}</span>
+              </div>
+              <div className="overview-card">
                 <span className="label">ROI</span>
                 <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
                   {formatPercent(overviewStats.roi)}
@@ -1423,13 +1488,102 @@ export default function AppPage() {
           padding: 4px 10px;
         }
         .project-panel {
-          padding: 18px 20px;
+          padding: 0;
           display: flex;
           flex-direction: column;
-          gap: 18px;
+          overflow: hidden;
         }
-        .project-panel .section-header {
-          margin-bottom: 12px;
+        .project-toggle {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          width: 100%;
+          padding: 18px 20px;
+          background: transparent;
+          border: none;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: background 0.2s ease, border 0.2s ease;
+        }
+        .project-toggle:hover {
+          background: rgba(17, 31, 52, 0.85);
+        }
+        .project-panel.open .project-toggle {
+          background: rgba(17, 31, 52, 0.92);
+        }
+        .project-avatar {
+          width: 44px;
+          height: 44px;
+          border-radius: 14px;
+          background: rgba(33, 56, 94, 0.85);
+          border: 1px solid rgba(96, 165, 250, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 16px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #cfe0ff;
+        }
+        .project-summary {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .project-summary h2 {
+          font-size: 16px;
+          font-weight: 700;
+          margin: 0;
+        }
+        .project-name {
+          color: rgba(206, 221, 255, 0.95);
+          font-size: 14px;
+        }
+        .project-count {
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(140, 163, 204, 0.85);
+        }
+        .project-count strong {
+          color: #f1f5ff;
+        }
+        .chevron {
+          width: 36px;
+          height: 36px;
+          border-radius: 12px;
+          border: 1px solid rgba(72, 95, 142, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
+        }
+        .chevron::before {
+          content: '';
+          width: 8px;
+          height: 8px;
+          border-right: 2px solid rgba(148, 179, 232, 0.9);
+          border-bottom: 2px solid rgba(148, 179, 232, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.2s ease;
+        }
+        .project-panel.open .chevron {
+          background: rgba(24, 41, 66, 0.95);
+          border-color: rgba(96, 165, 250, 0.45);
+        }
+        .project-panel.open .chevron::before {
+          transform: rotate(-135deg);
+        }
+        .project-dropdown {
+          border-top: 1px solid rgba(72, 103, 152, 0.32);
+          padding: 18px 20px 22px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          background: rgba(13, 24, 41, 0.9);
         }
         .hint {
           color: rgba(140, 163, 204, 0.9);
@@ -1445,17 +1599,6 @@ export default function AppPage() {
           justify-content: space-between;
           gap: 20px;
           margin-bottom: 20px;
-        }
-        .project-meta {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 13px;
-        }
-        .project-meta strong {
-          color: #f1f5ff;
-          font-size: 16px;
         }
         .project-controls {
           display: flex;
