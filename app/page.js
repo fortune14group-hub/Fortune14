@@ -9,35 +9,59 @@ const navLinks = [
 ];
 
 const heroHighlights = [
-  'Automatisk ROI- och hitrate-analys i realtid',
-  'Smart filtrering per projekt, liga och spelform',
-  'Delningsbara dashboards för team och kunder',
+  'Registrera spel med match, marknad, odds, insats och egna noteringar.',
+  'Få ROI, nettoresultat, hitrate och snittodds uträknade automatiskt per projekt.',
+  'Uppdatera resultat med snabbval eller dropdowns utan att lämna listan.',
 ];
 
 const statHighlights = [
-  { value: '120k+', label: 'Spårade spel', caption: 'Samlad historik från aktiva BetSpread-användare.' },
-  { value: '18,4%', label: 'Genomsnittlig ROI', caption: 'När användare följer sina strategier konsekvent.' },
-  { value: '12', label: 'Integrerade marknader', caption: 'Odds, sporter och bolag i samma kontrollpanel.' },
+  {
+    value: '3',
+    label: 'Arbetslägen',
+    caption: 'Registrering, månadssummering och spelöversikt i samma vy.',
+  },
+  {
+    value: '4+',
+    label: 'Nyckeltal',
+    caption: 'Nettoresultat, ROI, hitrate och snittodds beräknas åt dig.',
+  },
+  {
+    value: 'Sekunder',
+    label: 'Statusuppdatering',
+    caption: 'Välj Win, Loss, Pending eller Void direkt från snabbmenyn.',
+  },
 ];
 
 const featureCards = [
   {
-    title: 'Moderna dashboards',
+    title: 'Projektbaserad struktur',
     description:
-      'Koppla samman dina spel, se dagsfärska trender och få rekommendationer baserat på din historik.',
-    bullets: ['Interaktiva grafer och tabeller', 'Scenarier med olika insatsnivåer', 'Sparade vyer för varje projekt'],
+      'Organisera dina spel i separata projekt och håll olika strategier åtskilda utan extra kalkylblad.',
+    bullets: [
+      'Skapa, byt namn på och radera projekt direkt i appen',
+      'Visa aktuell portfölj och antal projekt i kontrollpanelen',
+      'Växla fokus med ett klick när du arbetar live',
+    ],
   },
   {
-    title: 'Proffsigt lagrad data',
+    title: 'Effektiv registrering',
     description:
-      'Allt sparas i en säker molndatabas med exportmöjligheter till CSV och Google Sheets.',
-    bullets: ['GDPR-säker lagring i EU', 'Automatiska säkerhetskopior', 'API-stöd för egna integrationer'],
+      'Formuläret täcker match, marknad, odds, insats, spelbolag och egna anteckningar – allt som appen använder i sina beräkningar.',
+    bullets: [
+      'Resultat-knappar för Win, Loss, Pending och Void',
+      'Redigera eller ta bort spel utan att lämna listan',
+      'Tydliga aviseringar om användningsgränser när betalplaner är aktiverade',
+    ],
   },
   {
-    title: 'Resultat i fokus',
+    title: 'Inbyggd analys',
     description:
-      'Identifiera dina mest lönsamma speltyper, boka vinster snabbare och få påminnelser om pending-matcher.',
-    bullets: ['Alert-system via mejl', 'Hitrate, profit per spel & volym', 'Färgkodade statusar och etiketter'],
+      'Månadssummeringen räknar ut dina nyckeltal och visar ett ackumulerat nettoresultat med tydliga axlar.',
+    bullets: [
+      'Automatiska värden för ROI, hitrate, snittodds och snittinsats',
+      'Graf med markerade min-, max- och nollnivåer',
+      'Panel för senaste spel med snabba statusuppdateringar',
+    ],
   },
 ];
 
@@ -45,35 +69,35 @@ const workflowSteps = [
   {
     title: 'Skapa ditt projekt',
     description:
-      'Bestäm spelstrategi, valuta och mål – BetSpread anpassar layouten efter din plan.',
-    caption: 'Bygg flera projekt parallellt och växla mellan dem på sekunder.',
+      'Starta ett projekt för varje strategi och låt appen hålla ordning på dina portföljer.',
+    caption: 'All data sparas i ditt Supabase-konto när miljövariablerna är satta.',
   },
   {
     title: 'Registrera spelen',
     description:
-      'Fyll i odds, insats och marknad eller importera från Excel. Vi räknar ut avkastningen åt dig.',
-    caption: 'Snabbkommandon och autofyll sparar tid vid livebetting.',
+      'Fyll i match, marknad, odds, insats, spelbolag och anteckningar – allt sparas direkt i databasen.',
+    caption: 'Snabbknappar gör det enkelt att sätta korrekt resultatstatus.',
   },
   {
-    title: 'Analysera & dela',
+    title: 'Följ upp & analysera',
     description:
-      'Fördjupa dig i grafer, skapa dashboards och exportera rapporter till kunder eller följare.',
-    caption: 'Delningslänkar kan lösenordsskyddas och tidsbegränsas.',
+      'Använd månadssummeringen, grafen och senaste spel-panelen för att fatta beslut.',
+    caption: 'Behåll överblicken även när du växlar mellan olika månader.',
   },
 ];
 
 const testimonials = [
   {
     quote:
-      '"BetSpread gör mitt dagliga arbete så mycket smidigare. Jag ser direkt vilka marknader som levererar bäst."',
-    name: 'Elin Andersson',
-    role: 'Sportanalytiker, OddsLab',
+      'Jag loggar varje fotbollsspel med odds, insats och spelbolag och ser omedelbart hur ROI och hitrate förändras.',
+    name: 'Scenario: Solo-analytiker',
+    role: 'En person som vill ha koll på sitt eget track record.',
   },
   {
     quote:
-      '"Efter att vi började logga allt i BetSpread ökade transparensen i teamet och ROI:n steg markant."',
-    name: 'Marcus Lind',
-    role: 'Grundare, EdgeCollective',
+      'Teamet växlar mellan olika projekt under livesändningar och uppdaterar resultaten utan att lämna listvyn.',
+    name: 'Scenario: Litet bettingteam',
+    role: 'Flera användare som delar ett Supabase-konto.',
   },
 ];
 
@@ -81,17 +105,17 @@ const faqs = [
   {
     question: 'Är BetSpread gratis att använda?',
     answer:
-      'Ja, basversionen är helt kostnadsfri. Vi arbetar på premiumfunktioner för team och större datavolymer, men standardkontot är gratis.',
+      'I dagsläget är hela appen öppen utan kostnad. När vi aktiverar betalplaner kommer gratisläget fortsatt låta dig registrera och analysera spel.',
   },
   {
     question: 'Kan jag importera befintliga spel?',
     answer:
-      'Absolut. Ladda upp CSV-filer eller kopiera från kalkylblad så ordnar vi resten. Vår importguide hjälper dig steg för steg.',
+      'Inte ännu. Du lägger in spel via formuläret i appen. CSV-import finns på vår roadmap och vi uppdaterar dokumentationen när funktionen lanseras.',
   },
   {
     question: 'Hur skyddas mina data?',
     answer:
-      'Vi lagrar allt i EU med dagliga säkerhetskopior och kryptering vid överföring. Du kan när som helst exportera eller radera dina data.',
+      'Dina data sparas i det Supabase-projekt du kopplar appen till. Supabase hanterar autentisering och krypterade anslutningar – se till att behålla dina nycklar säkra och skapa egna backuper vid behov.',
   },
 ];
 
@@ -126,9 +150,9 @@ export default function LandingPage() {
               <span className={styles.heroBadge}>Din sportbetting-dashboard i molnet</span>
               <h1>Professionell kontroll över varje spel – på en plats.</h1>
               <p>
-                BetSpread hjälper dig att planera, registrera och analysera sportspel med en detaljnivå
-                i klass med tradingteam. Få en inbjudande arbetsyta där statistik och nästa drag alltid
-                är ett klick bort.
+                BetSpread hjälper dig att planera, registrera och analysera sportspel på ett strukturerat
+                sätt. Håll koll på dina projekt, se hur nyckeltalen utvecklas och uppdatera statusen för
+                varje spel utan att lämna sidan.
               </p>
               <ul className={styles.heroHighlights}>
                 {heroHighlights.map((item) => (
@@ -140,7 +164,7 @@ export default function LandingPage() {
                   Skapa konto
                 </Link>
                 <Link href="/app" className={`${styles.btn} ${styles.btnGhost}`}>
-                  Utforska demot
+                  Gå till appen
                 </Link>
               </div>
               <p className={styles.ctaNote}>Inga kortuppgifter behövs. Avsluta när du vill.</p>
@@ -148,6 +172,7 @@ export default function LandingPage() {
             <div className={styles.heroMockup}>
               <div className={styles.mockupCardPrimary}>
                 <div>
+                  <span className={styles.mockupLabel}>Exempelvy från appen</span>
                   <h3>Projekt: EuroEdge</h3>
                   <p>ROI senaste 30 dagar</p>
                   <span className={styles.mockupKpi}>+23,4%</span>
@@ -168,15 +193,16 @@ export default function LandingPage() {
                 <div className={styles.mockupTags}>
                   <span>Win</span>
                   <span>Loss</span>
-                  <span>Push</span>
+                  <span>Pending</span>
+                  <span>Void</span>
                 </div>
               </div>
               <div className={styles.mockupCardTertiary}>
                 <h4>Arbetsflöde</h4>
                 <ul>
-                  <li>Importera 12 spel från CSV</li>
-                  <li>Uppdatera status innan midnatt</li>
-                  <li>Skicka rapport till kund</li>
+                  <li>Skapa nytt projekt för helgens matcher</li>
+                  <li>Registrera odds, insats och spelbolag</li>
+                  <li>Sätt resultat när matchen är klar</li>
                 </ul>
               </div>
             </div>
@@ -185,10 +211,10 @@ export default function LandingPage() {
 
         <section className={styles.stats} id="stats">
           <div className={styles.sectionHeading}>
-            <h2>Insikter i världsklass från dag ett</h2>
+            <h2>Insikter som baseras på dina registrerade spel</h2>
             <p>
-              Oavsett om du är ensam hobbybettare eller leder ett analysteam får du samma kraftfulla
-              analysmotor.
+              Alla nyckeltal räknas ut från den data du lägger in, så att du vet exakt hur varje strategi
+              presterar.
             </p>
           </div>
           <div className={styles.statsGrid}>
@@ -204,10 +230,10 @@ export default function LandingPage() {
 
         <section className={styles.featureSection} id="features">
           <div className={styles.sectionHeading}>
-            <h2>Byggt för spelare med höga krav</h2>
+            <h2>Byggt för tydlig uppföljning</h2>
             <p>
-              Avancerad funktionalitet, polerad design och allt du behöver för att fatta smartare beslut
-              i nästa spel.
+              Varje funktion i appen är designad för att göra registrering och analys av spel så smidigt
+              som möjligt.
             </p>
           </div>
           <div className={styles.featureGrid}>
@@ -229,11 +255,8 @@ export default function LandingPage() {
 
         <section className={styles.workflow} id="workflow">
           <div className={styles.sectionHeading}>
-            <h2>Ett arbetsflöde som följer din takt</h2>
-            <p>
-              Från första idé till färdig rapport – BetSpread ger dig strukturen och verktygen att leverera
-              på topp varje dag.
-            </p>
+            <h2>Ett arbetsflöde anpassat för manuell bettracking</h2>
+            <p>Följ processen från idé till färdigt facit utan att lämna BetSpread.</p>
           </div>
           <div className={styles.workflowList}>
             {workflowSteps.map((step, index) => (
@@ -251,8 +274,8 @@ export default function LandingPage() {
 
         <section className={styles.testimonialSection}>
           <div className={styles.sectionHeading}>
-            <h2>Älskat av analytiker och bettingteam</h2>
-            <p>Se varför svenska sportbettare väljer BetSpread för sin dagliga rapportering.</p>
+            <h2>Så kan BetSpread hjälpa dig</h2>
+            <p>Två praktiska scenarier som visar hur funktionerna används i vardagen.</p>
           </div>
           <div className={styles.testimonialGrid}>
             {testimonials.map((item) => (
@@ -287,7 +310,7 @@ export default function LandingPage() {
             <div>
               <h2>Klara, färdiga, spela smartare.</h2>
               <p>
-                Förvandla dina bettingdata till riktiga konkurrensfördelar med marknadens mest eleganta
+                Förvandla dina bettingdata till riktiga konkurrensfördelar med vårt eleganta och lättanvända
                 verktyg.
               </p>
             </div>
