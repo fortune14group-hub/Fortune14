@@ -11,7 +11,7 @@ const navLinks = [
 const heroHighlights = [
   'Registrera spel med match, marknad, odds, insats och egna noteringar.',
   'Få ROI, nettoresultat, hitrate och snittodds uträknade automatiskt per projekt.',
-  'Uppdatera resultat med snabbval eller dropdowns utan att lämna listan.',
+  'Uppdatera resultat med snabbval eller dropdowns direkt från listan.',
 ];
 
 const statHighlights = [
@@ -50,7 +50,7 @@ const featureCards = [
     bullets: [
       'Resultat-knappar för Win, Loss, Pending och Void',
       'Redigera eller ta bort spel utan att lämna listan',
-      'Tydliga aviseringar om användningsgränser när betalplaner är aktiverade',
+      'Få tydliga felmeddelanden om något saknas i formuläret',
     ],
   },
   {
@@ -70,7 +70,7 @@ const workflowSteps = [
     title: 'Skapa ditt projekt',
     description:
       'Starta ett projekt för varje strategi och låt appen hålla ordning på dina portföljer.',
-    caption: 'All data sparas i ditt Supabase-konto när miljövariablerna är satta.',
+    caption: 'All data sparas i ditt konto när miljövariablerna är satta.',
   },
   {
     title: 'Registrera spelen',
@@ -86,26 +86,23 @@ const workflowSteps = [
   },
 ];
 
-const testimonials = [
+const personas = [
   {
-    quote:
-      'Jag loggar varje fotbollsspel med odds, insats och spelbolag och ser omedelbart hur ROI och hitrate förändras.',
-    name: 'Scenario: Solo-analytiker',
-    role: 'En person som vill ha koll på sitt eget track record.',
+    title: 'Hobbybettare',
+    description:
+      'Följ upp dina resultat för skojs skull och utveckla din analys och resultat.',
   },
   {
-    quote:
-      'Teamet växlar mellan olika projekt under livesändningar och uppdaterar resultaten utan att lämna listvyn.',
-    name: 'Scenario: Litet bettingteam',
-    role: 'Flera användare som delar ett Supabase-konto.',
+    title: 'Proffs/Syndikat',
+    description:
+      'Professionell översikt för resultat. Dela enkelt resultaten i forum eller spelgrupper.',
   },
 ];
 
 const faqs = [
   {
     question: 'Är BetSpread gratis att använda?',
-    answer:
-      'I dagsläget är hela appen öppen utan kostnad. När vi aktiverar betalplaner kommer gratisläget fortsatt låta dig registrera och analysera spel.',
+    answer: 'Ja, appen är gratis att använda medan vi fortsätter utveckla nya funktioner.',
   },
   {
     question: 'Kan jag importera befintliga spel?',
@@ -115,7 +112,7 @@ const faqs = [
   {
     question: 'Hur skyddas mina data?',
     answer:
-      'Dina data sparas i det Supabase-projekt du kopplar appen till. Supabase hanterar autentisering och krypterade anslutningar – se till att behålla dina nycklar säkra och skapa egna backuper vid behov.',
+      'Vi använder Supabase för lagring och inloggning med krypterade anslutningar. Dina uppgifter stannar i ditt konto och du kan alltid exportera dem själv.',
   },
 ];
 
@@ -134,11 +131,11 @@ export default function LandingPage() {
           ))}
         </nav>
         <div className={styles.topbarActions}>
-          <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
-            Logga in
+          <Link href="/blog" className={`${styles.btn} ${styles.btnGhost}`}>
+            Blogg
           </Link>
           <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
-            Starta gratis
+            Logga in
           </Link>
         </div>
       </header>
@@ -147,12 +144,11 @@ export default function LandingPage() {
         <section className={styles.hero} id="hero">
           <div className={styles.heroInner}>
             <div className={styles.heroCopy}>
-              <span className={styles.heroBadge}>Din sportbetting-dashboard i molnet</span>
               <h1>Professionell kontroll över varje spel – på en plats.</h1>
               <p>
                 BetSpread hjälper dig att planera, registrera och analysera sportspel på ett strukturerat
                 sätt. Håll koll på dina projekt, se hur nyckeltalen utvecklas och uppdatera statusen för
-                varje spel utan att lämna sidan.
+                varje spel direkt från listan.
               </p>
               <ul className={styles.heroHighlights}>
                 {heroHighlights.map((item) => (
@@ -160,14 +156,13 @@ export default function LandingPage() {
                 ))}
               </ul>
               <div className={styles.ctaRow}>
+                <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
+                  Logga in
+                </Link>
                 <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
                   Skapa konto
                 </Link>
-                <Link href="/app" className={`${styles.btn} ${styles.btnGhost}`}>
-                  Gå till appen
-                </Link>
               </div>
-              <p className={styles.ctaNote}>Inga kortuppgifter behövs. Avsluta när du vill.</p>
             </div>
             <div className={styles.heroMockup}>
               <div className={styles.mockupCardPrimary}>
@@ -275,17 +270,13 @@ export default function LandingPage() {
         <section className={styles.testimonialSection}>
           <div className={styles.sectionHeading}>
             <h2>Så kan BetSpread hjälpa dig</h2>
-            <p>Två praktiska scenarier som visar hur funktionerna används i vardagen.</p>
           </div>
           <div className={styles.testimonialGrid}>
-            {testimonials.map((item) => (
-              <figure key={item.name} className={styles.testimonialCard}>
-                <blockquote>{item.quote}</blockquote>
-                <figcaption>
-                  <span>{item.name}</span>
-                  <small>{item.role}</small>
-                </figcaption>
-              </figure>
+            {personas.map((item) => (
+              <article key={item.title} className={styles.testimonialCard}>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </article>
             ))}
           </div>
         </section>
@@ -339,7 +330,7 @@ export default function LandingPage() {
           </Link>
         </nav>
         <p className={styles.footerContact}>
-          Support: <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a>
+          Support: <a href="mailto:Support@betspread.se">Support@betspread.se</a>
         </p>
         <p className={styles.footerMessage}>
           Spela ansvarsfullt. Behöver du stöd? Besök{' '}
