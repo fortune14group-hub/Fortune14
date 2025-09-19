@@ -18,7 +18,7 @@ const statHighlights = [
   {
     value: '3',
     label: 'Arbetslägen',
-    caption: 'Registrering, månadssummering och spelöversikt i samma vy.',
+    caption: 'Registrering, månadssummering och spelöversikt.',
   },
   {
     value: '4+',
@@ -144,7 +144,7 @@ export default function LandingPage() {
         <section className={styles.hero} id="hero">
           <div className={styles.heroInner}>
             <div className={styles.heroCopy}>
-              <h1>Professionell kontroll över varje spel – på en plats.</h1>
+              <h1>Professionell kontroll över dina spel – på en plats.</h1>
               <p>
                 BetSpread hjälper dig att planera, registrera och analysera sportspel på ett strukturerat
                 sätt. Håll koll på dina projekt, se hur nyckeltalen utvecklas och uppdatera statusen för
@@ -167,8 +167,7 @@ export default function LandingPage() {
             <div className={styles.heroMockup}>
               <div className={styles.mockupCardPrimary}>
                 <div>
-                  <span className={styles.mockupLabel}>Exempelvy från appen</span>
-                  <h3>Projekt: EuroEdge</h3>
+                  <h3>Ditt Projekt</h3>
                   <p>ROI senaste 30 dagar</p>
                   <span className={styles.mockupKpi}>+23,4%</span>
                 </div>
