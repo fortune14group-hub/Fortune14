@@ -4,6 +4,29 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
 
+function getHashParams() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const { hash } = window.location;
+  if (!hash) {
+    return null;
+  }
+
+  return new URLSearchParams(hash.replace(/^#/, ''));
+}
+
+function clearHashParams() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.hash = '';
+  window.history.replaceState({}, document.title, url.toString());
+}
+
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,11 +61,76 @@ export default function UpdatePasswordPage() {
     let isMounted = true;
     let authSubscription = null;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted) return;
+    const processInitialSession = async () => {
+      const hashParams = getHashParams();
+
+      if (hashParams?.has('error_code')) {
+        if (!isMounted) {
+          return;
+        }
+
+        const errorCode = hashParams.get('error_code') || '';
+        const errorDescription = hashParams.get('error_description') || '';
+        clearHashParams();
+        setHasSession(false);
+        setChecking(false);
+        setError(
+          errorCode === 'otp_expired'
+            ? 'Återställningslänken är ogiltig eller har gått ut. Begär en ny länk via e-post.'
+            : errorDescription ||
+                'Ett fel inträffade när återställningslänken verifierades. Försök igen eller begär en ny länk.'
+        );
+        return;
+      }
+
+      if (hashParams?.has('access_token') || hashParams?.has('refresh_token')) {
+        setError('');
+
+        try {
+          const { data, error } = await supabase.auth.getSessionFromUrl({
+            storeSession: true,
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          if (!isMounted) {
+            return;
+          }
+
+          clearHashParams();
+          setHasSession(Boolean(data.session));
+          setChecking(false);
+          return;
+        } catch (err) {
+          if (!isMounted) {
+            return;
+          }
+
+          clearHashParams();
+          setHasSession(false);
+          setChecking(false);
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Ett fel inträffade när återställningslänken verifierades. Försök igen eller begär en ny länk.'
+          );
+          return;
+        }
+      }
+
+      const { data } = await supabase.auth.getSession();
+
+      if (!isMounted) {
+        return;
+      }
+
       setHasSession(Boolean(data.session));
       setChecking(false);
-    });
+    };
+
+    processInitialSession();
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) return;
