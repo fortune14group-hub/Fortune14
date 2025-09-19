@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
 
 const allowedOtpTypes = new Set(['signup', 'magiclink', 'recovery', 'email_change']);
@@ -36,12 +36,14 @@ export default function ConfirmEmailPage() {
 
 function ConfirmEmailContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tokenParam = searchParams?.get('token') ?? '';
   const typeParam = searchParams?.get('type') ?? '';
   const codeParam = searchParams?.get('code') ?? '';
 
   const [status, setStatus] = useState('checking');
   const [message, setMessage] = useState('');
+  const [completedType, setCompletedType] = useState('');
   const [resendEmail, setResendEmail] = useState('');
   const [resendStatus, setResendStatus] = useState('');
   const [resendError, setResendError] = useState('');
@@ -83,14 +85,48 @@ function ConfirmEmailContent() {
       setMessage('');
 
       const token = tokenParam || '';
-      const type = sanitizeType(typeParam || '');
+      const hash =
+        typeof window !== 'undefined' ? window.location.hash ?? '' : '';
+      let sanitizedType = sanitizeType(typeParam || '');
+
+      if (!typeParam && hash.includes('type=')) {
+        const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+        sanitizedType = sanitizeType(hashParams.get('type') || '');
+      }
+
       const code = codeParam || '';
 
       try {
+        const handleSuccess = (type) => {
+          const normalizedType = type || 'signup';
+
+          clearAuthParams();
+          setStatus('success');
+          setCompletedType(normalizedType);
+
+          if (normalizedType === 'recovery') {
+            setMessage('Klart! Vi skickar dig vidare för att byta lösenord…');
+            router.replace('/update-password');
+            return;
+          }
+
+          if (normalizedType === 'email_change') {
+            setMessage('Din e-postadress är nu uppdaterad.');
+            return;
+          }
+
+          if (normalizedType === 'magiclink') {
+            setMessage('Länken är bekräftad. Vi loggar in dig automatiskt.');
+            return;
+          }
+
+          setMessage('Tack! Nu kan du logga in.');
+        };
+
         if (token) {
           const { data, error } = await supabase.auth.verifyOtp({
             token_hash: token,
-            type,
+            type: sanitizedType,
           });
 
           if (error) {
@@ -105,9 +141,7 @@ function ConfirmEmailContent() {
             return;
           }
 
-          clearAuthParams();
-          setStatus('success');
-          setMessage('Din e-postadress är nu bekräftad.');
+          handleSuccess(sanitizedType);
           return;
         }
 
@@ -122,14 +156,10 @@ function ConfirmEmailContent() {
             return;
           }
 
-          clearAuthParams();
-          setStatus('success');
-          setMessage('Din e-postadress är nu bekräftad.');
+          handleSuccess(sanitizedType);
           return;
         }
 
-        const hash =
-          typeof window !== 'undefined' ? window.location.hash ?? '' : '';
         const hasHashTokens = hash.includes('access_token=') || hash.includes('refresh_token=');
 
         if (hasHashTokens) {
@@ -145,9 +175,7 @@ function ConfirmEmailContent() {
             return;
           }
 
-          clearAuthParams();
-          setStatus('success');
-          setMessage('Din e-postadress är nu bekräftad.');
+          handleSuccess(sanitizeType(typeParam || sanitizedType));
           return;
         }
 
@@ -176,7 +204,7 @@ function ConfirmEmailContent() {
     return () => {
       isMounted = false;
     };
-  }, [supabase, tokenParam, typeParam, codeParam]);
+  }, [supabase, tokenParam, typeParam, codeParam, router]);
 
   const handleResend = async (event) => {
     event.preventDefault();
@@ -241,15 +269,30 @@ function ConfirmEmailContent() {
         {status === 'checking' ? <p>Bekräftar ditt konto…</p> : null}
         {status === 'success' ? (
           <>
-            <p>{message || 'Din e-postadress är nu bekräftad.'}</p>
-            <div className="row">
-              <Link href="/app" className="btn">
-                Fortsätt till appen
-              </Link>
-              <Link href="/login" className="btn-ghost">
-                Hantera konton
-              </Link>
-            </div>
+            <p>
+              {message ||
+                (completedType === 'signup'
+                  ? 'Tack! Nu kan du logga in.'
+                  : 'Din e-postadress är nu bekräftad.')}
+            </p>
+            {completedType !== 'recovery' ? (
+              <div className="row">
+                {completedType === 'signup' ? (
+                  <Link href="/login" className="btn">
+                    Logga in
+                  </Link>
+                ) : (
+                  <>
+                    <Link href="/app" className="btn">
+                      Fortsätt till appen
+                    </Link>
+                    <Link href="/login" className="btn-ghost">
+                      Hantera konton
+                    </Link>
+                  </>
+                )}
+              </div>
+            ) : null}
           </>
         ) : null}
         {status === 'missing' ? (
