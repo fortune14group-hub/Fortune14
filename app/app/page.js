@@ -374,6 +374,65 @@ export default function AppPage() {
     };
   }, [filteredBets, summaryData]);
 
+  const resultBreakdown = useMemo(() => {
+    const wins = filteredBets.filter((bet) => bet.result === 'Win');
+    const losses = filteredBets.filter((bet) => bet.result === 'Loss');
+    const voids = filteredBets.filter((bet) => bet.result === 'Void');
+    const pending = filteredBets.filter((bet) => bet.result === 'Pending');
+    const sumOdds = (list) =>
+      list.reduce((sum, bet) => {
+        const oddsNum = Number(bet.odds);
+        return Number.isFinite(oddsNum) ? sum + oddsNum : sum;
+      }, 0);
+    const pendingStake = pending.reduce((sum, bet) => {
+      const stakeNum = Number(bet.stake);
+      return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
+    }, 0);
+    return {
+      wins: wins.length,
+      losses: losses.length,
+      voids: voids.length,
+      pending: pending.length,
+      pendingStake,
+      avgWinOdds: wins.length > 0 ? sumOdds(wins) / wins.length : 0,
+      avgLossOdds: losses.length > 0 ? sumOdds(losses) / losses.length : 0,
+    };
+  }, [filteredBets]);
+
+  const freeUsageProgress = useMemo(() => {
+    if (!PAYWALL_ENABLED || freeInfo?.premium) return null;
+    const used = Math.min(20, freeInfo?.used ?? 0);
+    const total = 20;
+    const percent = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+    const remaining = Math.max(0, freeInfo?.left ?? total - used);
+    return { used, total, percent, remaining };
+  }, [freeInfo]);
+
+  const statusDetails = useMemo(() => {
+    if (PAYWALL_ENABLED && !freeInfo?.premium) {
+      return {
+        eyebrow: 'Gratisläge aktivt',
+        title: 'Utforska BetSpread kostnadsfritt',
+        body: `Du har använt ${freeUsageProgress?.used ?? freeInfo?.used ?? 0} av 20 spel. ${
+          freeUsageProgress?.remaining ?? Math.max(0, freeInfo?.left ?? 20)
+        } återstår.`,
+        hint: 'Uppgradera för obegränsade registreringar.',
+        usagePercent: freeUsageProgress?.percent ?? 0,
+        showUsage: true,
+      };
+    }
+    return {
+      eyebrow: 'Öppet läge',
+      title: 'BetSpread är kostnadsfritt',
+      body: 'Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.',
+      hint: 'Vi aktiverar betalning igen vid ett senare tillfälle.',
+      usagePercent: null,
+      showUsage: false,
+    };
+  }, [freeInfo, freeUsageProgress]);
+
+  const recentBets = useMemo(() => bets.slice(0, 6), [bets]);
+
   const performanceSeries = useMemo(() => {
     const decided = filteredBets
       .filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void')
@@ -790,62 +849,51 @@ export default function AppPage() {
         </div>
       </header>
 
-      {PAYWALL_ENABLED && !freeInfo?.premium ? (
-        <div className="banner">
-          <div>
-            <h2>Gratisläge</h2>
-            <p>
-              Du har använt <strong>{freeInfo?.used ?? 0}</strong> av 20 spel.
-              <br />Återstår: <strong>{freeInfo ? Math.max(0, freeInfo.left) : 20}</strong> spel.
-            </p>
+      <section className="status-strip" aria-live="polite">
+        <div className="status-callout">
+          <span className="status-glow" aria-hidden="true" />
+          <div className="status-copy">
+            <span className="eyebrow">{statusDetails.eyebrow}</span>
+            <h2 className="status-title">{statusDetails.title}</h2>
+            <p>{statusDetails.body}</p>
+            {statusDetails.showUsage ? (
+              <div className="usage-wrapper">
+                <div
+                  className="usage-bar"
+                  role="progressbar"
+                  aria-valuenow={statusDetails.usagePercent ?? 0}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <span style={{ width: `${statusDetails.usagePercent ?? 0}%` }} />
+                </div>
+                <span className="usage-label">{statusDetails.usagePercent ?? 0}% avklarat</span>
+              </div>
+            ) : null}
+            <span className="status-hint">{statusDetails.hint}</span>
           </div>
-          <div className="banner-metrics" aria-hidden="true">
-            <div className="metric">
-              <span className="metric-label">Loggade spel</span>
-              <span className="metric-value">{overviewStats.total}</span>
-            </div>
-            <div className="metric">
-              <span className="metric-label">Avgjorda</span>
-              <span className="metric-value">{overviewStats.decided}</span>
-            </div>
-            <div className="metric">
-              <span className="metric-label">ROI</span>
-              <span className={`metric-value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
-                {formatPercent(overviewStats.roi)}
-              </span>
-            </div>
-          </div>
-          <span className="hint">Uppgradera för obegränsade registreringar.</span>
         </div>
-      ) : null}
-
-      {!PAYWALL_ENABLED ? (
-        <div className="banner">
-          <div>
-            <h2>BetSpread är kostnadsfritt</h2>
-            <p>
-              Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.
-            </p>
+        <div className="status-metrics" role="list">
+          <div className="status-card" role="listitem">
+            <span className="label">Loggade spel</span>
+            <span className="value">{overviewStats.total}</span>
           </div>
-          <div className="banner-metrics" aria-hidden="true">
-            <div className="metric">
-              <span className="metric-label">Loggade spel</span>
-              <span className="metric-value">{overviewStats.total}</span>
-            </div>
-            <div className="metric">
-              <span className="metric-label">Avgjorda</span>
-              <span className="metric-value">{overviewStats.decided}</span>
-            </div>
-            <div className="metric">
-              <span className="metric-label">ROI</span>
-              <span className={`metric-value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
-                {formatPercent(overviewStats.roi)}
-              </span>
-            </div>
+          <div className="status-card" role="listitem">
+            <span className="label">Avgjorda</span>
+            <span className="value">{overviewStats.decided}</span>
           </div>
-          <span className="hint">Vi aktiverar betalning igen vid ett senare tillfälle.</span>
+          <div className="status-card" role="listitem">
+            <span className="label">Träffsäkerhet</span>
+            <span className="value">{formatPercent(summaryData.hitRate)}</span>
+          </div>
+          <div className="status-card" role="listitem">
+            <span className="label">ROI</span>
+            <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
+              {formatPercent(overviewStats.roi)}
+            </span>
+          </div>
         </div>
-      ) : null}
+      </section>
 
       <main className="workspace">
         <section className="primary">
@@ -1307,6 +1355,94 @@ export default function AppPage() {
                 </span>
               </div>
             </div>
+            <div className="insight-grid">
+              <div className="insight-card accent">
+                <span className="label">Träffsäkerhet</span>
+                <div className="value-row">
+                  <span className="value">{formatPercent(summaryData.hitRate)}</span>
+                  <span className="value-sub">{overviewStats.decided} avgjorda</span>
+                </div>
+                <div className="mini-bar" role="presentation">
+                  <span style={{ width: `${Math.max(0, Math.min(100, summaryData.hitRate))}%` }} />
+                </div>
+              </div>
+              <div className="insight-card">
+                <span className="label">Snittodds</span>
+                <span className="value">{formatNumber(summaryData.averageOdds, 2)}</span>
+                <span className="value-sub">Snittinsats {formatStake(summaryData.averageStake)}</span>
+              </div>
+              <div className="insight-card">
+                <span className="label">Profit per spel</span>
+                <span className={`value ${summaryData.profitPerBet >= 0 ? 'positive' : 'negative'}`}>
+                  {formatMoney(summaryData.profitPerBet)}
+                </span>
+                <span className="value-sub">Totalt {formatMoney(summaryData.profit)}</span>
+              </div>
+            </div>
+            <div className="distribution-row">
+              <span className="label">Resultatfördelning</span>
+              <div className="distribution-pills" role="list">
+                <span className="pill win" role="listitem">
+                  Vinster <strong>{resultBreakdown.wins}</strong>
+                </span>
+                <span className="pill loss" role="listitem">
+                  Förluster <strong>{resultBreakdown.losses}</strong>
+                </span>
+                <span className="pill void" role="listitem">
+                  Void <strong>{resultBreakdown.voids}</strong>
+                </span>
+                <span className="pill pending" role="listitem">
+                  Pending <strong>{resultBreakdown.pending}</strong>
+                </span>
+              </div>
+              <div className="distribution-note">
+                <div className="note-block">
+                  <span>Utestående insats</span>
+                  <strong>{formatMoney(resultBreakdown.pendingStake)}</strong>
+                </div>
+                <div className="note-block">
+                  <span>Snittodds vinster</span>
+                  <strong>{formatNumber(resultBreakdown.avgWinOdds, 2)}</strong>
+                </div>
+                <div className="note-block">
+                  <span>Snittodds förluster</span>
+                  <strong>{formatNumber(resultBreakdown.avgLossOdds, 2)}</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section className="panel recent-panel">
+            <div className="section-header compact">
+              <div>
+                <h2>Senaste spel</h2>
+                <span className="subtle-tag">Senaste uppdateringar</span>
+              </div>
+            </div>
+            {recentBets.length === 0 ? (
+              <div className="empty-state small">Ingen historik ännu.</div>
+            ) : (
+              <ul className="recent-list">
+                {recentBets.map((bet) => {
+                  const result = bet.result ?? 'Pending';
+                  const statusClass = (result || 'Pending').toLowerCase();
+                  return (
+                    <li key={bet.id}>
+                      <span className="recent-icon" data-status={statusClass} aria-hidden="true" />
+                      <div className="recent-copy">
+                        <span className="recent-match">{bet.match || 'Okänd match'}</span>
+                        <span className="recent-market">{bet.market || 'Ingen marknad angiven'}</span>
+                        <div className="recent-meta">
+                          <span>{bet.matchday || '–'}</span>
+                          <span>Odds {formatNumber(bet.odds, 2)}</span>
+                          <span>Insats {formatStake(bet.stake)}</span>
+                        </div>
+                      </div>
+                      <span className={`recent-status ${statusClass}`}>{result}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </aside>
       </main>
@@ -1427,56 +1563,99 @@ export default function AppPage() {
           background: rgba(239, 68, 68, 0.18);
           border-color: rgba(239, 68, 68, 0.55);
         }
-        .banner {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 20px;
-          padding: 24px 28px;
-          border-radius: 22px;
-          background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(14, 165, 233, 0.24));
-          border: 1px solid rgba(56, 189, 248, 0.28);
-          box-shadow: 0 30px 70px -42px rgba(14, 165, 233, 0.55);
-        }
-        .banner h2 {
-          margin: 0 0 6px;
-          font-size: 20px;
-        }
-        .banner p {
-          margin: 0;
-          color: rgba(226, 232, 240, 0.72);
-        }
-        .banner-metrics {
+        .status-strip {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 14px;
-          padding: 12px 18px;
-          border-radius: 16px;
-          background: rgba(8, 16, 32, 0.7);
-          border: 1px solid rgba(71, 85, 105, 0.4);
+          grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+          gap: 24px;
+          align-items: center;
+          padding: 0 8px;
         }
-        .banner-metrics .metric {
+        .status-callout {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 16px;
+          align-items: center;
+        }
+        .status-glow {
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          background: radial-gradient(circle at 32% 32%, rgba(56, 189, 248, 0.85), rgba(56, 189, 248, 0));
+          box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.32), 0 0 40px -12px rgba(56, 189, 248, 0.8);
+        }
+        .status-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .status-title {
+          margin: 0;
+          font-size: 20px;
+          letter-spacing: 0.01em;
+        }
+        .status-copy p {
+          margin: 0;
+          color: rgba(226, 232, 240, 0.78);
+        }
+        .eyebrow {
+          font-size: 11px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(148, 163, 184, 0.72);
+        }
+        .usage-wrapper {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin-top: 4px;
+        }
+        .usage-bar {
+          position: relative;
+          width: 100%;
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.65);
+          overflow: hidden;
+        }
+        .usage-bar span {
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.85), rgba(168, 85, 247, 0.85));
+          box-shadow: 0 12px 20px -18px rgba(56, 189, 248, 0.8);
+        }
+        .usage-label {
+          font-size: 12px;
+          color: rgba(148, 163, 184, 0.75);
+        }
+        .status-hint {
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.85);
+        }
+        .status-metrics {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 12px;
+        }
+        .status-card {
           display: flex;
           flex-direction: column;
           gap: 4px;
+          padding: 16px 18px;
+          border-radius: 18px;
+          background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(56, 189, 248, 0.2));
+          border: 1px solid rgba(59, 130, 246, 0.28);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 18px 40px -30px rgba(56, 189, 248, 0.6);
         }
-        .metric-label {
+        .status-card .label {
           font-size: 11px;
           letter-spacing: 0.08em;
           text-transform: uppercase;
           color: rgba(148, 163, 184, 0.75);
         }
-        .metric-value {
-          font-size: 18px;
+        .status-card .value {
+          font-size: 22px;
           font-weight: 700;
-          letter-spacing: 0.01em;
-        }
-        .banner .hint {
-          align-self: center;
-          font-size: 14px;
-          font-weight: 600;
-          color: rgba(125, 211, 252, 0.92);
           letter-spacing: 0.02em;
         }
         .hint {
@@ -1953,6 +2132,222 @@ export default function AppPage() {
           font-weight: 700;
           letter-spacing: 0.015em;
         }
+        .insight-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 14px;
+          margin-top: 24px;
+        }
+        .insight-card {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          padding: 16px 18px;
+          border-radius: 16px;
+          background: rgba(8, 16, 32, 0.7);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        .insight-card.accent {
+          background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(168, 85, 247, 0.18));
+          border-color: rgba(168, 85, 247, 0.35);
+        }
+        .insight-card .value {
+          font-size: 22px;
+          font-weight: 700;
+          letter-spacing: 0.015em;
+        }
+        .value-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 12px;
+        }
+        .value-sub {
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.75);
+        }
+        .mini-bar {
+          position: relative;
+          width: 100%;
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.6);
+          overflow: hidden;
+        }
+        .mini-bar span {
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.85), rgba(125, 211, 252, 0.9));
+          box-shadow: 0 8px 18px -16px rgba(56, 189, 248, 0.7);
+        }
+        .distribution-row {
+          margin-top: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .distribution-pills {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .distribution-pills .pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 14px;
+          border-radius: 999px;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          background: rgba(15, 23, 42, 0.65);
+        }
+        .distribution-pills .pill strong {
+          font-weight: 700;
+        }
+        .distribution-pills .win {
+          border-color: rgba(34, 197, 94, 0.4);
+          color: #4ade80;
+        }
+        .distribution-pills .loss {
+          border-color: rgba(248, 113, 113, 0.45);
+          color: #f87171;
+        }
+        .distribution-pills .void {
+          border-color: rgba(148, 163, 184, 0.35);
+          color: rgba(148, 163, 184, 0.85);
+        }
+        .distribution-pills .pending {
+          border-color: rgba(234, 179, 8, 0.45);
+          color: #fbbf24;
+        }
+        .distribution-note {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 12px;
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.78);
+        }
+        .distribution-note .note-block {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          padding: 12px 14px;
+          border-radius: 14px;
+          background: rgba(15, 23, 42, 0.55);
+          border: 1px solid rgba(71, 85, 105, 0.4);
+        }
+        .distribution-note .note-block span {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgba(148, 163, 184, 0.7);
+        }
+        .distribution-note .note-block strong {
+          font-size: 18px;
+          color: #f8fafc;
+        }
+        .recent-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+        .recent-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .recent-list li {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          gap: 14px;
+          align-items: center;
+          padding: 12px 16px;
+          border-radius: 16px;
+          background: rgba(8, 16, 32, 0.72);
+          border: 1px solid rgba(51, 65, 85, 0.45);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        .recent-icon {
+          width: 12px;
+          height: 12px;
+          border-radius: 999px;
+          background: rgba(148, 163, 184, 0.5);
+          box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.14);
+        }
+        .recent-icon[data-status='win'] {
+          background: #4ade80;
+          box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+        }
+        .recent-icon[data-status='loss'] {
+          background: #f87171;
+          box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.2);
+        }
+        .recent-icon[data-status='pending'] {
+          background: #fbbf24;
+          box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.2);
+        }
+        .recent-icon[data-status='void'] {
+          background: rgba(148, 163, 184, 0.8);
+          box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.2);
+        }
+        .recent-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+        .recent-match {
+          font-weight: 600;
+          color: #e2e8f0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .recent-market {
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.78);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .recent-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          font-size: 12px;
+          color: rgba(148, 163, 184, 0.65);
+        }
+        .recent-status {
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .recent-status.win {
+          color: #4ade80;
+        }
+        .recent-status.loss {
+          color: #f87171;
+        }
+        .recent-status.pending {
+          color: #fbbf24;
+        }
+        .recent-status.void {
+          color: rgba(148, 163, 184, 0.9);
+        }
+        .empty-state.small {
+          font-size: 14px;
+          padding: 12px 0;
+          text-align: left;
+          color: rgba(148, 163, 184, 0.8);
+        }
         .sr-only {
           position: absolute;
           width: 1px;
@@ -1986,8 +2381,16 @@ export default function AppPage() {
           .tabs {
             flex-direction: column;
           }
-          .banner-metrics {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+          .status-strip {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 18px;
+            padding: 0;
+          }
+          .status-callout {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .status-metrics {
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           }
         }
         @media (max-width: 768px) {
@@ -2030,18 +2433,39 @@ export default function AppPage() {
           .container {
             padding: 32px 16px 52px;
           }
-          .banner {
-            padding: 20px;
-          }
           .panel {
             padding: 22px 20px;
           }
           .chart-body {
             height: 220px;
           }
-          .banner-metrics {
+          .status-strip {
+            padding: 0;
+            gap: 16px;
+          }
+          .status-callout {
             grid-template-columns: minmax(0, 1fr);
-            padding: 16px;
+            gap: 10px;
+          }
+          .status-glow {
+            width: 44px;
+            height: 44px;
+          }
+          .status-metrics {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .insight-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .distribution-note {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .recent-list li {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 10px;
+          }
+          .recent-status {
+            align-self: flex-start;
           }
         }
         .col-1 { grid-column: span 1; }
