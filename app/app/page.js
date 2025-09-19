@@ -686,6 +686,26 @@ export default function AppPage() {
     }
   };
 
+  const handleBetMenuAction = (bet, value) => {
+    if (!value) return;
+    if (value.startsWith('status:')) {
+      const nextResult = value.split(':')[1] ?? 'Pending';
+      const currentResult = bet?.result || 'Pending';
+      if (nextResult === currentResult) {
+        return;
+      }
+      handleUpdateBetResult(bet, nextResult);
+      return;
+    }
+    if (value === 'action:edit') {
+      handleStartEditBet(bet);
+      return;
+    }
+    if (value === 'action:delete') {
+      handleDeleteBet(bet.id);
+    }
+  };
+
   const handleUpgrade = async () => {
     if (!user?.id) return;
     try {
@@ -1211,49 +1231,48 @@ export default function AppPage() {
                       <div>Notering</div>
                       <div>Resultat</div>
                     </div>
-                    {list.map((bet) => (
-                      <div key={bet.id} className="row">
-                        <div data-label="Datum">{bet.matchday || '–'}</div>
-                        <div data-label="Match &amp; Marknad" className="cell-match">
-                          <span className="match">{bet.match || '–'}</span>
-                          {bet.market ? <span className="market">{bet.market}</span> : null}
-                        </div>
-                        <div data-label="Odds">{formatNumber(bet.odds, 2)}</div>
-                        <div data-label="Insats">{formatStake(bet.stake)}</div>
-                        <div data-label="Spelbolag">{bet.book || '–'}</div>
-                        <div data-label="Notering" className="note-cell">
-                          {bet.note || '–'}
-                        </div>
-                        <div data-label="Resultat">
-                          <div className="result-controls">
-                            <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
-                              {bet.result || 'Pending'}
-                            </span>
-                            <select
-                              className="result-select"
-                              value={bet.result}
-                              onChange={(e) => handleUpdateBetResult(bet, e.target.value)}
-                              aria-label="Uppdatera resultat"
-                            >
-                              <option value="Pending">Pending</option>
-                              <option value="Win">Win</option>
-                              <option value="Loss">Loss</option>
-                              <option value="Void">Void</option>
-                            </select>
-                            <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
-                              Redigera
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-ghost danger"
-                              onClick={() => handleDeleteBet(bet.id)}
-                            >
-                              Ta bort
-                            </button>
+                    {list.map((bet) => {
+                      const result = bet.result || 'Pending';
+                      const statusClass = result.toLowerCase();
+                      return (
+                        <div key={bet.id} className="row">
+                          <div data-label="Datum">{bet.matchday || '–'}</div>
+                          <div data-label="Match &amp; Marknad" className="cell-match">
+                            <span className="match">{bet.match || '–'}</span>
+                            {bet.market ? <span className="market">{bet.market}</span> : null}
+                          </div>
+                          <div data-label="Odds">{formatNumber(bet.odds, 2)}</div>
+                          <div data-label="Insats">{formatStake(bet.stake)}</div>
+                          <div data-label="Spelbolag">{bet.book || '–'}</div>
+                          <div data-label="Notering" className="note-cell">
+                            {bet.note || '–'}
+                          </div>
+                          <div data-label="Resultat" className="result-cell">
+                            <div className="result-stack">
+                              <span className={`status-badge ${statusClass}`}>{result}</span>
+                              <select
+                                className="result-select"
+                                value={`status:${result}`}
+                                onChange={(e) => handleBetMenuAction(bet, e.target.value)}
+                                aria-label="Hantera spel"
+                              >
+                                <optgroup label="Resultat">
+                                  {RESULT_OPTIONS.map((option) => (
+                                    <option key={option} value={`status:${option}`}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Åtgärder">
+                                  <option value="action:edit">Redigera</option>
+                                  <option value="action:delete">Ta bort</option>
+                                </optgroup>
+                              </select>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </details>
                 ))}
               </div>
@@ -1294,55 +1313,29 @@ export default function AppPage() {
                               <span>Insats {formatStake(bet.stake)}</span>
                             </div>
                           </div>
-                          <span className={`recent-status ${statusClass}`}>{result}</span>
-                        </div>
-                        <div className="recent-actions">
-                          <div className="recent-control-row" role="group" aria-label="Snabbuppdatera resultat">
-                            <div className="quick-status-group">
-                              {RESULT_OPTIONS.map((option) => {
-                                const optionKey = option.toLowerCase();
-                                const isActive = option === result;
-                                return (
-                                  <button
-                                    key={option}
-                                    type="button"
-                                    className={`quick-status-btn ${optionKey} ${isActive ? 'active' : ''}`}
-                                    onClick={() => handleUpdateBetResult(bet, option)}
-                                    disabled={isActive}
-                                  >
-                                    {option}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <div className="quick-select">
-                              <label className="sr-only" htmlFor={selectId}>
-                                Ändra resultat
-                              </label>
-                              <select
-                                id={selectId}
-                                value={result}
-                                onChange={(e) => handleUpdateBetResult(bet, e.target.value)}
-                              >
+                          <div className="recent-menu">
+                            <span className={`recent-status ${statusClass}`}>{result}</span>
+                            <label className="sr-only" htmlFor={selectId}>
+                              Hantera spel
+                            </label>
+                            <select
+                              id={selectId}
+                              className="recent-select"
+                              value={`status:${result}`}
+                              onChange={(e) => handleBetMenuAction(bet, e.target.value)}
+                            >
+                              <optgroup label="Resultat">
                                 {RESULT_OPTIONS.map((option) => (
-                                  <option key={option} value={option}>
+                                  <option key={option} value={`status:${option}`}>
                                     {option}
                                   </option>
                                 ))}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="quick-manage">
-                            <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
-                              Redigera
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-ghost danger"
-                              onClick={() => handleDeleteBet(bet.id)}
-                            >
-                              Ta bort
-                            </button>
+                              </optgroup>
+                              <optgroup label="Åtgärder">
+                                <option value="action:edit">Redigera</option>
+                                <option value="action:delete">Ta bort</option>
+                              </optgroup>
+                            </select>
                           </div>
                         </div>
                       </li>
@@ -1902,12 +1895,15 @@ export default function AppPage() {
         .note-cell {
           color: rgba(148, 163, 184, 0.85);
         }
-        .result-controls {
+        .result-cell {
           display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          align-items: center;
           justify-content: flex-end;
+        }
+        .result-stack {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 8px;
         }
         .result-select {
           background: rgba(8, 16, 32, 0.92);
@@ -1915,6 +1911,12 @@ export default function AppPage() {
           border-radius: 12px;
           color: #e2e8f0;
           padding: 8px 12px;
+          min-width: 160px;
+        }
+        .result-select:focus {
+          outline: none;
+          border-color: rgba(56, 189, 248, 0.6);
+          box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
         }
         .status-badge {
           padding: 6px 12px;
@@ -2070,84 +2072,25 @@ export default function AppPage() {
           font-size: 12px;
           color: rgba(148, 163, 184, 0.65);
         }
-        .recent-actions {
+        .recent-menu {
           display: flex;
           flex-direction: column;
-          gap: 12px;
-        }
-        .recent-control-row {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 10px;
-        }
-        .quick-status-group {
-          display: flex;
-          flex-wrap: wrap;
+          align-items: flex-end;
           gap: 8px;
         }
-        .quick-select select {
+        .recent-select {
           background: rgba(8, 16, 32, 0.92);
           border: 1px solid rgba(71, 85, 105, 0.45);
           border-radius: 12px;
           color: #e2e8f0;
           padding: 8px 12px;
           font-size: 13px;
+          min-width: 150px;
         }
-        .quick-select select:focus {
+        .recent-select:focus {
           outline: none;
           border-color: rgba(56, 189, 248, 0.6);
           box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
-        }
-        .quick-status-btn {
-          border-radius: 999px;
-          border: 1px solid rgba(71, 85, 105, 0.4);
-          background: rgba(15, 23, 42, 0.55);
-          color: rgba(226, 232, 240, 0.85);
-          font-size: 11px;
-          font-weight: 600;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          padding: 6px 12px;
-          transition: background 0.2s ease, border 0.2s ease, color 0.2s ease, transform 0.2s ease;
-        }
-        .quick-status-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          border-color: rgba(96, 165, 250, 0.45);
-          background: rgba(30, 64, 175, 0.4);
-        }
-        .quick-status-btn.pending.active,
-        .quick-status-btn.pending:disabled {
-          background: rgba(234, 179, 8, 0.18);
-          border-color: rgba(234, 179, 8, 0.35);
-          color: #fbbf24;
-        }
-        .quick-status-btn.win.active,
-        .quick-status-btn.win:disabled {
-          background: rgba(34, 197, 94, 0.18);
-          border-color: rgba(34, 197, 94, 0.4);
-          color: #4ade80;
-        }
-        .quick-status-btn.loss.active,
-        .quick-status-btn.loss:disabled {
-          background: rgba(248, 113, 113, 0.18);
-          border-color: rgba(248, 113, 113, 0.4);
-          color: #f87171;
-        }
-        .quick-status-btn.void.active,
-        .quick-status-btn.void:disabled {
-          background: rgba(148, 163, 184, 0.2);
-          border-color: rgba(148, 163, 184, 0.35);
-          color: rgba(148, 163, 184, 0.9);
-        }
-        .quick-status-btn:disabled {
-          cursor: default;
-          transform: none;
-        }
-        .quick-manage {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
         }
         .recent-status {
           font-size: 12px;
@@ -2241,8 +2184,11 @@ export default function AppPage() {
             letter-spacing: 0.06em;
             color: rgba(148, 163, 184, 0.7);
           }
-          .result-controls {
+          .result-cell {
             justify-content: flex-start;
+          }
+          .result-stack {
+            align-items: flex-start;
           }
         }
         @media (max-width: 520px) {
@@ -2261,6 +2207,13 @@ export default function AppPage() {
           }
           .recent-status {
             align-self: flex-start;
+          }
+          .recent-menu {
+            align-items: flex-start;
+            width: 100%;
+          }
+          .recent-select {
+            width: 100%;
           }
         }
         .col-1 { grid-column: span 1; }
