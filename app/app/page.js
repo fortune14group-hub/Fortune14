@@ -793,6 +793,58 @@ export default function AppPage() {
     return compact.slice(0, 4).toUpperCase();
   }, [currentProject]);
   const showRecentPanel = tab !== 'list';
+  const globalOverview = useMemo(() => {
+    if (bets.length === 0) {
+      return {
+        total: 0,
+        pending: 0,
+        decided: 0,
+        wins: 0,
+        losses: 0,
+        voids: 0,
+        profit: 0,
+        roi: 0,
+        hitRate: 0,
+        completion: 0,
+        pendingStake: 0,
+      };
+    }
+
+    const pendingBets = bets.filter((bet) => bet.result === 'Pending');
+    const voidBets = bets.filter((bet) => bet.result === 'Void');
+    const decidedBets = bets.filter((bet) => bet.result === 'Win' || bet.result === 'Loss');
+    const wins = decidedBets.filter((bet) => bet.result === 'Win');
+    const losses = decidedBets.filter((bet) => bet.result === 'Loss');
+
+    const stakeSum = decidedBets.reduce((sum, bet) => {
+      const stakeNum = Number(bet.stake);
+      return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
+    }, 0);
+
+    const profit = decidedBets.reduce((sum, bet) => sum + computeProfit(bet), 0);
+    const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
+    const hitRate = decidedBets.length > 0 ? (wins.length / decidedBets.length) * 100 : 0;
+    const pendingStake = pendingBets.reduce((sum, bet) => {
+      const stakeNum = Number(bet.stake);
+      return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
+    }, 0);
+    const completion =
+      bets.length > 0 ? ((decidedBets.length + voidBets.length) / bets.length) * 100 : 0;
+
+    return {
+      total: bets.length,
+      pending: pendingBets.length,
+      decided: decidedBets.length,
+      wins: wins.length,
+      losses: losses.length,
+      voids: voidBets.length,
+      profit,
+      roi,
+      hitRate,
+      completion,
+      pendingStake,
+    };
+  }, [bets]);
 
   if (supabaseError) {
     return (
@@ -847,6 +899,47 @@ export default function AppPage() {
           </button>
         </div>
       </header>
+
+      <section className="status-belt" aria-label="Projektöversikt">
+        <article className="status-card">
+          <span className="status-label">Registrerade spel</span>
+          <span className="status-value">{globalOverview.total}</span>
+          <div className="status-meta">
+            <span>{globalOverview.decided} avgjorda</span>
+            <span className="status-chip">Klart {formatPercent(globalOverview.completion)}</span>
+          </div>
+        </article>
+        <article className="status-card">
+          <span className="status-label">Nettoresultat</span>
+          <span className={`status-value ${globalOverview.profit >= 0 ? 'positive' : 'negative'}`}>
+            {formatMoney(globalOverview.profit)}
+          </span>
+          <div className="status-meta">
+            <span>ROI</span>
+            <span
+              className={`status-chip ${globalOverview.roi >= 0 ? 'chip-positive' : 'chip-negative'}`}
+            >
+              {formatPercent(globalOverview.roi)}
+            </span>
+          </div>
+        </article>
+        <article className="status-card">
+          <span className="status-label">Träffsäkerhet</span>
+          <span className="status-value">{formatPercent(globalOverview.hitRate)}</span>
+          <div className="status-meta">
+            <span>{globalOverview.wins} vinster</span>
+            <span className="status-chip">{globalOverview.losses} förluster</span>
+          </div>
+        </article>
+        <article className="status-card">
+          <span className="status-label">Öppna spel</span>
+          <span className="status-value">{globalOverview.pending}</span>
+          <div className="status-meta">
+            <span>Insats</span>
+            <span className="status-chip chip-pending">{formatMoney(globalOverview.pendingStake)}</span>
+          </div>
+        </article>
+      </section>
 
       <main className={`workspace${showRecentPanel ? '' : ' no-sidebar'}`}>
         <section className="primary">
@@ -1282,6 +1375,44 @@ export default function AppPage() {
 
         {showRecentPanel ? (
           <aside className="secondary">
+            <section className="panel analytics-panel">
+              <div className="section-header compact">
+                <div>
+                  <h2>Analys</h2>
+                  <p className="hint">Nyckeltal baserat på vald period.</p>
+                </div>
+              </div>
+              <div className="insight-grid">
+                <article className="insight-card">
+                  <span className="insight-label">Träffsäkerhet</span>
+                  <span className={`insight-value ${summaryData.hitRate >= 50 ? 'positive' : ''}`}>
+                    {formatPercent(summaryData.hitRate)}
+                  </span>
+                  <span className="insight-meta">{summaryData.games} avgjorda spel</span>
+                </article>
+                <article className="insight-card">
+                  <span className="insight-label">Snittodds</span>
+                  <span className="insight-value">{formatNumber(summaryData.averageOdds, 2)}</span>
+                  <span className="insight-meta">{summaryData.wins} vinster</span>
+                </article>
+                <article className="insight-card">
+                  <span className="insight-label">Snittinsats</span>
+                  <span className="insight-value">{formatNumber(summaryData.averageStake, 2)}</span>
+                  <span className="insight-meta">Omsatt {formatMoney(summaryData.stake)}</span>
+                </article>
+                <article className="insight-card">
+                  <span className="insight-label">Profit / spel</span>
+                  <span
+                    className={`insight-value ${
+                      summaryData.profitPerBet >= 0 ? 'positive' : 'negative'
+                    }`}
+                  >
+                    {formatMoney(summaryData.profitPerBet)}
+                  </span>
+                  <span className="insight-meta">Totalt {formatMoney(summaryData.profit)}</span>
+                </article>
+              </div>
+            </section>
             <section className="panel recent-panel">
               <div className="section-header compact">
                 <div>
@@ -1350,18 +1481,54 @@ export default function AppPage() {
 
       <style jsx global>{`
         body {
-          background: radial-gradient(120% 120% at 20% -10%, #1e293b 0%, #0b1120 50%, #020617 100%);
+          background:
+            radial-gradient(140% 90% at 10% -20%, rgba(56, 189, 248, 0.22), transparent 55%),
+            radial-gradient(120% 120% at 85% 0%, rgba(168, 85, 247, 0.18), transparent 60%),
+            linear-gradient(180deg, #020617 0%, #0b1120 45%, #020617 100%);
           color: #e2e8f0;
           font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
           line-height: 1.6;
+          min-height: 100vh;
+          background-attachment: fixed;
+          background-repeat: no-repeat;
         }
         .container {
+          position: relative;
           width: min(1240px, 100%);
           margin: 0 auto;
           padding: 48px 24px 72px;
           display: flex;
           flex-direction: column;
           gap: 28px;
+          overflow: visible;
+        }
+        .container::before,
+        .container::after {
+          content: '';
+          position: absolute;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .container::before {
+          top: -180px;
+          left: -140px;
+          width: 340px;
+          height: 340px;
+          background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.25), transparent 70%);
+          filter: blur(0px);
+          opacity: 0.85;
+        }
+        .container::after {
+          bottom: -220px;
+          right: -160px;
+          width: 400px;
+          height: 400px;
+          background: radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.2), transparent 70%);
+          opacity: 0.7;
+        }
+        .container > * {
+          position: relative;
+          z-index: 1;
         }
         header.top-bar {
           display: grid;
@@ -1399,6 +1566,114 @@ export default function AppPage() {
           justify-content: flex-end;
           align-items: center;
           gap: 12px;
+        }
+        .status-belt {
+          position: relative;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+          gap: 18px;
+          padding: 26px 28px;
+          border-radius: 28px;
+          background: linear-gradient(135deg, rgba(10, 21, 40, 0.92), rgba(14, 116, 144, 0.45));
+          border: 1px solid rgba(45, 212, 191, 0.28);
+          box-shadow: 0 36px 80px -44px rgba(14, 165, 233, 0.55);
+          backdrop-filter: blur(24px);
+          overflow: hidden;
+        }
+        .status-belt::before,
+        .status-belt::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .status-belt::before {
+          background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.28), transparent 65%);
+          opacity: 0.9;
+        }
+        .status-belt::after {
+          background: radial-gradient(circle at bottom right, rgba(167, 139, 250, 0.2), transparent 65%);
+          opacity: 0.7;
+        }
+        .status-card {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 18px 20px;
+          border-radius: 20px;
+          background: rgba(4, 10, 25, 0.62);
+          border: 1px solid rgba(148, 163, 184, 0.28);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+          overflow: hidden;
+          transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .status-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 20px;
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(45, 212, 191, 0.08));
+          opacity: 0;
+          transition: opacity 0.2s ease;
+          z-index: -1;
+        }
+        .status-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(59, 130, 246, 0.45);
+        }
+        .status-card:hover::after {
+          opacity: 1;
+        }
+        .status-label {
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(148, 163, 184, 0.8);
+        }
+        .status-value {
+          font-size: 26px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          color: #f8fafc;
+        }
+        .status-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+          font-size: 13px;
+          color: rgba(203, 213, 225, 0.78);
+        }
+        .status-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(148, 163, 184, 0.32);
+          background: rgba(148, 163, 184, 0.12);
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(226, 232, 240, 0.85);
+        }
+        .chip-positive {
+          background: rgba(34, 197, 94, 0.16);
+          border-color: rgba(34, 197, 94, 0.4);
+          color: #4ade80;
+        }
+        .chip-negative {
+          background: rgba(248, 113, 113, 0.16);
+          border-color: rgba(248, 113, 113, 0.4);
+          color: #f87171;
+        }
+        .chip-pending {
+          background: rgba(250, 204, 21, 0.16);
+          border-color: rgba(234, 179, 8, 0.4);
+          color: #facc15;
         }
         .badge {
           padding: 10px 16px;
@@ -1991,6 +2266,60 @@ export default function AppPage() {
           border: 1px solid rgba(71, 85, 105, 0.45);
           color: rgba(148, 163, 184, 0.78);
         }
+        .analytics-panel {
+          position: relative;
+          overflow: hidden;
+          background: linear-gradient(160deg, rgba(6, 13, 32, 0.96), rgba(56, 189, 248, 0.12));
+          border: 1px solid rgba(56, 189, 248, 0.24);
+        }
+        .analytics-panel::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.18), transparent 70%);
+          opacity: 0.75;
+        }
+        .analytics-panel > * {
+          position: relative;
+          z-index: 1;
+        }
+        .insight-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 14px;
+        }
+        .insight-card {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          padding: 14px 16px;
+          border-radius: 16px;
+          background: rgba(7, 14, 32, 0.82);
+          border: 1px solid rgba(71, 85, 105, 0.45);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+        .insight-card:hover {
+          border-color: rgba(59, 130, 246, 0.45);
+          transform: translateY(-1px);
+        }
+        .insight-label {
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(148, 163, 184, 0.78);
+        }
+        .insight-value {
+          font-size: 21px;
+          font-weight: 700;
+          letter-spacing: 0.015em;
+          color: #e2e8f0;
+        }
+        .insight-meta {
+          font-size: 12px;
+          color: rgba(148, 163, 184, 0.72);
+        }
         .recent-panel {
           display: flex;
           flex-direction: column;
@@ -2148,6 +2477,10 @@ export default function AppPage() {
           .right-actions {
             justify-content: flex-start;
           }
+          .status-belt {
+            padding: 22px;
+            border-radius: 24px;
+          }
           .tabs {
             flex-direction: column;
           }
@@ -2167,6 +2500,10 @@ export default function AppPage() {
           .row {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 16px;
+          }
+          .status-meta {
+            flex-direction: column;
+            align-items: flex-start;
           }
           .row-head {
             display: none;
@@ -2197,6 +2534,12 @@ export default function AppPage() {
           }
           .panel {
             padding: 22px 20px;
+          }
+          .status-belt {
+            padding: 20px;
+          }
+          .status-card {
+            padding: 16px;
           }
           .chart-body {
             min-height: 220px;
