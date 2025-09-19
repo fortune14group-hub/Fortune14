@@ -83,12 +83,15 @@ function ConfirmEmailContent() {
 
       setStatus('checking');
       setMessage('');
+      setCompletedType('');
 
       const token = tokenParam || '';
-      const hash =
-        typeof window !== 'undefined' ? window.location.hash ?? '' : '';
-      const hashParams = hash ? new URLSearchParams(hash.replace(/^#/, '')) : null;
-      let sanitizedType = sanitizeType(typeParam || '');
+      const code = codeParam || '';
+      const rawHash = typeof window !== 'undefined' ? window.location.hash ?? '' : '';
+      const hashParams = rawHash ? new URLSearchParams(rawHash.replace(/^#/, '')) : null;
+      const sanitizedType = sanitizeType(
+        typeParam || hashParams?.get('type') || ''
+      );
 
       if (hashParams?.has('error_code')) {
         clearAuthParams();
@@ -105,39 +108,37 @@ function ConfirmEmailContent() {
         return;
       }
 
-      if (!typeParam && hashParams?.has('type')) {
-        sanitizedType = sanitizeType(hashParams.get('type') || '');
-      }
+      const handleSuccess = (type) => {
+        if (!isMounted) {
+          return;
+        }
 
-      const code = codeParam || '';
+        const normalizedType = sanitizeType(type || 'signup');
+
+        clearAuthParams();
+        setStatus('success');
+        setCompletedType(normalizedType);
+
+        if (normalizedType === 'recovery') {
+          setMessage('Klart! Vi skickar dig vidare för att byta lösenord…');
+          router.replace('/update-password');
+          return;
+        }
+
+        if (normalizedType === 'email_change') {
+          setMessage('Din e-postadress är nu uppdaterad.');
+          return;
+        }
+
+        if (normalizedType === 'magiclink') {
+          setMessage('Länken är bekräftad. Vi loggar in dig automatiskt.');
+          return;
+        }
+
+        setMessage('Tack! Nu kan du logga in.');
+      };
 
       try {
-        const handleSuccess = (type) => {
-          const normalizedType = type || 'signup';
-
-          clearAuthParams();
-          setStatus('success');
-          setCompletedType(normalizedType);
-
-          if (normalizedType === 'recovery') {
-            setMessage('Klart! Vi skickar dig vidare för att byta lösenord…');
-            router.replace('/update-password');
-            return;
-          }
-
-          if (normalizedType === 'email_change') {
-            setMessage('Din e-postadress är nu uppdaterad.');
-            return;
-          }
-
-          if (normalizedType === 'magiclink') {
-            setMessage('Länken är bekräftad. Vi loggar in dig automatiskt.');
-            return;
-          }
-
-          setMessage('Tack! Nu kan du logga in.');
-        };
-
         if (token) {
           const { data, error } = await supabase.auth.verifyOtp({
             token_hash: token,
@@ -152,10 +153,6 @@ function ConfirmEmailContent() {
             await supabase.auth.getSession();
           }
 
-          if (!isMounted) {
-            return;
-          }
-
           handleSuccess(sanitizedType);
           return;
         }
@@ -165,10 +162,6 @@ function ConfirmEmailContent() {
 
           if (error) {
             throw error;
-          }
-
-          if (!isMounted) {
-            return;
           }
 
           handleSuccess(sanitizedType);
@@ -187,11 +180,7 @@ function ConfirmEmailContent() {
             throw error;
           }
 
-          if (!isMounted) {
-            return;
-          }
-
-          handleSuccess(sanitizeType(typeParam || sanitizedType));
+          handleSuccess(sanitizedType);
           return;
         }
 
