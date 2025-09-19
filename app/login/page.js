@@ -116,7 +116,9 @@ export default function LoginPage() {
       password,
       options: {
         emailRedirectTo:
-          typeof window !== 'undefined' ? `${window.location.origin}/app` : undefined,
+          typeof window !== 'undefined'
+            ? `${window.location.origin}/confirm-email`
+            : undefined,
       },
     });
 
