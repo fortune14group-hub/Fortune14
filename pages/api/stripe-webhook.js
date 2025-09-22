@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import getRawBody from 'raw-body';
-import { getSupabaseServiceRoleClient } from '../../lib/supabaseAdmin';
+import { getSupabaseServiceRoleClient } from '../../lib/supabaseAdmin.js';
 
 export const config = {
   api: {

@@ -692,14 +692,38 @@ export default function AppPage() {
     }
   };
 
+  const getAccessToken = useCallback(async () => {
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Kunde inte hämta Supabase-session', error);
+        return null;
+      }
+      return data?.session?.access_token ?? null;
+    } catch (err) {
+      console.error('Oväntat fel vid hämtning av session', err);
+      return null;
+    }
+  }, [supabase]);
+
   const handleUpgrade = async () => {
     if (!user?.id) return;
     try {
       await ensureProfileRow(user);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        window.alert('Din session har gått ut. Logga in igen och försök på nytt.');
+        return;
+      }
+
       const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id, email: user.email }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data?.url) {
@@ -717,10 +741,19 @@ export default function AppPage() {
     if (!user?.id) return;
     try {
       await ensureProfileRow(user);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        window.alert('Din session har gått ut. Logga in igen och försök på nytt.');
+        return;
+      }
+
       const res = await fetch('/api/create-portal-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data?.url) {
