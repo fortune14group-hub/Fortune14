@@ -52,6 +52,15 @@ const sanitizeUnit = (unit) => {
   return UNIT_METADATA[key] ? key : DEFAULT_UNIT;
 };
 
+const isMissingProjectUnitColumn = (error) => {
+  if (!error) return false;
+  if (error.code && `${error.code}` === '42703') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('column') && message.includes('unit');
+};
+
 const formatValueWithUnit = (value, unit = DEFAULT_UNIT, decimals = 2, { trimZeros = false } = {}) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return '–';
@@ -114,6 +123,7 @@ export default function AppPage() {
   const [monthFilter, setMonthFilter] = useState('all');
   const [freeInfo, setFreeInfo] = useState(() => (PAYWALL_ENABLED ? null : unlimitedFreeInfo()));
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [supportsProjectUnits, setSupportsProjectUnits] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
   const [projectOpen, setProjectOpen] = useState(false);
@@ -256,15 +266,41 @@ export default function AppPage() {
     }
     setLoadingProjects(true);
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id,name,unit')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
+      let allowUnits = supportsProjectUnits;
+      const fetchProjects = async (withUnits) => {
+        const columns = withUnits ? 'id,name,unit' : 'id,name';
+        return supabase
+          .from('projects')
+          .select(columns)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+      };
+
+      let data = null;
+      if (supportsProjectUnits) {
+        const response = await fetchProjects(true);
+        if (response.error) {
+          if (isMissingProjectUnitColumn(response.error)) {
+            setSupportsProjectUnits(false);
+            allowUnits = false;
+            const fallback = await fetchProjects(false);
+            if (fallback.error) throw fallback.error;
+            data = fallback.data ?? [];
+          } else {
+            throw response.error;
+          }
+        } else {
+          data = response.data ?? [];
+        }
+      } else {
+        const response = await fetchProjects(false);
+        if (response.error) throw response.error;
+        data = response.data ?? [];
+      }
+
       const list = (data ?? []).map((project) => ({
         ...project,
-        unit: sanitizeUnit(project.unit),
+        unit: allowUnits ? sanitizeUnit(project.unit) : DEFAULT_UNIT,
       }));
       setProjects(list);
       setCurrentProjectId((prev) => {
@@ -278,7 +314,7 @@ export default function AppPage() {
     } finally {
       setLoadingProjects(false);
     }
-  }, [supabase, user]);
+  }, [supabase, supportsProjectUnits, user]);
 
   const loadBets = useCallback(
     async (projectId) => {
@@ -473,13 +509,27 @@ export default function AppPage() {
     const name = window.prompt('Namn på nytt projekt:', 'Nytt projekt');
     if (!name) return;
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({ name, user_id: user.id, unit: DEFAULT_UNIT })
-        .select('id,name,unit')
-        .single();
-      if (error) throw error;
-      const nextProject = { ...data, unit: sanitizeUnit(data.unit) };
+      const attemptInsert = async (withUnits) => {
+        const payload = { name, user_id: user.id };
+        if (withUnits) {
+          payload.unit = DEFAULT_UNIT;
+        }
+        const columns = withUnits ? 'id,name,unit' : 'id,name';
+        return supabase.from('projects').insert(payload).select(columns).single();
+      };
+
+      let allowUnits = supportsProjectUnits;
+      let response = await attemptInsert(supportsProjectUnits);
+      if (response.error && supportsProjectUnits && isMissingProjectUnitColumn(response.error)) {
+        setSupportsProjectUnits(false);
+        allowUnits = false;
+        response = await attemptInsert(false);
+      }
+      if (response.error) throw response.error;
+      const data = response.data;
+      const nextProject = allowUnits
+        ? { ...data, unit: sanitizeUnit(data.unit) }
+        : { ...data, unit: DEFAULT_UNIT };
       setProjects((prev) => [...prev, nextProject]);
       setCurrentProjectId(nextProject.id);
       loadBets(nextProject.id);
@@ -516,6 +566,10 @@ export default function AppPage() {
       window.alert('Supabase är inte konfigurerat.');
       return;
     }
+    if (!supportsProjectUnits) {
+      window.alert('Projektens enheter stöds inte i databasen ännu. Uppdatera databasen och ladda om sidan.');
+      return;
+    }
     if (!user?.id || !currentProject) return;
     const nextUnit = sanitizeUnit(unitValue);
     if (nextUnit === sanitizeUnit(currentProject.unit)) return;
@@ -525,13 +579,25 @@ export default function AppPage() {
         .update({ unit: nextUnit })
         .eq('id', currentProject.id)
         .eq('user_id', user.id);
-      if (error) throw error;
+      if (error) {
+        if (isMissingProjectUnitColumn(error)) {
+          setSupportsProjectUnits(false);
+          window.alert('Din databas saknar kolumnen för projektets enhet. Uppdatera databasen och ladda om sidan.');
+          return;
+        }
+        throw error;
+      }
       setProjects((prev) =>
         prev.map((project) =>
           project.id === currentProject.id ? { ...project, unit: nextUnit } : project
         )
       );
     } catch (err) {
+      if (isMissingProjectUnitColumn(err)) {
+        setSupportsProjectUnits(false);
+        window.alert('Din databas saknar kolumnen för projektets enhet. Uppdatera databasen och ladda om sidan.');
+        return;
+      }
       console.error('Kunde inte uppdatera enhet', err);
       window.alert('Kunde inte uppdatera projektets enhet');
     }
@@ -958,9 +1024,13 @@ export default function AppPage() {
                   <div className="control-row">
                     <select
                       id="projectUnit"
-                      value={currentProject ? sanitizeUnit(currentProject.unit) : DEFAULT_UNIT}
+                      value={
+                        supportsProjectUnits && currentProject
+                          ? sanitizeUnit(currentProject.unit)
+                          : DEFAULT_UNIT
+                      }
                       onChange={(e) => handleUpdateProjectUnit(e.target.value)}
-                      disabled={!currentProject}
+                      disabled={!currentProject || !supportsProjectUnits}
                     >
                       {UNIT_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -969,7 +1039,11 @@ export default function AppPage() {
                       ))}
                     </select>
                   </div>
-                  <p className="control-hint">Visas på insats, resultat och summeringar.</p>
+                  <p className="control-hint">
+                    {supportsProjectUnits
+                      ? 'Visas på insats, resultat och summeringar.'
+                      : 'Tillgängligt efter att databasen uppdaterats med en kolumn för enheter.'}
+                  </p>
                 </div>
               </div>
             ) : null}
