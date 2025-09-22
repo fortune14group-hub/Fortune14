@@ -421,13 +421,25 @@ export default function AppPage() {
       const stakeNum = Number(bet.stake);
       return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
     }, 0);
+    let oddsSum = 0;
+    let oddsCount = 0;
+    for (const bet of decided) {
+      const oddsNum = Number(bet.odds);
+      if (Number.isFinite(oddsNum) && oddsNum > 0) {
+        oddsSum += oddsNum;
+        oddsCount += 1;
+      }
+    }
     const profit = decided.reduce((sum, bet) => sum + computeProfit(bet), 0);
     const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
+    const averageOdds = oddsCount > 0 ? oddsSum / oddsCount : undefined;
     return {
       games: decided.length,
       wins: wins.length,
       profit,
       roi,
+      totalStake: stakeSum,
+      averageOdds,
     };
   }, [filteredBets]);
 
@@ -1182,6 +1194,14 @@ export default function AppPage() {
               <div className="stat-card">
                 <span className="label">Vinster</span>
                 <span className="value">{summaryData.wins}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Snitt odds</span>
+                <span className="value">{formatNumber(summaryData.averageOdds, 2)}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Total insats</span>
+                <span className="value">{formatStake(summaryData.totalStake)}</span>
               </div>
               <div className="stat-card">
                 <span className="label">Nettoresultat</span>
@@ -2040,6 +2060,12 @@ export default function AppPage() {
           font-size: 26px;
           font-weight: 700;
           color: #f8fafc;
+        }
+        .stat-card .value.positive {
+          color: var(--success);
+        }
+        .stat-card .value.negative {
+          color: #f87171;
         }
         .chart-card {
           position: relative;
