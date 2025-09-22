@@ -570,6 +570,59 @@ export default function AppPage() {
     }
   };
 
+  const handleProjectUnitChange = useCallback(
+    async (projectId, nextUnit) => {
+      if (!projectId) return;
+      if (!supportsProjectUnits) {
+        window.alert('Din databas saknar stöd för enhetsval.');
+        return;
+      }
+      if (!supabase) {
+        window.alert('Supabase är inte konfigurerat.');
+        return;
+      }
+      if (!user?.id) return;
+
+      const project = projects.find((p) => p.id === projectId) || null;
+      const previousUnit = sanitizeUnit(project?.unit);
+      const sanitized = sanitizeUnit(nextUnit);
+      if (sanitized === previousUnit) return;
+
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, unit: sanitized } : p)));
+
+      try {
+        const { error } = await supabase
+          .from('projects')
+          .update({ unit: sanitized })
+          .eq('id', projectId)
+          .eq('user_id', user.id);
+        if (error) {
+          if (isMissingProjectUnitColumn(error)) {
+            setSupportsProjectUnits(false);
+            setProjects((prev) =>
+              prev.map((p) =>
+                p.id === projectId ? { ...p, unit: DEFAULT_UNIT } : p
+              )
+            );
+            window.alert(
+              'Din Supabase-databas saknar kolumnen "unit" i tabellen "projects". Lägg till kolumnen för att kunna välja enhet per projekt.'
+            );
+            await loadProjects();
+            return;
+          }
+          throw error;
+        }
+      } catch (err) {
+        console.error('Kunde inte uppdatera enhet', err);
+        window.alert('Kunde inte spara enheten. Försök igen.');
+        setProjects((prev) =>
+          prev.map((p) => (p.id === projectId ? { ...p, unit: previousUnit } : p))
+        );
+      }
+    },
+    [loadProjects, projects, supabase, supportsProjectUnits, user]
+  );
+
   const handleDeleteProject = async () => {
     if (!supabase) {
       window.alert('Supabase är inte konfigurerat.');
@@ -942,6 +995,9 @@ export default function AppPage() {
               <div className="project-summary">
                 <h2>Projekt</h2>
                 <span className="project-name">{currentProject?.name || 'Inget projekt valt'}</span>
+                <span className="project-unit-chip" aria-label="Projektets enhet">
+                  {currentUnitMeta.label}
+                </span>
                 <span className="project-count">
                   Projekt totalt: <strong>{projects.length}</strong>
                 </span>
@@ -985,6 +1041,43 @@ export default function AppPage() {
                       </button>
                     </div>
                   </div>
+                </div>
+                <div className="project-unit-card">
+                  <div className="project-unit-header">
+                    <div className="project-unit-text">
+                      <label htmlFor="projectUnitSelect">Projektets enhet</label>
+                      <p className="project-unit-description">
+                        Styr hur insatser, resultat och statistik visas i appen.
+                      </p>
+                    </div>
+                    <span className="unit-pill">{currentUnitMeta.symbol}</span>
+                  </div>
+                  {supportsProjectUnits ? (
+                    <>
+                      <select
+                        id="projectUnitSelect"
+                        value={currentUnit}
+                        onChange={(e) => handleProjectUnitChange(currentProjectId, e.target.value)}
+                        disabled={!currentProjectId}
+                      >
+                        {Object.entries(UNIT_METADATA).map(([key, meta]) => (
+                          <option key={key} value={key}>
+                            {meta.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="project-unit-hint">
+                        Valet påverkar hur insatser, nettovinster och grafer visas för projektet.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="project-unit-disabled">
+                      <p>
+                        Lägg till kolumnen <code>unit</code> i tabellen <code>projects</code> i Supabase
+                        för att aktivera enhetsval per projekt.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -1829,6 +1922,21 @@ export default function AppPage() {
           font-size: 13px;
           color: var(--text-muted);
         }
+        .project-unit-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 4px;
+          padding: 4px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(99, 102, 241, 0.28);
+          background: rgba(99, 102, 241, 0.18);
+          color: rgba(226, 232, 240, 0.92);
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          width: fit-content;
+        }
         .chevron {
           margin-left: auto;
           width: 38px;
@@ -1875,6 +1983,72 @@ export default function AppPage() {
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: var(--text-muted);
+        }
+        .project-unit-card {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding: 18px 20px;
+          border-radius: 18px;
+          background: rgba(9, 16, 30, 0.82);
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+        .project-unit-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .project-unit-text {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .project-unit-text label {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+        }
+        .project-unit-description {
+          margin: 0;
+          font-size: 13px;
+          color: rgba(148, 163, 184, 0.88);
+          line-height: 1.4;
+        }
+        .unit-pill {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 6px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(94, 234, 212, 0.4);
+          background: rgba(15, 23, 42, 0.72);
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(226, 232, 240, 0.92);
+          min-width: 46px;
+        }
+        .project-unit-hint {
+          margin: 0;
+          font-size: 12px;
+          color: rgba(148, 163, 184, 0.82);
+        }
+        .project-unit-disabled {
+          padding: 16px;
+          border-radius: 14px;
+          border: 1px dashed rgba(148, 163, 184, 0.4);
+          background: rgba(15, 23, 42, 0.6);
+          color: rgba(148, 163, 184, 0.88);
+          font-size: 13px;
+          line-height: 1.5;
+        }
+        .project-unit-disabled code {
+          font-size: 12px;
+          color: rgba(226, 232, 240, 0.95);
         }
         .control-row {
           display: flex;
