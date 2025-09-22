@@ -1237,7 +1237,7 @@ export default function AppPage() {
                       </linearGradient>
                       <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
                         <stop offset="0%" stopColor="#38bdf8" />
-                        <stop offset="100%" stopColor="#a855f7" />
+                        <stop offset="100%" stopColor="#22d3ee" />
                       </linearGradient>
                     </defs>
                     <polygon points={performanceChart.areaPoints} fill="url(#trendFill)" />
@@ -1459,28 +1459,30 @@ export default function AppPage() {
 
       <style jsx global>{`
         :root {
-          --page-bg: #020617;
-          --surface-primary: rgba(14, 23, 45, 0.82);
-          --surface-elevated: rgba(18, 29, 58, 0.88);
-          --surface-highlight: rgba(37, 99, 235, 0.12);
-          --border-soft: rgba(148, 163, 184, 0.18);
-          --border-strong: rgba(99, 102, 241, 0.4);
+          --page-bg: #02040a;
+          --surface-primary: rgba(4, 12, 24, 0.88);
+          --surface-elevated: rgba(5, 16, 30, 0.92);
+          --surface-highlight: rgba(56, 189, 248, 0.12);
+          --border-soft: rgba(148, 163, 184, 0.2);
+          --border-accent: rgba(56, 189, 248, 0.18);
+          --border-strong: rgba(56, 189, 248, 0.4);
           --text-primary: #f8fafc;
-          --text-muted: rgba(148, 163, 184, 0.92);
-          --accent: #6366f1;
-          --accent-soft: rgba(99, 102, 241, 0.18);
-          --accent-strong: rgba(99, 102, 241, 0.45);
+          --text-muted: rgba(148, 163, 184, 0.9);
+          --accent: #38bdf8;
+          --accent-soft: rgba(56, 189, 248, 0.16);
+          --accent-strong: rgba(56, 189, 248, 0.35);
           --accent-cyan: #22d3ee;
-          --success: #22c55e;
+          --accent-glow: rgba(56, 189, 248, 0.45);
+          --success: #34d399;
           --danger: #ef4444;
         }
         body {
           position: relative;
           min-height: 100vh;
           background:
-            radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.18), transparent 60%),
-            radial-gradient(140% 140% at 100% 0%, rgba(14, 165, 233, 0.16), transparent 55%),
-            linear-gradient(180deg, #020617 0%, #050b1c 55%, #020617 100%);
+            radial-gradient(1200px 900px at 6% -10%, rgba(56, 189, 248, 0.18), transparent 68%),
+            radial-gradient(1100px 820px at 95% -8%, rgba(45, 212, 191, 0.16), transparent 70%),
+            linear-gradient(180deg, #04070d 0%, #071425 42%, #02040a 100%);
           color: var(--text-primary);
           overflow-x: hidden;
         }
@@ -1498,7 +1500,7 @@ export default function AppPage() {
           height: 680px;
           top: -180px;
           left: -200px;
-          background: radial-gradient(circle, rgba(236, 72, 153, 0.22) 0%, transparent 65%);
+          background: radial-gradient(760px 760px at 12% 8%, rgba(56, 189, 248, 0.25) 0%, transparent 70%);
           filter: blur(2px);
           animation: floatGlow 18s ease-in-out infinite alternate;
         }
@@ -1507,7 +1509,7 @@ export default function AppPage() {
           height: 760px;
           bottom: -220px;
           right: -280px;
-          background: radial-gradient(circle, rgba(56, 189, 248, 0.18) 0%, transparent 60%);
+          background: radial-gradient(820px 820px at 88% 12%, rgba(34, 211, 238, 0.22) 0%, transparent 68%);
           filter: blur(2px);
           animation: floatGlow 22s ease-in-out infinite alternate-reverse;
         }
@@ -1524,7 +1526,7 @@ export default function AppPage() {
           position: absolute;
           inset: 16px -24px 0;
           border-radius: 36px;
-          background: linear-gradient(130deg, rgba(99, 102, 241, 0.12), rgba(34, 211, 238, 0.05));
+          background: linear-gradient(130deg, rgba(56, 189, 248, 0.12), rgba(45, 212, 191, 0.05));
           opacity: 0.65;
           z-index: -1;
           filter: blur(60px);
@@ -1538,9 +1540,9 @@ export default function AppPage() {
           margin-bottom: 32px;
           padding: 26px 34px;
           border-radius: 26px;
-          background: linear-gradient(135deg, rgba(13, 24, 43, 0.92), rgba(6, 12, 25, 0.92));
-          border: 1px solid rgba(99, 102, 241, 0.22);
-          box-shadow: 0 32px 80px -40px rgba(8, 15, 35, 0.85);
+          background: linear-gradient(135deg, rgba(6, 20, 34, 0.92), rgba(3, 10, 20, 0.9));
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          box-shadow: 0 28px 70px -38px rgba(2, 6, 23, 0.7);
           backdrop-filter: blur(22px);
           overflow: hidden;
         }
@@ -1549,7 +1551,7 @@ export default function AppPage() {
           position: absolute;
           inset: -40% -20% auto;
           height: 120%;
-          background: radial-gradient(circle at 80% 0%, rgba(34, 211, 238, 0.18), transparent 62%);
+          background: radial-gradient(660px 660px at 88% 0%, rgba(56, 189, 248, 0.24), transparent 68%);
           opacity: 0.8;
           transform: rotate(6deg);
           z-index: 0;
@@ -1559,7 +1561,7 @@ export default function AppPage() {
           position: absolute;
           inset: auto -25% -65% -25%;
           height: 120%;
-          background: radial-gradient(circle at 35% 90%, rgba(236, 72, 153, 0.2), transparent 65%);
+          background: radial-gradient(540px 540px at 18% 100%, rgba(45, 212, 191, 0.2), transparent 70%);
           opacity: 0.5;
           z-index: 0;
         }
@@ -1578,7 +1580,7 @@ export default function AppPage() {
           font-size: 30px;
           letter-spacing: 0.04em;
           text-transform: uppercase;
-          background: linear-gradient(120deg, #60a5fa 0%, #a855f7 45%, #22d3ee 100%);
+          background: linear-gradient(120deg, #60a5fa 0%, #38bdf8 50%, #22d3ee 100%);
           -webkit-background-clip: text;
           color: transparent;
         }
@@ -1605,20 +1607,20 @@ export default function AppPage() {
           padding: 12px 18px;
           border-radius: 14px;
           border: 1px solid rgba(148, 163, 184, 0.26);
-          background: rgba(10, 19, 35, 0.75);
+          background: rgba(4, 12, 20, 0.75);
           color: rgba(226, 232, 240, 0.92);
           font-weight: 600;
           letter-spacing: 0.03em;
           cursor: pointer;
           transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease,
             background 0.25s ease;
-          box-shadow: 0 18px 50px -32px rgba(15, 23, 42, 0.9);
+          box-shadow: 0 18px 50px -32px rgba(2, 10, 23, 0.8);
         }
         button:hover,
         .btn:hover {
           transform: translateY(-2px);
-          border-color: rgba(94, 234, 212, 0.55);
-          background: rgba(15, 23, 42, 0.92);
+          border-color: rgba(56, 189, 248, 0.55);
+          background: rgba(6, 18, 32, 0.92);
         }
         button:focus-visible,
         .btn:focus-visible {
@@ -1644,14 +1646,14 @@ export default function AppPage() {
           border-color: rgba(254, 202, 202, 0.65);
         }
         .btn-ghost {
-          background: rgba(9, 16, 30, 0.7);
+          background: rgba(4, 12, 20, 0.7);
           border: 1px solid rgba(148, 163, 184, 0.35);
-          color: rgba(226, 232, 240, 0.86);
+          color: rgba(224, 242, 254, 0.86);
           box-shadow: none;
         }
         .btn-ghost:hover {
-          border-color: rgba(99, 102, 241, 0.55);
-          background: rgba(15, 23, 42, 0.85);
+          border-color: rgba(56, 189, 248, 0.55);
+          background: rgba(6, 18, 32, 0.85);
         }
         .btn-ghost.danger {
           color: #fca5a5;
@@ -1675,9 +1677,9 @@ export default function AppPage() {
           justify-content: center;
           padding: 8px 18px;
           border-radius: 999px;
-          border: 1px solid rgba(99, 102, 241, 0.42);
-          background: linear-gradient(120deg, rgba(99, 102, 241, 0.18), rgba(14, 165, 233, 0.12));
-          color: rgba(224, 231, 255, 0.92);
+          border: 1px solid rgba(56, 189, 248, 0.32);
+          background: linear-gradient(120deg, rgba(56, 189, 248, 0.2), rgba(45, 212, 191, 0.12));
+          color: rgba(224, 242, 254, 0.92);
           font-weight: 600;
           font-size: 13px;
           letter-spacing: 0.08em;
@@ -1692,10 +1694,10 @@ export default function AppPage() {
           margin-bottom: 32px;
           padding: 24px 28px;
           border-radius: 22px;
-          background: linear-gradient(135deg, rgba(248, 113, 113, 0.22), rgba(244, 114, 182, 0.12));
-          border: 1px solid rgba(248, 113, 113, 0.38);
-          color: #ffe4e6;
-          box-shadow: 0 24px 60px -36px rgba(248, 113, 113, 0.55);
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(34, 197, 94, 0.1));
+          border: 1px solid rgba(56, 189, 248, 0.28);
+          color: #e0f2fe;
+          box-shadow: 0 24px 60px -36px rgba(15, 118, 110, 0.4);
           overflow: hidden;
         }
         .banner::after {
@@ -1703,7 +1705,7 @@ export default function AppPage() {
           position: absolute;
           inset: auto -20% -80% -20%;
           height: 120%;
-          background: radial-gradient(circle at 30% 90%, rgba(248, 113, 113, 0.4), transparent 65%);
+          background: radial-gradient(520px 520px at 20% 100%, rgba(45, 212, 191, 0.35), transparent 70%);
           opacity: 0.5;
         }
         .banner h2 {
@@ -1714,7 +1716,7 @@ export default function AppPage() {
         .banner p {
           margin: 0;
           font-size: 15px;
-          color: rgba(255, 228, 230, 0.9);
+          color: rgba(224, 242, 254, 0.88);
           line-height: 1.5;
         }
         .hint {
@@ -1738,8 +1740,8 @@ export default function AppPage() {
           position: relative;
           padding: 28px;
           border-radius: 24px;
-          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(8, 14, 27, 0.92));
-          border: 1px solid rgba(99, 102, 241, 0.18);
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.16);
           box-shadow: 0 32px 80px -44px rgba(8, 13, 30, 0.9);
           backdrop-filter: blur(18px);
           overflow: hidden;
@@ -1749,7 +1751,7 @@ export default function AppPage() {
           position: absolute;
           inset: 0;
           border-radius: inherit;
-          background: radial-gradient(120% 140% at 0% 0%, rgba(99, 102, 241, 0.14), transparent 60%);
+          background: radial-gradient(120% 140% at 0% 0%, rgba(56, 189, 248, 0.16), transparent 60%);
           opacity: 0.85;
           pointer-events: none;
         }
@@ -1795,24 +1797,24 @@ export default function AppPage() {
           transition: background 0.2s ease, border 0.2s ease, transform 0.2s ease;
         }
         .project-toggle:hover {
-          background: rgba(15, 23, 42, 0.72);
+          background: rgba(8, 18, 32, 0.72);
         }
         .project-panel.open .project-toggle {
-          background: rgba(15, 23, 42, 0.9);
+          background: rgba(6, 18, 32, 0.9);
         }
         .project-avatar {
           position: relative;
           width: 48px;
           height: 48px;
           border-radius: 16px;
-          background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(59, 130, 246, 0.18));
-          border: 1px solid rgba(99, 102, 241, 0.38);
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(45, 212, 191, 0.16));
+          border: 1px solid rgba(56, 189, 248, 0.26);
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: 700;
           letter-spacing: 0.08em;
-          color: rgba(224, 231, 255, 0.95);
+          color: rgba(224, 242, 254, 0.95);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
         }
         .project-summary {
@@ -1834,36 +1836,36 @@ export default function AppPage() {
           width: 38px;
           height: 38px;
           border-radius: 14px;
-          border: 1px solid rgba(99, 102, 241, 0.25);
+          border: 1px solid rgba(56, 189, 248, 0.2);
           display: flex;
           align-items: center;
           justify-content: center;
           transition: transform 0.25s ease, border 0.2s ease, background 0.2s ease;
-          background: rgba(12, 21, 40, 0.75);
+          background: rgba(4, 12, 20, 0.75);
         }
         .chevron::before {
           content: '';
           width: 10px;
           height: 10px;
-          border-right: 2px solid rgba(165, 180, 252, 0.9);
-          border-bottom: 2px solid rgba(165, 180, 252, 0.9);
+          border-right: 2px solid rgba(165, 243, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 243, 252, 0.9);
           transform: rotate(45deg);
           transition: transform 0.25s ease;
         }
         .project-panel.open .chevron {
-          background: rgba(14, 23, 43, 0.95);
-          border-color: rgba(99, 102, 241, 0.45);
+          background: rgba(6, 18, 32, 0.95);
+          border-color: rgba(56, 189, 248, 0.35);
         }
         .project-panel.open .chevron::before {
           transform: rotate(-135deg);
         }
         .project-dropdown {
-          border-top: 1px solid rgba(99, 102, 241, 0.18);
+          border-top: 1px solid rgba(56, 189, 248, 0.16);
           padding: 22px 24px 26px;
           display: flex;
           flex-direction: column;
           gap: 18px;
-          background: rgba(7, 14, 26, 0.92);
+          background: rgba(4, 12, 20, 0.92);
         }
         .project-controls {
           display: flex;
@@ -1885,8 +1887,8 @@ export default function AppPage() {
         select,
         input,
         textarea {
-          background: rgba(9, 16, 30, 0.8);
-          border: 1px solid rgba(99, 102, 241, 0.22);
+          background: rgba(4, 12, 20, 0.82);
+          border: 1px solid rgba(56, 189, 248, 0.18);
           color: rgba(226, 232, 240, 0.92);
           padding: 14px 16px;
           border-radius: 14px;
@@ -1897,8 +1899,8 @@ export default function AppPage() {
         select:focus-visible,
         input:focus-visible,
         textarea:focus-visible {
-          border-color: rgba(94, 234, 212, 0.6);
-          box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.18);
+          border-color: rgba(56, 189, 248, 0.65);
+          box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.2);
           outline: none;
         }
         textarea {
@@ -1915,8 +1917,8 @@ export default function AppPage() {
           gap: 14px;
           padding: 8px;
           margin-bottom: 26px;
-          background: rgba(7, 14, 26, 0.78);
-          border: 1px solid rgba(99, 102, 241, 0.22);
+          background: rgba(4, 12, 20, 0.78);
+          border: 1px solid rgba(56, 189, 248, 0.18);
           border-radius: 20px;
           box-shadow: 0 28px 72px -42px rgba(8, 13, 30, 0.92);
         }
@@ -1937,8 +1939,8 @@ export default function AppPage() {
           transform: translateY(-1px);
         }
         .tab.active {
-          background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(56, 189, 248, 0.18));
-          border-color: rgba(99, 102, 241, 0.45);
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(45, 212, 191, 0.16));
+          border-color: rgba(56, 189, 248, 0.35);
           color: #f8fafc;
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
         }
@@ -1965,8 +1967,8 @@ export default function AppPage() {
           gap: 18px;
           padding: 16px 20px;
           border-radius: 16px;
-          background: linear-gradient(120deg, rgba(59, 130, 246, 0.16), rgba(37, 99, 235, 0.12));
-          border: 1px solid rgba(96, 165, 250, 0.4);
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(45, 212, 191, 0.12));
+          border: 1px solid rgba(56, 189, 248, 0.35);
           margin-bottom: 20px;
         }
         .edit-copy {
@@ -1978,11 +1980,11 @@ export default function AppPage() {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(191, 219, 254, 0.95);
+          color: rgba(165, 243, 252, 0.95);
         }
         .edit-meta {
           font-size: 14px;
-          color: rgba(191, 219, 254, 0.88);
+          color: rgba(165, 243, 252, 0.88);
         }
         .col-1 { grid-column: span 1; }
         .col-2 { grid-column: span 2; }
@@ -2034,8 +2036,8 @@ export default function AppPage() {
           position: relative;
           padding: 22px;
           border-radius: 18px;
-          background: linear-gradient(140deg, rgba(14, 23, 45, 0.92), rgba(9, 16, 30, 0.9));
-          border: 1px solid rgba(99, 102, 241, 0.22);
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.18);
           display: flex;
           flex-direction: column;
           gap: 8px;
@@ -2072,8 +2074,8 @@ export default function AppPage() {
           margin-top: 18px;
           padding: 20px;
           border-radius: 20px;
-          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(7, 14, 26, 0.92));
-          border: 1px solid rgba(99, 102, 241, 0.22);
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.18);
           box-shadow: 0 28px 72px -42px rgba(8, 13, 30, 0.88);
           overflow: hidden;
         }
@@ -2082,7 +2084,7 @@ export default function AppPage() {
           position: absolute;
           inset: 0;
           border-radius: inherit;
-          background: radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.18), transparent 65%);
+          background: radial-gradient(120% 120% at 0% 0%, rgba(56, 189, 248, 0.2), transparent 65%);
           opacity: 0.75;
           pointer-events: none;
         }
@@ -2127,8 +2129,8 @@ export default function AppPage() {
           position: relative;
           z-index: 1;
           border-radius: 18px;
-          background: rgba(7, 14, 26, 0.72);
-          border: 1px solid rgba(99, 102, 241, 0.2);
+          background: rgba(4, 12, 20, 0.72);
+          border: 1px solid rgba(56, 189, 248, 0.2);
           padding: 12px;
         }
         .chart-body svg {
@@ -2154,10 +2156,10 @@ export default function AppPage() {
         }
         .month {
           border-radius: 18px;
-          border: 1px solid rgba(99, 102, 241, 0.22);
+          border: 1px solid rgba(56, 189, 248, 0.18);
           margin-bottom: 16px;
           overflow: hidden;
-          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(7, 14, 26, 0.9));
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
         }
         .month summary {
           padding: 18px 22px;
@@ -2176,8 +2178,8 @@ export default function AppPage() {
           content: '';
           width: 10px;
           height: 10px;
-          border-right: 2px solid rgba(165, 180, 252, 0.9);
-          border-bottom: 2px solid rgba(165, 180, 252, 0.9);
+          border-right: 2px solid rgba(165, 243, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 243, 252, 0.9);
           transform: rotate(45deg);
           transition: transform 0.25s ease;
         }
@@ -2193,7 +2195,7 @@ export default function AppPage() {
           grid-template-columns: 120px 1.8fr 100px 100px 160px 1.2fr 260px;
           gap: 16px;
           padding: 18px 22px;
-          border-top: 1px solid rgba(99, 102, 241, 0.18);
+          border-top: 1px solid rgba(56, 189, 248, 0.16);
           align-items: center;
         }
         .row-head {
@@ -2201,7 +2203,7 @@ export default function AppPage() {
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: var(--text-muted);
-          background: rgba(7, 14, 26, 0.7);
+          background: rgba(4, 12, 20, 0.7);
         }
         .cell-match {
           display: flex;
@@ -2238,9 +2240,9 @@ export default function AppPage() {
           letter-spacing: 0.12em;
           text-transform: uppercase;
           font-weight: 700;
-          background: rgba(59, 130, 246, 0.18);
-          border: 1px solid rgba(99, 102, 241, 0.4);
-          color: rgba(191, 219, 254, 0.95);
+          background: rgba(56, 189, 248, 0.18);
+          border: 1px solid rgba(56, 189, 248, 0.32);
+          color: rgba(165, 243, 252, 0.95);
         }
         .status-badge.win {
           background: rgba(34, 197, 94, 0.22);
@@ -2253,7 +2255,7 @@ export default function AppPage() {
           color: rgba(254, 202, 202, 0.95);
         }
         .status-badge.pending {
-          background: rgba(59, 130, 246, 0.18);
+          background: rgba(56, 189, 248, 0.18);
         }
         .status-badge.void {
           background: rgba(148, 163, 184, 0.18);
@@ -2263,8 +2265,8 @@ export default function AppPage() {
         .empty-state {
           padding: 36px 28px;
           text-align: center;
-          background: rgba(7, 14, 26, 0.75);
-          border: 1px dashed rgba(99, 102, 241, 0.35);
+          background: rgba(4, 12, 20, 0.75);
+          border: 1px dashed rgba(56, 189, 248, 0.28);
           color: var(--text-muted);
           font-size: 15px;
           line-height: 1.6;
@@ -2288,7 +2290,7 @@ export default function AppPage() {
           position: absolute;
           inset: 0;
           border-radius: inherit;
-          background: radial-gradient(120% 120% at 100% 0%, rgba(236, 72, 153, 0.16), transparent 70%);
+          background: radial-gradient(120% 120% at 92% 0%, rgba(56, 189, 248, 0.16), transparent 72%);
           opacity: 0.7;
           pointer-events: none;
         }
@@ -2301,14 +2303,14 @@ export default function AppPage() {
         }
         .latest-item {
           border-radius: 18px;
-          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(7, 14, 26, 0.9));
-          border: 1px solid rgba(99, 102, 241, 0.22);
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.18);
           overflow: hidden;
           transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
         }
         .latest-item[open] {
-          background: linear-gradient(140deg, rgba(15, 27, 52, 0.95), rgba(7, 14, 26, 0.95));
-          border-color: rgba(59, 130, 246, 0.45);
+          background: linear-gradient(140deg, rgba(7, 18, 32, 0.96), rgba(4, 12, 20, 0.95));
+          border-color: rgba(56, 189, 248, 0.45);
           transform: translateY(-2px);
         }
         .latest-item summary {
@@ -2327,8 +2329,8 @@ export default function AppPage() {
           content: '';
           width: 10px;
           height: 10px;
-          border-right: 2px solid rgba(165, 180, 252, 0.9);
-          border-bottom: 2px solid rgba(165, 180, 252, 0.9);
+          border-right: 2px solid rgba(165, 243, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 243, 252, 0.9);
           transform: rotate(45deg);
           transition: transform 0.25s ease;
         }
@@ -2365,8 +2367,8 @@ export default function AppPage() {
           display: flex;
           flex-direction: column;
           gap: 18px;
-          border-top: 1px solid rgba(99, 102, 241, 0.18);
-          background: rgba(6, 12, 25, 0.9);
+          border-top: 1px solid rgba(56, 189, 248, 0.16);
+          background: rgba(4, 12, 20, 0.9);
         }
         .latest-meta {
           display: grid;
@@ -2377,7 +2379,7 @@ export default function AppPage() {
           line-height: 1.6;
         }
         .latest-meta strong {
-          color: rgba(165, 180, 252, 0.95);
+          color: rgba(165, 243, 252, 0.95);
           font-weight: 600;
           margin-right: 6px;
         }
@@ -2403,8 +2405,8 @@ export default function AppPage() {
           gap: 12px;
           padding: 13px 18px;
           border-radius: 14px;
-          background: rgba(9, 16, 30, 0.82);
-          border: 1px solid rgba(99, 102, 241, 0.22);
+          background: rgba(4, 12, 20, 0.82);
+          border: 1px solid rgba(56, 189, 248, 0.18);
           color: rgba(226, 232, 240, 0.9);
           font-size: 15px;
           font-weight: 600;
@@ -2412,8 +2414,8 @@ export default function AppPage() {
           transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
         }
         .latest-action-button:hover {
-          background: rgba(15, 23, 42, 0.9);
-          border-color: rgba(59, 130, 246, 0.45);
+          background: rgba(6, 18, 32, 0.9);
+          border-color: rgba(56, 189, 248, 0.45);
           transform: translateY(-1px);
         }
         .latest-action-button .dropdown-caret {
@@ -2433,8 +2435,8 @@ export default function AppPage() {
           padding: 32px 26px;
           text-align: center;
           border-radius: 18px;
-          background: rgba(7, 14, 26, 0.75);
-          border: 1px dashed rgba(99, 102, 241, 0.35);
+          background: rgba(4, 12, 20, 0.75);
+          border: 1px dashed rgba(56, 189, 248, 0.28);
           color: var(--text-muted);
           font-size: 15px;
           line-height: 1.6;
@@ -2502,7 +2504,7 @@ export default function AppPage() {
           .row {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             padding: 16px 20px;
-            border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+            border-bottom: 1px solid rgba(56, 189, 248, 0.16);
           }
           .latest-item summary {
             grid-template-columns: 1fr;
