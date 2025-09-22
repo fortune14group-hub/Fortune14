@@ -2043,8 +2043,8 @@ export default function AppPage() {
         }
         .chart-card {
           position: relative;
-          margin-top: 26px;
-          padding: 24px;
+          margin-top: 18px;
+          padding: 20px;
           border-radius: 20px;
           background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(7, 14, 26, 0.92));
           border: 1px solid rgba(99, 102, 241, 0.22);
@@ -2086,7 +2086,7 @@ export default function AppPage() {
           color: var(--text-muted);
         }
         .chart-total-value {
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 700;
           color: #f8fafc;
         }
@@ -2097,26 +2097,30 @@ export default function AppPage() {
           color: #f87171;
         }
         .chart-body {
-          margin-top: 24px;
+          margin-top: 16px;
           position: relative;
           z-index: 1;
           border-radius: 18px;
           background: rgba(7, 14, 26, 0.72);
           border: 1px solid rgba(99, 102, 241, 0.2);
-          padding: 18px;
+          padding: 12px;
+        }
+        .chart-body svg {
+          width: 100%;
+          height: 140px;
         }
         .chart-area {
           width: 100%;
           height: 220px;
         }
         .chart-empty {
-          padding: 34px;
+          padding: 22px;
           text-align: center;
           color: var(--text-muted);
           font-size: 15px;
         }
         .chart-footer {
-          margin-top: 18px;
+          margin-top: 12px;
           display: flex;
           justify-content: space-between;
           color: var(--text-muted);
