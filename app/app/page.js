@@ -41,11 +41,6 @@ const UNIT_METADATA = {
   usd: { label: 'USD', symbol: '$', position: 'prefix', separator: '' },
 };
 
-const UNIT_OPTIONS = Object.entries(UNIT_METADATA).map(([value, meta]) => ({
-  value,
-  label: meta.label,
-}));
-
 const sanitizeUnit = (unit) => {
   if (typeof unit !== 'string') return DEFAULT_UNIT;
   const key = unit.toLowerCase();
@@ -416,6 +411,8 @@ export default function AppPage() {
   );
 
   const latestBets = useMemo(() => bets.slice(0, 3), [bets]);
+  const showLatestPanel = tab !== 'list';
+  const workspaceClassName = `workspace${showLatestPanel ? '' : ' full-width'}`;
 
   const summaryData = useMemo(() => {
     const decided = filteredBets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
@@ -558,48 +555,6 @@ export default function AppPage() {
     } catch (err) {
       console.error('Kunde inte byta namn', err);
       window.alert('Kunde inte byta namn');
-    }
-  };
-
-  const handleUpdateProjectUnit = async (unitValue) => {
-    if (!supabase) {
-      window.alert('Supabase är inte konfigurerat.');
-      return;
-    }
-    if (!supportsProjectUnits) {
-      window.alert('Projektens enheter stöds inte i databasen ännu. Uppdatera databasen och ladda om sidan.');
-      return;
-    }
-    if (!user?.id || !currentProject) return;
-    const nextUnit = sanitizeUnit(unitValue);
-    if (nextUnit === sanitizeUnit(currentProject.unit)) return;
-    try {
-      const { error } = await supabase
-        .from('projects')
-        .update({ unit: nextUnit })
-        .eq('id', currentProject.id)
-        .eq('user_id', user.id);
-      if (error) {
-        if (isMissingProjectUnitColumn(error)) {
-          setSupportsProjectUnits(false);
-          window.alert('Din databas saknar kolumnen för projektets enhet. Uppdatera databasen och ladda om sidan.');
-          return;
-        }
-        throw error;
-      }
-      setProjects((prev) =>
-        prev.map((project) =>
-          project.id === currentProject.id ? { ...project, unit: nextUnit } : project
-        )
-      );
-    } catch (err) {
-      if (isMissingProjectUnitColumn(err)) {
-        setSupportsProjectUnits(false);
-        window.alert('Din databas saknar kolumnen för projektets enhet. Uppdatera databasen och ladda om sidan.');
-        return;
-      }
-      console.error('Kunde inte uppdatera enhet', err);
-      window.alert('Kunde inte uppdatera projektets enhet');
     }
   };
 
@@ -960,7 +915,7 @@ export default function AppPage() {
         </div>
       ) : null}
 
-      <main className="workspace">
+      <main className={workspaceClassName}>
         <section className="primary">
           <div className={`panel project-panel ${projectOpen ? 'open' : ''}`}>
             <button
@@ -1018,32 +973,6 @@ export default function AppPage() {
                       </button>
                     </div>
                   </div>
-                </div>
-                <div className="project-controls">
-                  <label htmlFor="projectUnit">Projektets enhet</label>
-                  <div className="control-row">
-                    <select
-                      id="projectUnit"
-                      value={
-                        supportsProjectUnits && currentProject
-                          ? sanitizeUnit(currentProject.unit)
-                          : DEFAULT_UNIT
-                      }
-                      onChange={(e) => handleUpdateProjectUnit(e.target.value)}
-                      disabled={!currentProject || !supportsProjectUnits}
-                    >
-                      {UNIT_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="control-hint">
-                    {supportsProjectUnits
-                      ? 'Visas på insats, resultat och summeringar.'
-                      : 'Tillgängligt efter att databasen uppdaterats med en kolumn för enheter.'}
-                  </p>
                 </div>
               </div>
             ) : null}
@@ -1403,91 +1332,100 @@ export default function AppPage() {
           </section>
         </section>
 
-        <aside className="secondary">
-          <section className="panel latest-panel">
-            <div className="section-header compact">
-              <div>
-                <h2>Senaste spel</h2>
-                <span className="subtle-tag">
-                  {currentProjectId
-                    ? `Enhet: ${currentUnitMeta.label}`
-                    : 'Välj eller skapa ett projekt'}
-                </span>
+        {showLatestPanel ? (
+          <aside className="secondary">
+            <section className="panel latest-panel">
+              <div className="section-header compact">
+                <div>
+                  <h2>Senaste spel</h2>
+                  <span className="subtle-tag">
+                    {currentProjectId
+                      ? `Enhet: ${currentUnitMeta.label}`
+                      : 'Välj eller skapa ett projekt'}
+                  </span>
+                </div>
               </div>
-            </div>
-            {currentProjectId && latestBets.length > 0 ? (
-              <div className="latest-list">
-                {latestBets.map((bet, index) => (
-                  <details key={bet.id} className="latest-item" open={index === 0}>
-                    <summary>
-                      <div className="latest-summary">
-                        <span className="latest-match">{bet.match || '–'}</span>
-                        <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
-                          {bet.result || 'Pending'}
-                        </span>
-                      </div>
-                      <span className="latest-date">
-                        {bet.matchday ? formatDay(bet.matchday.slice(0, 10)) : '–'}
-                      </span>
-                    </summary>
-                    <div className="latest-body">
-                      <div className="latest-meta">
-                        {bet.market ? (
-                          <span>
-                            <strong>Marknad:</strong> {bet.market}
+              {currentProjectId && latestBets.length > 0 ? (
+                <div className="latest-list">
+                  {latestBets.map((bet, index) => (
+                    <details key={bet.id} className="latest-item" open={index === 0}>
+                      <summary>
+                        <div className="latest-summary">
+                          <span className="latest-match">{bet.match || '–'}</span>
+                          <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                            {bet.result || 'Pending'}
                           </span>
-                        ) : null}
-                        <span>
-                          <strong>Odds:</strong> {formatNumber(bet.odds, 2)}
-                        </span>
-                        <span>
-                          <strong>Insats:</strong> {formatStake(bet.stake)}
-                        </span>
-                        <span>
-                          <strong>Utfall:</strong> {formatMoney(computeProfit(bet))}
-                        </span>
-                        {bet.book ? (
-                          <span>
-                            <strong>Spelbolag:</strong> {bet.book}
-                          </span>
-                        ) : null}
-                        {bet.note ? (
-                          <span>
-                            <strong>Notering:</strong> {bet.note}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="latest-actions">
-                        <div className="quick-actions" role="group" aria-label="Snabbresultat">
-                          {['Pending', 'Win', 'Loss', 'Void'].map((result) => (
-                            <button
-                              key={result}
-                              type="button"
-                              className={`quick-action ${bet.result === result ? 'active' : ''}`}
-                              onClick={() => handleUpdateBetResult(bet.id, result)}
-                              disabled={bet.result === result}
-                            >
-                              {result}
-                            </button>
-                          ))}
                         </div>
-                        <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
-                          Redigera
-                        </button>
+                        <span className="latest-date">
+                          {bet.matchday ? formatDay(bet.matchday.slice(0, 10)) : '–'}
+                        </span>
+                      </summary>
+                      <div className="latest-body">
+                        <div className="latest-meta">
+                          {bet.market ? (
+                            <span>
+                              <strong>Marknad:</strong> {bet.market}
+                            </span>
+                          ) : null}
+                          <span>
+                            <strong>Odds:</strong> {formatNumber(bet.odds, 2)}
+                          </span>
+                          <span>
+                            <strong>Insats:</strong> {formatStake(bet.stake)}
+                          </span>
+                          <span>
+                            <strong>Utfall:</strong> {formatMoney(computeProfit(bet))}
+                          </span>
+                          {bet.book ? (
+                            <span>
+                              <strong>Spelbolag:</strong> {bet.book}
+                            </span>
+                          ) : null}
+                          {bet.note ? (
+                            <span>
+                              <strong>Notering:</strong> {bet.note}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="latest-actions">
+                          <div className="quick-actions" role="group" aria-label="Snabbresultat">
+                            {['Pending', 'Win', 'Loss', 'Void'].map((result) => (
+                              <button
+                                key={result}
+                                type="button"
+                                className={`quick-action ${bet.result === result ? 'active' : ''}`}
+                                onClick={() => handleUpdateBetResult(bet.id, result)}
+                                disabled={bet.result === result}
+                              >
+                                {result}
+                              </button>
+                            ))}
+                          </div>
+                          <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
+                            Redigera
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost danger"
+                            onClick={() => handleDeleteBet(bet.id)}
+                          >
+                            Ta bort
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </details>
-                ))}
-              </div>
-            ) : (
-              <div className="latest-empty">
-                {currentProjectId
-                  ? 'Inga spel registrerade ännu. Lägg till ditt första spel.'
-                  : 'Välj eller skapa ett projekt för att visa senaste spel.'}
-              </div>
-            )}
-          </section>
-        </aside>
+                    </details>
+                  ))}
+                </div>
+              ) : (
+                <div className="latest-empty">
+                  {currentProjectId
+                    ? 'Inga spel registrerade ännu. Lägg till ditt första spel.'
+                    : 'Välj eller skapa ett projekt för att visa senaste spel.'}
+                </div>
+              )}
+            </section>
+          </aside>
+        ) : null}
       </main>
 
       <style jsx global>{`
@@ -1634,6 +1572,9 @@ export default function AppPage() {
           grid-template-columns: minmax(0, 1fr) 320px;
           gap: 24px;
           align-items: flex-start;
+        }
+        .workspace.full-width {
+          grid-template-columns: minmax(0, 1fr);
         }
         .panel {
           background: rgba(12, 22, 39, 0.92);
@@ -1793,11 +1734,6 @@ export default function AppPage() {
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: rgba(140, 163, 204, 0.9);
-        }
-        .control-hint {
-          font-size: 13px;
-          color: rgba(140, 163, 204, 0.75);
-          margin-top: -4px;
         }
         .control-row {
           display: flex;
