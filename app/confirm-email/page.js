@@ -4,8 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
+import { AuthLayout, AuthCard, AuthCardHeader, AuthCardBody, authStyles } from '../../components/AuthLayout';
 
 const allowedOtpTypes = new Set(['signup', 'magiclink', 'recovery', 'email_change']);
+const styles = authStyles;
 
 function sanitizeType(type) {
   if (!type) {
@@ -53,9 +55,7 @@ function ConfirmEmailContent() {
       return { client: getSupabaseBrowserClient(), error: null };
     } catch (err) {
       const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'Okänt fel vid initiering av Supabase-klienten.';
+        err instanceof Error ? err.message : 'Okänt fel vid initiering av Supabase-klienten.';
 
       if (process.env.NODE_ENV !== 'production') {
         // eslint-disable-next-line no-console
@@ -85,8 +85,7 @@ function ConfirmEmailContent() {
       setMessage('');
 
       const token = tokenParam || '';
-      const hash =
-        typeof window !== 'undefined' ? window.location.hash ?? '' : '';
+      const hash = typeof window !== 'undefined' ? window.location.hash ?? '' : '';
       let sanitizedType = sanitizeType(typeParam || '');
 
       if (!typeParam && hash.includes('type=')) {
@@ -247,239 +246,178 @@ function ConfirmEmailContent() {
 
   if (supabaseError) {
     return (
-      <ConfirmEmailShell intro="Supabase är inte konfigurerat ännu. Lägg till miljövariablerna och försök igen.">
-        <div className="state state-error">
-          <p>
-            E-postbekräftelsen kräver att <code>NEXT_PUBLIC_SUPABASE_URL</code> och{' '}
-            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> finns i din miljö tillsammans med{' '}
-            <code>SUPABASE_URL</code> och <code>SUPABASE_SERVICE_ROLE</code>.
-          </p>
-          <p className="err-inline">{supabaseError}</p>
-        </div>
-        <p className="muted">
-          Så snart variablerna är satta laddar sidan om och du kan bekräfta kontot via länken i mejlet.
-        </p>
-      </ConfirmEmailShell>
+      <AuthLayout
+        topbarActions={
+          <>
+            <Link href="/login" className={styles.topbarLink}>
+              Till inloggning
+            </Link>
+            <Link href="/" className={styles.topbarLink}>
+              Till startsida
+            </Link>
+          </>
+        }
+      >
+        <AuthCard>
+          <AuthCardHeader
+            eyebrow="Konfiguration"
+            title="Supabase saknas"
+            description="Supabase är inte konfigurerat ännu. Lägg till miljövariablerna och försök igen."
+          />
+          <AuthCardBody>
+            <div className={`${styles.status} ${styles.statusError}`}>
+              <p>
+                E-postbekräftelsen kräver att <code>NEXT_PUBLIC_SUPABASE_URL</code> och{' '}
+                <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> finns i din miljö tillsammans med{' '}
+                <code>SUPABASE_URL</code> och <code>SUPABASE_SERVICE_ROLE</code>.
+              </p>
+              <p className={styles.small}>{supabaseError}</p>
+            </div>
+            <p className={styles.muted}>
+              Så snart variablerna är satta laddar sidan om och du kan bekräfta kontot via länken i mejlet.
+            </p>
+            <Link href="/login" className={styles.inlineLink}>
+              Tillbaka till inloggning
+            </Link>
+          </AuthCardBody>
+        </AuthCard>
+      </AuthLayout>
     );
   }
 
+  const statusTone =
+    status === 'success'
+      ? styles.statusSuccess
+      : status === 'missing'
+      ? styles.statusWarning
+      : status === 'error'
+      ? styles.statusError
+      : styles.statusInfo;
+
   return (
-    <ConfirmEmailShell>
-      <div className={`state state-${status}`}>
-        {status === 'checking' ? <p>Bekräftar ditt konto…</p> : null}
-        {status === 'success' ? (
-          <>
-            <p>
-              {message ||
-                (completedType === 'signup'
-                  ? 'Tack! Nu kan du logga in.'
-                  : 'Din e-postadress är nu bekräftad.')}
-            </p>
-            {completedType !== 'recovery' ? (
-              <div className="row">
-                {completedType === 'signup' ? (
-                  <Link href="/login" className="btn">
-                    Logga in
-                  </Link>
-                ) : (
-                  <>
-                    <Link href="/app" className="btn">
-                      Fortsätt till appen
-                    </Link>
-                    <Link href="/login" className="btn-ghost">
-                      Hantera konton
-                    </Link>
-                  </>
-                )}
+    <AuthLayout
+      topbarActions={
+        <>
+          <Link href="/login" className={styles.topbarLink}>
+            Till inloggning
+          </Link>
+          <Link href="/" className={styles.topbarLink}>
+            Till startsida
+          </Link>
+        </>
+      }
+    >
+      <AuthCard>
+        <AuthCardHeader
+          eyebrow="Bekräftelse"
+          title="Bekräfta e-postadress"
+          description="Vi kontrollerar länken och guidar dig vidare."
+        />
+        <AuthCardBody>
+          <div className={`${styles.status} ${statusTone}`}>
+            {status === 'checking' ? (
+              <>
+                <p>Bekräftar ditt konto…</p>
+                <p className={styles.helper}>Det tar bara ett ögonblick.</p>
+              </>
+            ) : null}
+            {status === 'success' ? (
+              <>
+                <p>
+                  {message ||
+                    (completedType === 'signup'
+                      ? 'Tack! Nu kan du logga in.'
+                      : 'Din e-postadress är nu bekräftad.')}
+                </p>
+                {completedType !== 'recovery' ? (
+                  <div className={styles.buttonRow}>
+                    {completedType === 'signup' ? (
+                      <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
+                        Logga in
+                      </Link>
+                    ) : (
+                      <>
+                        <Link href="/app" className={`${styles.btn} ${styles.btnPrimary}`}>
+                          Fortsätt till appen
+                        </Link>
+                        <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
+                          Hantera konton
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+            {status === 'missing' ? (
+              <>
+                <p>{message || 'Länken saknar information eller har redan använts.'}</p>
+                <p className={styles.muted}>Du kan be om ett nytt bekräftelsemail nedan.</p>
+              </>
+            ) : null}
+            {status === 'error' ? (
+              <>
+                <p>{message}</p>
+                <p className={styles.muted}>Försök be om ett nytt bekräftelsemail nedan.</p>
+              </>
+            ) : null}
+          </div>
+
+          <form className={styles.form} onSubmit={handleResend}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="resendEmail">
+                Få nytt bekräftelsemail
+              </label>
+              <input
+                id="resendEmail"
+                type="email"
+                placeholder="din@mail.se"
+                autoComplete="email"
+                value={resendEmail}
+                onChange={(event) => setResendEmail(event.target.value)}
+                className={styles.input}
+              />
+            </div>
+            <div className={styles.buttonRow}>
+              <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={resendLoading}>
+                {resendLoading ? 'Skickar…' : 'Skicka nytt mail'}
+              </button>
+              <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
+                Tillbaka till inloggning
+              </Link>
+            </div>
+            {resendStatus ? (
+              <div className={`${styles.status} ${styles.statusSuccess}`}>
+                <p>{resendStatus}</p>
               </div>
             ) : null}
-          </>
-        ) : null}
-        {status === 'missing' ? (
-          <>
-            <p>{message || 'Länken saknar information eller har redan använts.'}</p>
-            <p className="muted">Du kan be om ett nytt bekräftelsemail nedan.</p>
-          </>
-        ) : null}
-        {status === 'error' ? (
-          <>
-            <p className="err-inline">{message}</p>
-            <p className="muted">Försök be om ett nytt bekräftelsemail nedan.</p>
-          </>
-        ) : null}
-      </div>
-
-      <form className="form-block" onSubmit={handleResend}>
-        <label htmlFor="resendEmail">Få nytt bekräftelsemail</label>
-        <input
-          id="resendEmail"
-          type="email"
-          placeholder="din@mail.se"
-          autoComplete="email"
-          value={resendEmail}
-          onChange={(event) => setResendEmail(event.target.value)}
-        />
-        <div className="row">
-          <button type="submit" className="btn" disabled={resendLoading}>
-            {resendLoading ? 'Skickar…' : 'Skicka nytt mail'}
-          </button>
-          <Link href="/login" className="btn-ghost">
-            Tillbaka till inloggning
-          </Link>
-        </div>
-        {resendStatus ? <div className="ok">{resendStatus}</div> : null}
-        {resendError ? <div className="err">{resendError}</div> : null}
-      </form>
-    </ConfirmEmailShell>
+            {resendError ? (
+              <div className={`${styles.status} ${styles.statusError}`}>
+                <p>{resendError}</p>
+              </div>
+            ) : null}
+          </form>
+        </AuthCardBody>
+      </AuthCard>
+    </AuthLayout>
   );
 }
 
 function ConfirmEmailFallback() {
   return (
-    <ConfirmEmailShell intro="Vi förbereder sidan…">
-      <div className="state state-checking">
-        <p>Förbereder bekräftelsesidan…</p>
-      </div>
-    </ConfirmEmailShell>
-  );
-}
-
-function ConfirmEmailShell({ intro, children }) {
-  return (
-    <div className="center">
-      <div className="card">
-        <h1>Bekräfta e-postadress</h1>
-        {intro ? <p className="muted">{intro}</p> : null}
-        {children}
-      </div>
-      <PageStyles />
-    </div>
-  );
-}
-
-function PageStyles() {
-  return (
-    <style jsx global>{`
-      body {
-        background: #0b1116;
-      }
-      .center {
-        min-height: 100svh;
-        display: grid;
-        place-items: center;
-        padding: 24px;
-      }
-      .card {
-        width: min(560px, 92vw);
-        background: #0f1720;
-        border: 1px solid #1f2a37;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-      }
-      h1 {
-        margin: 0 0 6px;
-        font-size: 22px;
-      }
-      .muted {
-        margin: 0 0 16px;
-        color: #94a3b8;
-      }
-      .state {
-        margin-bottom: 18px;
-        padding: 14px 16px;
-        border-radius: 12px;
-        border: 1px solid #1f2a37;
-        background: #111c28;
-        color: #e2e8f0;
-      }
-      .state-success {
-        border-color: #14532d;
-        background: #052e16;
-        color: #bbf7d0;
-      }
-      .state-error {
-        border-color: #7f1d1d;
-        background: #450a0a;
-        color: #fecaca;
-      }
-      .state-missing {
-        border-color: #7c3aed;
-        background: #2e1065;
-        color: #ddd6fe;
-      }
-      .state-checking {
-        border-color: #1f2a37;
-        background: #111c28;
-        color: #e2e8f0;
-      }
-      label {
-        font-size: 12px;
-        color: #b6c2cf;
-        display: block;
-        margin: 14px 0 6px;
-      }
-      input {
-        width: 100%;
-        padding: 12px;
-        border-radius: 10px;
-        border: 1px solid #243244;
-        background: #0b1320;
-        color: #e7eef5;
-      }
-      .row {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 16px;
-      }
-      .btn {
-        padding: 12px 14px;
-        border-radius: 10px;
-        border: 0;
-        font-weight: 700;
-        cursor: pointer;
-        background: #22c55e;
-        color: #0b1116;
-      }
-      .btn[disabled] {
-        opacity: 0.7;
-        cursor: not-allowed;
-      }
-      .btn-ghost {
-        background: transparent;
-        border: 1px solid #334155;
-        color: #e7eef5;
-        padding: 12px 14px;
-        border-radius: 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .form-block {
-        display: flex;
-        flex-direction: column;
-      }
-      .err,
-      .ok {
-        margin-top: 8px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid transparent;
-      }
-      .err {
-        color: #fecaca;
-        background: #3b0a0a;
-        border-color: #6b1212;
-      }
-      .ok {
-        color: #bbf7d0;
-        background: #083d24;
-        border-color: #195a39;
-      }
-      .err-inline {
-        color: #fecaca;
-      }
-    `}</style>
+    <AuthLayout>
+      <AuthCard>
+        <AuthCardHeader
+          eyebrow="Bekräftelse"
+          title="Bekräftar länken"
+          description="Vi förbereder sidan…"
+        />
+        <AuthCardBody>
+          <div className={`${styles.status} ${styles.statusInfo}`}>
+            <p>Förbereder bekräftelsesidan…</p>
+          </div>
+        </AuthCardBody>
+      </AuthCard>
+    </AuthLayout>
   );
 }
