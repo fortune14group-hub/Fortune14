@@ -32,16 +32,42 @@ const formatDay = (isoDate) => {
   return dayFormatter.format(safeDate);
 };
 
-const formatUnits = (value, decimals = 2) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return '–';
-  const factor = 10 ** decimals;
-  const rounded = Math.round(num * factor) / factor;
-  const text = rounded.toFixed(decimals);
-  return `${text}U`;
+const DEFAULT_UNIT = 'units';
+
+const UNIT_METADATA = {
+  units: { label: 'Units', symbol: 'U', position: 'suffix', separator: '' },
+  kr: { label: 'Kr', symbol: 'kr', position: 'suffix', separator: ' ' },
+  eur: { label: 'EUR', symbol: '€', position: 'prefix', separator: '' },
+  usd: { label: 'USD', symbol: '$', position: 'prefix', separator: '' },
 };
 
-const formatMoney = (value) => formatUnits(value);
+const UNIT_OPTIONS = Object.entries(UNIT_METADATA).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+}));
+
+const sanitizeUnit = (unit) => {
+  if (typeof unit !== 'string') return DEFAULT_UNIT;
+  const key = unit.toLowerCase();
+  return UNIT_METADATA[key] ? key : DEFAULT_UNIT;
+};
+
+const formatValueWithUnit = (value, unit = DEFAULT_UNIT, decimals = 2, { trimZeros = false } = {}) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '–';
+  const meta = UNIT_METADATA[unit] ?? UNIT_METADATA[DEFAULT_UNIT];
+  const factor = 10 ** decimals;
+  const rounded = Math.round(num * factor) / factor;
+  const absText = Math.abs(rounded).toFixed(decimals);
+  const text = trimZeros
+    ? absText.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
+    : absText;
+  const sign = rounded < 0 ? '-' : '';
+  if (meta.position === 'prefix') {
+    return `${sign}${meta.symbol}${meta.separator}${text}`.trim();
+  }
+  return `${sign}${text}${meta.separator}${meta.symbol}`.trim();
+};
 
 const formatPercent = (value) => {
   const num = Number(value);
@@ -232,11 +258,14 @@ export default function AppPage() {
     try {
       const { data, error } = await supabase
         .from('projects')
-        .select('id,name')
+        .select('id,name,unit')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true });
       if (error) throw error;
-      const list = data ?? [];
+      const list = (data ?? []).map((project) => ({
+        ...project,
+        unit: sanitizeUnit(project.unit),
+      }));
       setProjects(list);
       setCurrentProjectId((prev) => {
         if (prev && list.some((p) => p.id === prev)) return prev;
@@ -350,6 +379,8 @@ export default function AppPage() {
     [bets, monthFilter]
   );
 
+  const latestBets = useMemo(() => bets.slice(0, 3), [bets]);
+
   const summaryData = useMemo(() => {
     const decided = filteredBets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
     const wins = decided.filter((bet) => bet.result === 'Win');
@@ -366,42 +397,6 @@ export default function AppPage() {
       roi,
     };
   }, [filteredBets]);
-
-  const overviewStats = useMemo(() => {
-    const total = filteredBets.length;
-    let pending = 0;
-    let stakeTotal = 0;
-    let oddsSum = 0;
-    let oddsCount = 0;
-
-    for (const bet of filteredBets) {
-      if (bet.result === 'Pending') {
-        pending += 1;
-      }
-      const stakeNum = Number(bet.stake);
-      if (Number.isFinite(stakeNum)) {
-        stakeTotal += stakeNum;
-      }
-      const oddsNum = Number(bet.odds);
-      if (Number.isFinite(oddsNum) && oddsNum > 0) {
-        oddsSum += oddsNum;
-        oddsCount += 1;
-      }
-    }
-
-    const averageOdds = oddsCount > 0 ? oddsSum / oddsCount : 0;
-
-    return {
-      total,
-      pending,
-      roi: summaryData.roi,
-      profit: summaryData.profit,
-      decided: summaryData.games,
-      wins: summaryData.wins,
-      totalStake: stakeTotal,
-      averageOdds,
-    };
-  }, [filteredBets, summaryData]);
 
   const performanceSeries = useMemo(() => {
     const decided = filteredBets
@@ -480,13 +475,14 @@ export default function AppPage() {
     try {
       const { data, error } = await supabase
         .from('projects')
-        .insert({ name, user_id: user.id })
-        .select('id,name')
+        .insert({ name, user_id: user.id, unit: DEFAULT_UNIT })
+        .select('id,name,unit')
         .single();
       if (error) throw error;
-      setProjects((prev) => [...prev, data]);
-      setCurrentProjectId(data.id);
-      loadBets(data.id);
+      const nextProject = { ...data, unit: sanitizeUnit(data.unit) };
+      setProjects((prev) => [...prev, nextProject]);
+      setCurrentProjectId(nextProject.id);
+      loadBets(nextProject.id);
     } catch (err) {
       console.error('Kunde inte skapa projekt', err);
       window.alert('Kunde inte skapa projekt');
@@ -512,6 +508,32 @@ export default function AppPage() {
     } catch (err) {
       console.error('Kunde inte byta namn', err);
       window.alert('Kunde inte byta namn');
+    }
+  };
+
+  const handleUpdateProjectUnit = async (unitValue) => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id || !currentProject) return;
+    const nextUnit = sanitizeUnit(unitValue);
+    if (nextUnit === sanitizeUnit(currentProject.unit)) return;
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ unit: nextUnit })
+        .eq('id', currentProject.id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === currentProject.id ? { ...project, unit: nextUnit } : project
+        )
+      );
+    } catch (err) {
+      console.error('Kunde inte uppdatera enhet', err);
+      window.alert('Kunde inte uppdatera projektets enhet');
     }
   };
 
@@ -769,17 +791,24 @@ export default function AppPage() {
 
   const isEditing = !!editingBet;
   const isSubmitDisabled = !currentProjectId || (!isEditing && paywallLimitReached);
-
+  const currentUnit = sanitizeUnit(currentProject?.unit);
+  const currentUnitMeta = UNIT_METADATA[currentUnit] ?? UNIT_METADATA[DEFAULT_UNIT];
+  const formatUnitValue = useCallback(
+    (value, decimals = 2, options = {}) => formatValueWithUnit(value, currentUnit, decimals, options),
+    [currentUnit]
+  );
+  const formatMoney = useCallback(
+    (value, decimals = 2) => formatUnitValue(value, decimals, { trimZeros: true }),
+    [formatUnitValue]
+  );
   const formatNumber = (value, decimals = 2) => {
     const num = Number(value);
     return Number.isFinite(num) ? num.toFixed(decimals) : '–';
   };
-
-  const formatStake = (value, decimals = 2) => {
-    const formatted = formatUnits(value, decimals);
-    if (formatted === '–') return formatted;
-    return formatted.replace(/\.0+U$/, 'U').replace(/\.(\d*[1-9])0+U$/, '.$1U');
-  };
+  const formatStake = useCallback(
+    (value, decimals = 2) => formatUnitValue(value, decimals, { trimZeros: true }),
+    [formatUnitValue]
+  );
 
   const summaryMonthName = monthFilter === 'all' ? 'Alla månader' : formatMonth(monthFilter);
   const chartLatestValue =
@@ -865,18 +894,6 @@ export default function AppPage() {
         </div>
       ) : null}
 
-      {!PAYWALL_ENABLED ? (
-        <div className="banner">
-          <div>
-            <h2>BetSpread är kostnadsfritt</h2>
-            <p>
-              Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.
-            </p>
-          </div>
-          <span className="hint">Vi aktiverar betalning igen vid ett senare tillfälle.</span>
-        </div>
-      ) : null}
-
       <main className="workspace">
         <section className="primary">
           <div className={`panel project-panel ${projectOpen ? 'open' : ''}`}>
@@ -935,6 +952,24 @@ export default function AppPage() {
                       </button>
                     </div>
                   </div>
+                </div>
+                <div className="project-controls">
+                  <label htmlFor="projectUnit">Projektets enhet</label>
+                  <div className="control-row">
+                    <select
+                      id="projectUnit"
+                      value={currentProject ? sanitizeUnit(currentProject.unit) : DEFAULT_UNIT}
+                      onChange={(e) => handleUpdateProjectUnit(e.target.value)}
+                      disabled={!currentProject}
+                    >
+                      {UNIT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="control-hint">Visas på insats, resultat och summeringar.</p>
                 </div>
               </div>
             ) : null}
@@ -1295,47 +1330,88 @@ export default function AppPage() {
         </section>
 
         <aside className="secondary">
-          <section className="panel highlight-panel">
+          <section className="panel latest-panel">
             <div className="section-header compact">
               <div>
-                <h2>Snabböversikt</h2>
-                <span className="subtle-tag">Visar: {summaryMonthName}</span>
-              </div>
-            </div>
-            <div className="overview-grid">
-              <div className="overview-card">
-                <span className="label">Spel totalt</span>
-                <span className="value">{overviewStats.total}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Avgjorda</span>
-                <span className="value">{overviewStats.decided}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Vinster</span>
-                <span className="value">{overviewStats.wins}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Snittodds</span>
-                <span className="value">{formatNumber(overviewStats.averageOdds, 2)}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Totala insatser</span>
-                <span className="value">{formatStake(overviewStats.totalStake)}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">ROI</span>
-                <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
-                  {formatPercent(overviewStats.roi)}
-                </span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Nettoresultat</span>
-                <span className={`value ${overviewStats.profit >= 0 ? 'positive' : 'negative'}`}>
-                  {formatMoney(overviewStats.profit)}
+                <h2>Senaste spel</h2>
+                <span className="subtle-tag">
+                  {currentProjectId
+                    ? `Enhet: ${currentUnitMeta.label}`
+                    : 'Välj eller skapa ett projekt'}
                 </span>
               </div>
             </div>
+            {currentProjectId && latestBets.length > 0 ? (
+              <div className="latest-list">
+                {latestBets.map((bet, index) => (
+                  <details key={bet.id} className="latest-item" open={index === 0}>
+                    <summary>
+                      <div className="latest-summary">
+                        <span className="latest-match">{bet.match || '–'}</span>
+                        <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                          {bet.result || 'Pending'}
+                        </span>
+                      </div>
+                      <span className="latest-date">
+                        {bet.matchday ? formatDay(bet.matchday.slice(0, 10)) : '–'}
+                      </span>
+                    </summary>
+                    <div className="latest-body">
+                      <div className="latest-meta">
+                        {bet.market ? (
+                          <span>
+                            <strong>Marknad:</strong> {bet.market}
+                          </span>
+                        ) : null}
+                        <span>
+                          <strong>Odds:</strong> {formatNumber(bet.odds, 2)}
+                        </span>
+                        <span>
+                          <strong>Insats:</strong> {formatStake(bet.stake)}
+                        </span>
+                        <span>
+                          <strong>Utfall:</strong> {formatMoney(computeProfit(bet))}
+                        </span>
+                        {bet.book ? (
+                          <span>
+                            <strong>Spelbolag:</strong> {bet.book}
+                          </span>
+                        ) : null}
+                        {bet.note ? (
+                          <span>
+                            <strong>Notering:</strong> {bet.note}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="latest-actions">
+                        <div className="quick-actions" role="group" aria-label="Snabbresultat">
+                          {['Pending', 'Win', 'Loss', 'Void'].map((result) => (
+                            <button
+                              key={result}
+                              type="button"
+                              className={`quick-action ${bet.result === result ? 'active' : ''}`}
+                              onClick={() => handleUpdateBetResult(bet.id, result)}
+                              disabled={bet.result === result}
+                            >
+                              {result}
+                            </button>
+                          ))}
+                        </div>
+                        <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
+                          Redigera
+                        </button>
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <div className="latest-empty">
+                {currentProjectId
+                  ? 'Inga spel registrerade ännu. Lägg till ditt första spel.'
+                  : 'Välj eller skapa ett projekt för att visa senaste spel.'}
+              </div>
+            )}
           </section>
         </aside>
       </main>
@@ -1643,6 +1719,11 @@ export default function AppPage() {
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: rgba(140, 163, 204, 0.9);
+        }
+        .control-hint {
+          font-size: 13px;
+          color: rgba(140, 163, 204, 0.75);
+          margin-top: -4px;
         }
         .control-row {
           display: flex;
@@ -2040,43 +2121,145 @@ export default function AppPage() {
           line-height: 1.6;
           border-radius: 18px;
         }
-        .highlight-panel {
+        .latest-panel {
           position: sticky;
           top: 24px;
           display: flex;
           flex-direction: column;
           gap: 16px;
         }
-        .overview-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px;
-          margin-top: 6px;
-        }
-        .overview-card {
-          padding: 16px;
-          border-radius: 14px;
-          background: rgba(18, 32, 54, 0.72);
-          border: 1px solid rgba(72, 103, 152, 0.35);
+        .latest-list {
           display: flex;
           flex-direction: column;
-          gap: 6px;
-          transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
+          gap: 14px;
         }
-        .overview-card:hover {
-          transform: translateY(-2px);
+        .latest-item {
+          border-radius: 16px;
+          background: rgba(18, 32, 54, 0.72);
+          border: 1px solid rgba(72, 103, 152, 0.35);
+          overflow: hidden;
+          transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
+        }
+        .latest-item[open] {
+          background: rgba(21, 38, 62, 0.82);
           border-color: rgba(96, 165, 250, 0.5);
-          background: rgba(21, 38, 62, 0.8);
+          transform: translateY(-1px);
         }
-        .overview-card .label {
-          font-size: 12px;
-          text-transform: uppercase;
+        .latest-item summary {
+          list-style: none;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          align-items: center;
+          gap: 16px;
+          padding: 18px 20px;
+          cursor: pointer;
+        }
+        .latest-item summary::-webkit-details-marker {
+          display: none;
+        }
+        .latest-item summary::after {
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-right: 2px solid rgba(148, 179, 232, 0.9);
+          border-bottom: 2px solid rgba(148, 179, 232, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.2s ease;
+        }
+        .latest-item[open] summary::after {
+          transform: rotate(-135deg);
+        }
+        .latest-summary {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .latest-summary .status-badge {
+          flex-shrink: 0;
+        }
+        .latest-match {
+          font-weight: 600;
+          font-size: 16px;
+          color: #e2e8f0;
+          flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .latest-date {
+          font-size: 13px;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          text-transform: uppercase;
+          color: rgba(148, 179, 232, 0.9);
         }
-        .overview-card .value {
-          font-size: 24px;
-          font-weight: 700;
+        .latest-body {
+          padding: 18px 20px 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          border-top: 1px solid rgba(72, 103, 152, 0.25);
+          background: rgba(11, 21, 36, 0.9);
+        }
+        .latest-meta {
+          display: grid;
+          gap: 8px;
+          grid-template-columns: 1fr;
+          color: rgba(226, 232, 240, 0.92);
+          font-size: 14px;
+          line-height: 1.5;
+        }
+        .latest-meta strong {
+          color: rgba(148, 179, 232, 0.95);
+          font-weight: 600;
+          margin-right: 6px;
+        }
+        .latest-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .quick-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .quick-action {
+          padding: 8px 14px;
+          border-radius: 999px;
+          background: rgba(15, 27, 46, 0.9);
+          border: 1px solid rgba(78, 106, 150, 0.45);
+          color: rgba(226, 232, 240, 0.9);
+          font-size: 13px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          transition: background 0.2s ease, border 0.2s ease, transform 0.2s ease, color 0.2s ease;
+        }
+        .quick-action:hover:not(:disabled) {
+          background: rgba(30, 58, 138, 0.5);
+          border-color: rgba(96, 165, 250, 0.8);
+          transform: translateY(-1px);
+        }
+        .quick-action.active {
+          background: rgba(56, 189, 248, 0.18);
+          border-color: rgba(56, 189, 248, 0.6);
+          color: #bae6fd;
+        }
+        .quick-action:disabled {
+          cursor: default;
+          opacity: 0.65;
+        }
+        .latest-empty {
+          padding: 28px 22px;
+          text-align: center;
+          border-radius: 16px;
+          background: rgba(17, 31, 52, 0.75);
+          border: 1px dashed rgba(99, 102, 241, 0.35);
+          color: rgba(140, 163, 204, 0.9);
+          font-size: 15px;
+          line-height: 1.6;
         }
         .hide {
           display: none !important;
@@ -2089,7 +2272,7 @@ export default function AppPage() {
             flex-direction: row;
             flex-wrap: wrap;
           }
-          .highlight-panel {
+          .latest-panel {
             position: static;
           }
           .row {
@@ -2125,6 +2308,15 @@ export default function AppPage() {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             padding: 14px 18px;
             border-bottom: 1px solid rgba(72, 103, 152, 0.25);
+          }
+          .latest-item summary {
+            grid-template-columns: 1fr;
+          }
+          .latest-item summary::after {
+            justify-self: end;
+          }
+          .latest-date {
+            justify-self: start;
           }
           .row:not(.row-head) > div {
             display: flex;

@@ -14,6 +14,7 @@ create table if not exists public.projects (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references public.users(id) on delete cascade,
   name text not null,
+  unit text default 'units',
   created_at timestamptz default now()
 );
 
