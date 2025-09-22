@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
+import { buildAbsoluteUrl } from '../../lib/siteUrl';
 import styles from './page.module.css';
 
 export default function LoginPage() {
@@ -114,10 +115,7 @@ export default function LoginPage() {
       email,
       password,
       options: {
-        emailRedirectTo:
-          typeof window !== 'undefined'
-            ? `${window.location.origin}/confirm-email`
-            : undefined,
+        emailRedirectTo: buildAbsoluteUrl('/confirm-email'),
       },
     });
 

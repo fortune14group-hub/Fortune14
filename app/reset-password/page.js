@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
+import { buildAbsoluteUrl } from '../../lib/siteUrl';
 import { AuthLayout, AuthCard, AuthCardHeader, AuthCardBody, authStyles } from '../../components/AuthLayout';
 
 const styles = authStyles;
@@ -45,7 +46,7 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/update-password` : undefined;
+    const redirectTo = buildAbsoluteUrl('/update-password');
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
       redirectTo,
     });
