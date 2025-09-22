@@ -423,7 +423,7 @@ export default function AppPage() {
     }, 0);
     let oddsSum = 0;
     let oddsCount = 0;
-    for (const bet of decided) {
+    for (const bet of wins) {
       const oddsNum = Number(bet.odds);
       if (Number.isFinite(oddsNum) && oddsNum > 0) {
         oddsSum += oddsNum;
