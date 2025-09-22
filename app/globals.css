@@ -1,8 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
 :root {
   color-scheme: dark;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #0b1116;
-  color: #e7eef5;
+  --page-bg: #020617;
+  --text-primary: #f8fafc;
+  --text-muted: rgba(148, 163, 184, 0.9);
+  font-family: 'Outfit', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--page-bg);
+  color: var(--text-primary);
 }
 
 *, *::before, *::after {
@@ -12,15 +17,22 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #0b1116;
-  color: #e7eef5;
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+  font-family: 'Outfit', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
-  color: #93c5fd;
+  color: #a5b4fc;
   text-decoration: none;
 }
 
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font-family: inherit;
 }

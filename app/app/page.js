@@ -32,16 +32,46 @@ const formatDay = (isoDate) => {
   return dayFormatter.format(safeDate);
 };
 
-const formatUnits = (value, decimals = 2) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return '–';
-  const factor = 10 ** decimals;
-  const rounded = Math.round(num * factor) / factor;
-  const text = rounded.toFixed(decimals);
-  return `${text}U`;
+const DEFAULT_UNIT = 'units';
+
+const UNIT_METADATA = {
+  units: { label: 'Units', symbol: 'U', position: 'suffix', separator: '' },
+  kr: { label: 'Kr', symbol: 'kr', position: 'suffix', separator: ' ' },
+  eur: { label: 'EUR', symbol: '€', position: 'prefix', separator: '' },
+  usd: { label: 'USD', symbol: '$', position: 'prefix', separator: '' },
 };
 
-const formatMoney = (value) => formatUnits(value);
+const sanitizeUnit = (unit) => {
+  if (typeof unit !== 'string') return DEFAULT_UNIT;
+  const key = unit.toLowerCase();
+  return UNIT_METADATA[key] ? key : DEFAULT_UNIT;
+};
+
+const isMissingProjectUnitColumn = (error) => {
+  if (!error) return false;
+  if (error.code && `${error.code}` === '42703') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('column') && message.includes('unit');
+};
+
+const formatValueWithUnit = (value, unit = DEFAULT_UNIT, decimals = 2, { trimZeros = false } = {}) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '–';
+  const meta = UNIT_METADATA[unit] ?? UNIT_METADATA[DEFAULT_UNIT];
+  const factor = 10 ** decimals;
+  const rounded = Math.round(num * factor) / factor;
+  const absText = Math.abs(rounded).toFixed(decimals);
+  const text = trimZeros
+    ? absText.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
+    : absText;
+  const sign = rounded < 0 ? '-' : '';
+  if (meta.position === 'prefix') {
+    return `${sign}${meta.symbol}${meta.separator}${text}`.trim();
+  }
+  return `${sign}${text}${meta.separator}${meta.symbol}`.trim();
+};
 
 const formatPercent = (value) => {
   const num = Number(value);
@@ -88,6 +118,7 @@ export default function AppPage() {
   const [monthFilter, setMonthFilter] = useState('all');
   const [freeInfo, setFreeInfo] = useState(() => (PAYWALL_ENABLED ? null : unlimitedFreeInfo()));
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [supportsProjectUnits, setSupportsProjectUnits] = useState(true);
   const [loadingBets, setLoadingBets] = useState(false);
   const [editingBet, setEditingBet] = useState(null);
   const [projectOpen, setProjectOpen] = useState(false);
@@ -230,13 +261,42 @@ export default function AppPage() {
     }
     setLoadingProjects(true);
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id,name')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      const list = data ?? [];
+      let allowUnits = supportsProjectUnits;
+      const fetchProjects = async (withUnits) => {
+        const columns = withUnits ? 'id,name,unit' : 'id,name';
+        return supabase
+          .from('projects')
+          .select(columns)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+      };
+
+      let data = null;
+      if (supportsProjectUnits) {
+        const response = await fetchProjects(true);
+        if (response.error) {
+          if (isMissingProjectUnitColumn(response.error)) {
+            setSupportsProjectUnits(false);
+            allowUnits = false;
+            const fallback = await fetchProjects(false);
+            if (fallback.error) throw fallback.error;
+            data = fallback.data ?? [];
+          } else {
+            throw response.error;
+          }
+        } else {
+          data = response.data ?? [];
+        }
+      } else {
+        const response = await fetchProjects(false);
+        if (response.error) throw response.error;
+        data = response.data ?? [];
+      }
+
+      const list = (data ?? []).map((project) => ({
+        ...project,
+        unit: allowUnits ? sanitizeUnit(project.unit) : DEFAULT_UNIT,
+      }));
       setProjects(list);
       setCurrentProjectId((prev) => {
         if (prev && list.some((p) => p.id === prev)) return prev;
@@ -249,7 +309,7 @@ export default function AppPage() {
     } finally {
       setLoadingProjects(false);
     }
-  }, [supabase, user]);
+  }, [supabase, supportsProjectUnits, user]);
 
   const loadBets = useCallback(
     async (projectId) => {
@@ -350,6 +410,10 @@ export default function AppPage() {
     [bets, monthFilter]
   );
 
+  const latestBets = useMemo(() => bets.slice(0, 3), [bets]);
+  const showLatestPanel = tab !== 'list';
+  const workspaceClassName = `workspace${showLatestPanel ? '' : ' full-width'}`;
+
   const summaryData = useMemo(() => {
     const decided = filteredBets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
     const wins = decided.filter((bet) => bet.result === 'Win');
@@ -357,51 +421,27 @@ export default function AppPage() {
       const stakeNum = Number(bet.stake);
       return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
     }, 0);
-    const profit = decided.reduce((sum, bet) => sum + computeProfit(bet), 0);
-    const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
-    return {
-      games: decided.length,
-      wins: wins.length,
-      profit,
-      roi,
-    };
-  }, [filteredBets]);
-
-  const overviewStats = useMemo(() => {
-    const total = filteredBets.length;
-    let pending = 0;
-    let stakeTotal = 0;
     let oddsSum = 0;
     let oddsCount = 0;
-
-    for (const bet of filteredBets) {
-      if (bet.result === 'Pending') {
-        pending += 1;
-      }
-      const stakeNum = Number(bet.stake);
-      if (Number.isFinite(stakeNum)) {
-        stakeTotal += stakeNum;
-      }
+    for (const bet of wins) {
       const oddsNum = Number(bet.odds);
       if (Number.isFinite(oddsNum) && oddsNum > 0) {
         oddsSum += oddsNum;
         oddsCount += 1;
       }
     }
-
-    const averageOdds = oddsCount > 0 ? oddsSum / oddsCount : 0;
-
+    const profit = decided.reduce((sum, bet) => sum + computeProfit(bet), 0);
+    const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
+    const averageOdds = oddsCount > 0 ? oddsSum / oddsCount : undefined;
     return {
-      total,
-      pending,
-      roi: summaryData.roi,
-      profit: summaryData.profit,
-      decided: summaryData.games,
-      wins: summaryData.wins,
-      totalStake: stakeTotal,
+      games: decided.length,
+      wins: wins.length,
+      profit,
+      roi,
+      totalStake: stakeSum,
       averageOdds,
     };
-  }, [filteredBets, summaryData]);
+  }, [filteredBets]);
 
   const performanceSeries = useMemo(() => {
     const decided = filteredBets
@@ -478,15 +518,30 @@ export default function AppPage() {
     const name = window.prompt('Namn på nytt projekt:', 'Nytt projekt');
     if (!name) return;
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({ name, user_id: user.id })
-        .select('id,name')
-        .single();
-      if (error) throw error;
-      setProjects((prev) => [...prev, data]);
-      setCurrentProjectId(data.id);
-      loadBets(data.id);
+      const attemptInsert = async (withUnits) => {
+        const payload = { name, user_id: user.id };
+        if (withUnits) {
+          payload.unit = DEFAULT_UNIT;
+        }
+        const columns = withUnits ? 'id,name,unit' : 'id,name';
+        return supabase.from('projects').insert(payload).select(columns).single();
+      };
+
+      let allowUnits = supportsProjectUnits;
+      let response = await attemptInsert(supportsProjectUnits);
+      if (response.error && supportsProjectUnits && isMissingProjectUnitColumn(response.error)) {
+        setSupportsProjectUnits(false);
+        allowUnits = false;
+        response = await attemptInsert(false);
+      }
+      if (response.error) throw response.error;
+      const data = response.data;
+      const nextProject = allowUnits
+        ? { ...data, unit: sanitizeUnit(data.unit) }
+        : { ...data, unit: DEFAULT_UNIT };
+      setProjects((prev) => [...prev, nextProject]);
+      setCurrentProjectId(nextProject.id);
+      loadBets(nextProject.id);
     } catch (err) {
       console.error('Kunde inte skapa projekt', err);
       window.alert('Kunde inte skapa projekt');
@@ -692,14 +747,38 @@ export default function AppPage() {
     }
   };
 
+  const getAccessToken = useCallback(async () => {
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Kunde inte hämta Supabase-session', error);
+        return null;
+      }
+      return data?.session?.access_token ?? null;
+    } catch (err) {
+      console.error('Oväntat fel vid hämtning av session', err);
+      return null;
+    }
+  }, [supabase]);
+
   const handleUpgrade = async () => {
     if (!user?.id) return;
     try {
       await ensureProfileRow(user);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        window.alert('Din session har gått ut. Logga in igen och försök på nytt.');
+        return;
+      }
+
       const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id, email: user.email }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data?.url) {
@@ -717,10 +796,19 @@ export default function AppPage() {
     if (!user?.id) return;
     try {
       await ensureProfileRow(user);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        window.alert('Din session har gått ut. Logga in igen och försök på nytt.');
+        return;
+      }
+
       const res = await fetch('/api/create-portal-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data?.url) {
@@ -736,17 +824,24 @@ export default function AppPage() {
 
   const isEditing = !!editingBet;
   const isSubmitDisabled = !currentProjectId || (!isEditing && paywallLimitReached);
-
+  const currentUnit = sanitizeUnit(currentProject?.unit);
+  const currentUnitMeta = UNIT_METADATA[currentUnit] ?? UNIT_METADATA[DEFAULT_UNIT];
+  const formatUnitValue = useCallback(
+    (value, decimals = 2, options = {}) => formatValueWithUnit(value, currentUnit, decimals, options),
+    [currentUnit]
+  );
+  const formatMoney = useCallback(
+    (value, decimals = 2) => formatUnitValue(value, decimals, { trimZeros: true }),
+    [formatUnitValue]
+  );
   const formatNumber = (value, decimals = 2) => {
     const num = Number(value);
     return Number.isFinite(num) ? num.toFixed(decimals) : '–';
   };
-
-  const formatStake = (value, decimals = 2) => {
-    const formatted = formatUnits(value, decimals);
-    if (formatted === '–') return formatted;
-    return formatted.replace(/\.0+U$/, 'U').replace(/\.(\d*[1-9])0+U$/, '.$1U');
-  };
+  const formatStake = useCallback(
+    (value, decimals = 2) => formatUnitValue(value, decimals, { trimZeros: true }),
+    [formatUnitValue]
+  );
 
   const summaryMonthName = monthFilter === 'all' ? 'Alla månader' : formatMonth(monthFilter);
   const chartLatestValue =
@@ -832,19 +927,7 @@ export default function AppPage() {
         </div>
       ) : null}
 
-      {!PAYWALL_ENABLED ? (
-        <div className="banner">
-          <div>
-            <h2>BetSpread är kostnadsfritt</h2>
-            <p>
-              Alla funktioner är upplåsta just nu. Fortsätt logga spel utan begränsning.
-            </p>
-          </div>
-          <span className="hint">Vi aktiverar betalning igen vid ett senare tillfälle.</span>
-        </div>
-      ) : null}
-
-      <main className="workspace">
+      <main className={workspaceClassName}>
         <section className="primary">
           <div className={`panel project-panel ${projectOpen ? 'open' : ''}`}>
             <button
@@ -1113,6 +1196,14 @@ export default function AppPage() {
                 <span className="value">{summaryData.wins}</span>
               </div>
               <div className="stat-card">
+                <span className="label">Snitt odds</span>
+                <span className="value">{formatNumber(summaryData.averageOdds, 2)}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Total insats</span>
+                <span className="value">{formatStake(summaryData.totalStake)}</span>
+              </div>
+              <div className="stat-card">
                 <span className="label">Nettoresultat</span>
                 <span className={`value ${summaryData.profit >= 0 ? 'positive' : 'negative'}`}>
                   {formatMoney(summaryData.profit)}
@@ -1261,74 +1352,221 @@ export default function AppPage() {
           </section>
         </section>
 
-        <aside className="secondary">
-          <section className="panel highlight-panel">
-            <div className="section-header compact">
-              <div>
-                <h2>Snabböversikt</h2>
-                <span className="subtle-tag">Visar: {summaryMonthName}</span>
+        {showLatestPanel ? (
+          <aside className="secondary">
+            <section className="panel latest-panel">
+              <div className="section-header compact">
+                <div>
+                  <h2>Senaste spel</h2>
+                </div>
               </div>
-            </div>
-            <div className="overview-grid">
-              <div className="overview-card">
-                <span className="label">Spel totalt</span>
-                <span className="value">{overviewStats.total}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Avgjorda</span>
-                <span className="value">{overviewStats.decided}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Vinster</span>
-                <span className="value">{overviewStats.wins}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Snittodds</span>
-                <span className="value">{formatNumber(overviewStats.averageOdds, 2)}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Totala insatser</span>
-                <span className="value">{formatStake(overviewStats.totalStake)}</span>
-              </div>
-              <div className="overview-card">
-                <span className="label">ROI</span>
-                <span className={`value ${overviewStats.roi >= 0 ? 'positive' : 'negative'}`}>
-                  {formatPercent(overviewStats.roi)}
-                </span>
-              </div>
-              <div className="overview-card">
-                <span className="label">Nettoresultat</span>
-                <span className={`value ${overviewStats.profit >= 0 ? 'positive' : 'negative'}`}>
-                  {formatMoney(overviewStats.profit)}
-                </span>
-              </div>
-            </div>
-          </section>
-        </aside>
+              {currentProjectId && latestBets.length > 0 ? (
+                <div className="latest-list">
+                  {latestBets.map((bet, index) => {
+                    const resultSelectId = `latest-result-${bet.id}`;
+                    return (
+                      <details key={bet.id} className="latest-item" open={index === 0}>
+                        <summary>
+                          <div className="latest-summary">
+                            <span className="latest-match">{bet.match || '–'}</span>
+                            <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                              {bet.result || 'Pending'}
+                            </span>
+                          </div>
+                          <span className="latest-date">
+                            {bet.matchday ? formatDay(bet.matchday.slice(0, 10)) : '–'}
+                          </span>
+                        </summary>
+                        <div className="latest-body">
+                          <div className="latest-meta">
+                            {bet.market ? (
+                              <span>
+                                <strong>Marknad:</strong> {bet.market}
+                              </span>
+                            ) : null}
+                            <span>
+                              <strong>Odds:</strong> {formatNumber(bet.odds, 2)}
+                            </span>
+                            <span>
+                              <strong>Insats:</strong> {formatStake(bet.stake)}
+                            </span>
+                            <span>
+                              <strong>Utfall:</strong> {formatMoney(computeProfit(bet))}
+                            </span>
+                            {bet.book ? (
+                              <span>
+                                <strong>Spelbolag:</strong> {bet.book}
+                              </span>
+                            ) : null}
+                            {bet.note ? (
+                              <span>
+                                <strong>Notering:</strong> {bet.note}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="latest-actions">
+                            <label className="latest-action-label" htmlFor={resultSelectId}>
+                              Uppdatera resultat
+                            </label>
+                            <select
+                              id={resultSelectId}
+                              className="latest-action-select"
+                              value={bet.result || 'Pending'}
+                              onChange={(e) => handleUpdateBetResult(bet.id, e.target.value)}
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Win">Win</option>
+                              <option value="Loss">Loss</option>
+                              <option value="Void">Void</option>
+                            </select>
+                            <button
+                              type="button"
+                              className="latest-action-button"
+                              onClick={() => handleStartEditBet(bet)}
+                            >
+                              <span>Redigera</span>
+                              <span aria-hidden="true" className="dropdown-caret">
+                                ▾
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              className="latest-action-button danger"
+                              onClick={() => handleDeleteBet(bet.id)}
+                            >
+                              <span>Ta bort</span>
+                              <span aria-hidden="true" className="dropdown-caret">
+                                ▾
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="latest-empty">
+                  {currentProjectId
+                    ? 'Inga spel registrerade ännu. Lägg till ditt första spel.'
+                    : 'Välj eller skapa ett projekt för att visa senaste spel.'}
+                </div>
+              )}
+            </section>
+          </aside>
+        ) : null}
       </main>
 
       <style jsx global>{`
+        :root {
+          --page-bg: #020617;
+          --surface-primary: rgba(14, 23, 45, 0.82);
+          --surface-elevated: rgba(18, 29, 58, 0.88);
+          --surface-highlight: rgba(37, 99, 235, 0.12);
+          --border-soft: rgba(148, 163, 184, 0.18);
+          --border-strong: rgba(99, 102, 241, 0.4);
+          --text-primary: #f8fafc;
+          --text-muted: rgba(148, 163, 184, 0.92);
+          --accent: #6366f1;
+          --accent-soft: rgba(99, 102, 241, 0.18);
+          --accent-strong: rgba(99, 102, 241, 0.45);
+          --accent-cyan: #22d3ee;
+          --success: #22c55e;
+          --danger: #ef4444;
+        }
         body {
-          background: linear-gradient(180deg, #040914, #0d1729);
+          position: relative;
+          min-height: 100vh;
+          background:
+            radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.18), transparent 60%),
+            radial-gradient(140% 140% at 100% 0%, rgba(14, 165, 233, 0.16), transparent 55%),
+            linear-gradient(180deg, #020617 0%, #050b1c 55%, #020617 100%);
+          color: var(--text-primary);
+          overflow-x: hidden;
+        }
+        body::before,
+        body::after {
+          content: '';
+          position: fixed;
+          pointer-events: none;
+          z-index: -2;
+          mix-blend-mode: screen;
+          opacity: 0.65;
+        }
+        body::before {
+          width: 680px;
+          height: 680px;
+          top: -180px;
+          left: -200px;
+          background: radial-gradient(circle, rgba(236, 72, 153, 0.22) 0%, transparent 65%);
+          filter: blur(2px);
+          animation: floatGlow 18s ease-in-out infinite alternate;
+        }
+        body::after {
+          width: 760px;
+          height: 760px;
+          bottom: -220px;
+          right: -280px;
+          background: radial-gradient(circle, rgba(56, 189, 248, 0.18) 0%, transparent 60%);
+          filter: blur(2px);
+          animation: floatGlow 22s ease-in-out infinite alternate-reverse;
         }
         .container {
+          position: relative;
+          z-index: 1;
           width: 100%;
-          max-width: 1220px;
+          max-width: 1240px;
           margin: 0 auto;
-          padding: 36px 22px 64px;
+          padding: 56px 28px 96px;
+        }
+        .container::before {
+          content: '';
+          position: absolute;
+          inset: 16px -24px 0;
+          border-radius: 36px;
+          background: linear-gradient(130deg, rgba(99, 102, 241, 0.12), rgba(34, 211, 238, 0.05));
+          opacity: 0.65;
+          z-index: -1;
+          filter: blur(60px);
         }
         header.top-bar {
+          position: relative;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 24px;
-          margin-bottom: 24px;
-          padding: 22px 26px;
-          border-radius: 18px;
-          background: rgba(17, 31, 52, 0.95);
-          border: 1px solid rgba(74, 96, 138, 0.38);
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
-          backdrop-filter: blur(12px);
+          gap: 28px;
+          margin-bottom: 32px;
+          padding: 26px 34px;
+          border-radius: 26px;
+          background: linear-gradient(135deg, rgba(13, 24, 43, 0.92), rgba(6, 12, 25, 0.92));
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          box-shadow: 0 32px 80px -40px rgba(8, 15, 35, 0.85);
+          backdrop-filter: blur(22px);
+          overflow: hidden;
+        }
+        header.top-bar::before {
+          content: '';
+          position: absolute;
+          inset: -40% -20% auto;
+          height: 120%;
+          background: radial-gradient(circle at 80% 0%, rgba(34, 211, 238, 0.18), transparent 62%);
+          opacity: 0.8;
+          transform: rotate(6deg);
+          z-index: 0;
+        }
+        header.top-bar::after {
+          content: '';
+          position: absolute;
+          inset: auto -25% -65% -25%;
+          height: 120%;
+          background: radial-gradient(circle at 35% 90%, rgba(236, 72, 153, 0.2), transparent 65%);
+          opacity: 0.5;
+          z-index: 0;
+        }
+        .brand-block,
+        .right-actions {
+          position: relative;
+          z-index: 1;
         }
         .brand-block {
           display: flex;
@@ -1337,71 +1575,91 @@ export default function AppPage() {
         }
         .brand {
           font-weight: 800;
-          font-size: 28px;
-          letter-spacing: 0.02em;
-          background: linear-gradient(135deg, #a855f7, #38bdf8);
+          font-size: 30px;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          background: linear-gradient(120deg, #60a5fa 0%, #a855f7 45%, #22d3ee 100%);
           -webkit-background-clip: text;
           color: transparent;
         }
         .tagline {
           margin: 0;
-          font-size: 14px;
-          color: rgba(140, 163, 204, 0.9);
+          font-size: 15px;
+          color: rgba(203, 213, 225, 0.82);
+          letter-spacing: 0.02em;
         }
         .right-actions {
           display: flex;
-          gap: 12px;
+          gap: 14px;
           align-items: center;
           flex-wrap: wrap;
           justify-content: flex-end;
         }
         button,
         .btn {
-          background: rgba(42, 60, 100, 0.9);
-          border: 1px solid rgba(96, 119, 173, 0.45);
-          color: #f1f5ff;
-          border-radius: 12px;
-          padding: 10px 16px;
-          cursor: pointer;
-          transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px 18px;
+          border-radius: 14px;
+          border: 1px solid rgba(148, 163, 184, 0.26);
+          background: rgba(10, 19, 35, 0.75);
+          color: rgba(226, 232, 240, 0.92);
           font-weight: 600;
-          letter-spacing: 0.01em;
+          letter-spacing: 0.03em;
+          cursor: pointer;
+          transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease,
+            background 0.25s ease;
+          box-shadow: 0 18px 50px -32px rgba(15, 23, 42, 0.9);
         }
         button:hover,
         .btn:hover {
-          background: rgba(58, 82, 134, 0.95);
-          transform: translateY(-1px);
+          transform: translateY(-2px);
+          border-color: rgba(94, 234, 212, 0.55);
+          background: rgba(15, 23, 42, 0.92);
         }
         button:focus-visible,
         .btn:focus-visible {
-          outline: 2px solid #60a5fa;
-          outline-offset: 3px;
+          outline: 2px solid rgba(56, 189, 248, 0.75);
+          outline-offset: 4px;
         }
         .btn-green {
-          background: linear-gradient(135deg, #34d399, #10b981);
-          border: none;
-          box-shadow: 0 12px 32px -20px rgba(16, 185, 129, 0.7);
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(16, 185, 129, 0.88));
+          border-color: rgba(34, 197, 94, 0.52);
+          color: #f8fafc;
+          box-shadow: 0 22px 58px -28px rgba(16, 185, 129, 0.7);
+        }
+        .btn-green:hover {
+          border-color: rgba(134, 239, 172, 0.65);
         }
         .btn-red {
-          background: linear-gradient(135deg, #f87171, #ef4444);
-          border: none;
-          box-shadow: 0 12px 32px -20px rgba(239, 68, 68, 0.65);
+          background: linear-gradient(135deg, rgba(248, 113, 113, 0.92), rgba(239, 68, 68, 0.88));
+          border-color: rgba(248, 113, 113, 0.5);
+          color: #fff5f5;
+          box-shadow: 0 22px 58px -28px rgba(248, 113, 113, 0.72);
+        }
+        .btn-red:hover {
+          border-color: rgba(254, 202, 202, 0.65);
         }
         .btn-ghost {
-          background: rgba(26, 39, 66, 0.65);
-          border: 1px solid rgba(78, 106, 150, 0.5);
-          color: rgba(226, 232, 255, 0.88);
+          background: rgba(9, 16, 30, 0.7);
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          color: rgba(226, 232, 240, 0.86);
+          box-shadow: none;
         }
         .btn-ghost:hover {
-          background: rgba(41, 57, 92, 0.85);
-          border-color: rgba(129, 140, 248, 0.45);
+          border-color: rgba(99, 102, 241, 0.55);
+          background: rgba(15, 23, 42, 0.85);
         }
         .btn-ghost.danger {
           color: #fca5a5;
           border-color: rgba(248, 113, 113, 0.45);
         }
         .btn-ghost.danger:hover {
-          background: rgba(127, 29, 29, 0.2);
+          background: rgba(127, 29, 29, 0.32);
+          border-color: rgba(248, 113, 113, 0.65);
         }
         .btn-red:disabled,
         .btn-green:disabled,
@@ -1409,83 +1667,110 @@ export default function AppPage() {
           opacity: 0.6;
           cursor: not-allowed;
           transform: none;
+          box-shadow: none;
         }
         .badge {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          padding: 6px 14px;
+          padding: 8px 18px;
           border-radius: 999px;
-          background: rgba(59, 130, 246, 0.12);
-          border: 1px solid rgba(96, 165, 250, 0.35);
-          color: #60a5fa;
+          border: 1px solid rgba(99, 102, 241, 0.42);
+          background: linear-gradient(120deg, rgba(99, 102, 241, 0.18), rgba(14, 165, 233, 0.12));
+          color: rgba(224, 231, 255, 0.92);
           font-weight: 600;
-          font-size: 14px;
+          font-size: 13px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
         }
         .banner {
+          position: relative;
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: space-between;
-          gap: 18px;
-          padding: 18px 22px;
-          margin-bottom: 24px;
-          border-radius: 18px;
-          background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.08));
-          border: 1px solid rgba(248, 113, 113, 0.45);
-          color: #ffe1e1;
-          box-shadow: 0 18px 45px -30px rgba(248, 113, 113, 0.45);
+          gap: 24px;
+          margin-bottom: 32px;
+          padding: 24px 28px;
+          border-radius: 22px;
+          background: linear-gradient(135deg, rgba(248, 113, 113, 0.22), rgba(244, 114, 182, 0.12));
+          border: 1px solid rgba(248, 113, 113, 0.38);
+          color: #ffe4e6;
+          box-shadow: 0 24px 60px -36px rgba(248, 113, 113, 0.55);
+          overflow: hidden;
+        }
+        .banner::after {
+          content: '';
+          position: absolute;
+          inset: auto -20% -80% -20%;
+          height: 120%;
+          background: radial-gradient(circle at 30% 90%, rgba(248, 113, 113, 0.4), transparent 65%);
+          opacity: 0.5;
         }
         .banner h2 {
-          margin: 0 0 4px;
-          font-size: 18px;
-          color: #ffe1e1;
+          margin: 0 0 6px;
+          font-size: 20px;
+          font-weight: 700;
         }
         .banner p {
           margin: 0;
           font-size: 15px;
-          color: #ffd9d9;
-          line-height: 1.45;
+          color: rgba(255, 228, 230, 0.9);
+          line-height: 1.5;
+        }
+        .hint {
+          color: var(--text-muted);
+          font-size: 14px;
+        }
+        .subtle {
+          color: var(--text-muted);
+          font-size: 13px;
         }
         .workspace {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 320px;
-          gap: 24px;
+          grid-template-columns: minmax(0, 1fr) 340px;
+          gap: 28px;
           align-items: flex-start;
         }
+        .workspace.full-width {
+          grid-template-columns: minmax(0, 1fr);
+        }
         .panel {
-          background: rgba(12, 22, 39, 0.92);
-          border: 1px solid rgba(74, 96, 138, 0.38);
-          border-radius: 18px;
-          padding: 24px;
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
-          backdrop-filter: blur(12px);
+          position: relative;
+          padding: 28px;
+          border-radius: 24px;
+          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(8, 14, 27, 0.92));
+          border: 1px solid rgba(99, 102, 241, 0.18);
+          box-shadow: 0 32px 80px -44px rgba(8, 13, 30, 0.9);
+          backdrop-filter: blur(18px);
+          overflow: hidden;
+        }
+        .panel::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 140% at 0% 0%, rgba(99, 102, 241, 0.14), transparent 60%);
+          opacity: 0.85;
+          pointer-events: none;
         }
         .panel h2 {
           margin: 0;
-          font-size: 20px;
+          font-size: 22px;
           font-weight: 700;
-          letter-spacing: 0.01em;
+          letter-spacing: 0.02em;
         }
-        .positive {
-          color: #4ade80;
-        }
-        .negative {
-          color: #f87171;
+        .section-header {
+          position: relative;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 20px;
+          margin-bottom: 22px;
+          z-index: 1;
         }
         .section-header.compact {
-          margin-bottom: 12px;
+          margin-bottom: 14px;
           align-items: baseline;
-        }
-        .subtle-tag {
-          display: inline-block;
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.8);
-          background: rgba(15, 26, 44, 0.7);
-          border: 1px solid rgba(72, 95, 142, 0.4);
-          border-radius: 999px;
-          padding: 4px 10px;
         }
         .project-panel {
           padding: 0;
@@ -1493,123 +1778,103 @@ export default function AppPage() {
           flex-direction: column;
           overflow: hidden;
         }
+        .project-panel::before {
+          display: none;
+        }
         .project-toggle {
           display: flex;
           align-items: center;
-          gap: 14px;
+          gap: 16px;
           width: 100%;
-          padding: 18px 20px;
+          padding: 20px 24px;
           background: transparent;
           border: none;
           color: inherit;
           text-align: left;
           cursor: pointer;
-          transition: background 0.2s ease, border 0.2s ease;
+          transition: background 0.2s ease, border 0.2s ease, transform 0.2s ease;
         }
         .project-toggle:hover {
-          background: rgba(17, 31, 52, 0.85);
+          background: rgba(15, 23, 42, 0.72);
         }
         .project-panel.open .project-toggle {
-          background: rgba(17, 31, 52, 0.92);
+          background: rgba(15, 23, 42, 0.9);
         }
         .project-avatar {
-          width: 44px;
-          height: 44px;
-          border-radius: 14px;
-          background: rgba(33, 56, 94, 0.85);
-          border: 1px solid rgba(96, 165, 250, 0.35);
+          position: relative;
+          width: 48px;
+          height: 48px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(59, 130, 246, 0.18));
+          border: 1px solid rgba(99, 102, 241, 0.38);
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: 700;
-          font-size: 16px;
           letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: #cfe0ff;
+          color: rgba(224, 231, 255, 0.95);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
         }
         .project-summary {
-          flex: 1;
           display: flex;
           flex-direction: column;
           gap: 4px;
         }
-        .project-summary h2 {
-          font-size: 16px;
-          font-weight: 700;
-          margin: 0;
-        }
         .project-name {
-          color: rgba(206, 221, 255, 0.95);
-          font-size: 14px;
+          font-size: 17px;
+          font-weight: 600;
+          letter-spacing: 0.01em;
         }
         .project-count {
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.85);
-        }
-        .project-count strong {
-          color: #f1f5ff;
+          font-size: 13px;
+          color: var(--text-muted);
         }
         .chevron {
-          width: 36px;
-          height: 36px;
-          border-radius: 12px;
-          border: 1px solid rgba(72, 95, 142, 0.35);
+          margin-left: auto;
+          width: 38px;
+          height: 38px;
+          border-radius: 14px;
+          border: 1px solid rgba(99, 102, 241, 0.25);
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
+          transition: transform 0.25s ease, border 0.2s ease, background 0.2s ease;
+          background: rgba(12, 21, 40, 0.75);
         }
         .chevron::before {
           content: '';
-          width: 8px;
-          height: 8px;
-          border-right: 2px solid rgba(148, 179, 232, 0.9);
-          border-bottom: 2px solid rgba(148, 179, 232, 0.9);
+          width: 10px;
+          height: 10px;
+          border-right: 2px solid rgba(165, 180, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 180, 252, 0.9);
           transform: rotate(45deg);
-          transition: transform 0.2s ease;
+          transition: transform 0.25s ease;
         }
         .project-panel.open .chevron {
-          background: rgba(24, 41, 66, 0.95);
-          border-color: rgba(96, 165, 250, 0.45);
+          background: rgba(14, 23, 43, 0.95);
+          border-color: rgba(99, 102, 241, 0.45);
         }
         .project-panel.open .chevron::before {
           transform: rotate(-135deg);
         }
         .project-dropdown {
-          border-top: 1px solid rgba(72, 103, 152, 0.32);
-          padding: 18px 20px 22px;
+          border-top: 1px solid rgba(99, 102, 241, 0.18);
+          padding: 22px 24px 26px;
           display: flex;
           flex-direction: column;
-          gap: 16px;
-          background: rgba(13, 24, 41, 0.9);
-        }
-        .hint {
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 14px;
-        }
-        .subtle {
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 13px;
-        }
-        .section-header {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 20px;
-          margin-bottom: 20px;
+          gap: 18px;
+          background: rgba(7, 14, 26, 0.92);
         }
         .project-controls {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 14px;
         }
         .project-controls label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: var(--text-muted);
         }
         .control-row {
           display: flex;
@@ -1620,62 +1885,67 @@ export default function AppPage() {
         select,
         input,
         textarea {
-          background: rgba(10, 20, 35, 0.85);
-          border: 1px solid rgba(78, 106, 150, 0.4);
-          color: #f1f5ff;
+          background: rgba(9, 16, 30, 0.8);
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          color: rgba(226, 232, 240, 0.92);
           padding: 14px 16px;
-          border-radius: 12px;
+          border-radius: 14px;
           font-size: 15px;
-          min-height: 46px;
+          min-height: 48px;
           transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
         select:focus-visible,
         input:focus-visible,
         textarea:focus-visible {
-          border-color: rgba(96, 165, 250, 0.8);
-          box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+          border-color: rgba(94, 234, 212, 0.6);
+          box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.18);
           outline: none;
+        }
+        textarea {
+          min-height: 120px;
         }
         .button-cluster {
           display: flex;
           flex-wrap: wrap;
-          gap: 10px;
+          gap: 12px;
         }
         .tabs {
+          position: relative;
           display: flex;
-          gap: 12px;
-          padding: 6px;
-          background: rgba(15, 26, 44, 0.7);
-          border: 1px solid rgba(72, 95, 142, 0.35);
-          border-radius: 18px;
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
+          gap: 14px;
+          padding: 8px;
+          margin-bottom: 26px;
+          background: rgba(7, 14, 26, 0.78);
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          border-radius: 20px;
+          box-shadow: 0 28px 72px -42px rgba(8, 13, 30, 0.92);
         }
         .tab {
           flex: 1;
-          padding: 12px 16px;
-          border-radius: 12px;
+          padding: 13px 18px;
+          border-radius: 14px;
           border: 1px solid transparent;
           background: transparent;
-          color: rgba(140, 163, 204, 0.9);
+          color: var(--text-muted);
           font-weight: 600;
-          letter-spacing: 0.02em;
+          letter-spacing: 0.03em;
           cursor: pointer;
           transition: background 0.2s ease, color 0.2s ease, border 0.2s ease, transform 0.2s ease;
         }
         .tab:hover {
-          color: #f1f5ff;
+          color: #e2e8f0;
           transform: translateY(-1px);
         }
         .tab.active {
-          background: linear-gradient(135deg, rgba(96, 165, 250, 0.28), rgba(56, 189, 248, 0.16));
-          border-color: rgba(96, 165, 250, 0.5);
-          color: #f1f5ff;
-          box-shadow: 0 12px 28px -20px rgba(96, 165, 250, 0.7);
+          background: linear-gradient(135deg, rgba(99, 102, 241, 0.28), rgba(56, 189, 248, 0.18));
+          border-color: rgba(99, 102, 241, 0.45);
+          color: #f8fafc;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
         }
         .grid {
           display: grid;
           grid-template-columns: repeat(12, minmax(0, 1fr));
-          gap: 18px;
+          gap: 20px;
         }
         .field {
           display: flex;
@@ -1686,70 +1956,46 @@ export default function AppPage() {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: var(--text-muted);
         }
         .edit-indicator {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 16px;
-          padding: 14px 18px;
-          border-radius: 14px;
-          background: rgba(37, 99, 235, 0.12);
-          border: 1px solid rgba(129, 140, 248, 0.35);
-          margin-bottom: 18px;
+          gap: 18px;
+          padding: 16px 20px;
+          border-radius: 16px;
+          background: linear-gradient(120deg, rgba(59, 130, 246, 0.16), rgba(37, 99, 235, 0.12));
+          border: 1px solid rgba(96, 165, 250, 0.4);
+          margin-bottom: 20px;
         }
         .edit-copy {
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 6px;
         }
         .edit-title {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(199, 210, 254, 0.9);
+          color: rgba(191, 219, 254, 0.95);
         }
         .edit-meta {
           font-size: 14px;
-          color: rgba(199, 210, 254, 0.85);
+          color: rgba(191, 219, 254, 0.88);
         }
-        .col-1 {
-          grid-column: span 1;
-        }
-        .col-2 {
-          grid-column: span 2;
-        }
-        .col-3 {
-          grid-column: span 3;
-        }
-        .col-4 {
-          grid-column: span 4;
-        }
-        .col-5 {
-          grid-column: span 5;
-        }
-        .col-6 {
-          grid-column: span 6;
-        }
-        .col-7 {
-          grid-column: span 7;
-        }
-        .col-8 {
-          grid-column: span 8;
-        }
-        .col-9 {
-          grid-column: span 9;
-        }
-        .col-10 {
-          grid-column: span 10;
-        }
-        .col-11 {
-          grid-column: span 11;
-        }
-        .col-12 {
-          grid-column: span 12;
-        }
+        .col-1 { grid-column: span 1; }
+        .col-2 { grid-column: span 2; }
+        .col-3 { grid-column: span 3; }
+        .col-4 { grid-column: span 4; }
+        .col-5 { grid-column: span 5; }
+        .col-6 { grid-column: span 6; }
+        .col-7 { grid-column: span 7; }
+        .col-8 { grid-column: span 8; }
+        .col-9 { grid-column: span 9; }
+        .col-10 { grid-column: span 10; }
+        .col-11 { grid-column: span 11; }
+        .col-12 { grid-column: span 12; }
         .actions {
           display: flex;
           flex-wrap: wrap;
@@ -1757,7 +2003,7 @@ export default function AppPage() {
           align-items: center;
         }
         .action-field {
-          align-self: end;
+          align-self: flex-end;
         }
         .sr-only {
           position: absolute;
@@ -1773,7 +2019,7 @@ export default function AppPage() {
         .summary-panel .filter {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 10px;
           min-width: 190px;
         }
         .summary-panel select {
@@ -1781,187 +2027,204 @@ export default function AppPage() {
         }
         .stat-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 18px;
         }
         .stat-card {
-          padding: 18px;
-          border-radius: 14px;
-          background: rgba(18, 32, 54, 0.8);
-          border: 1px solid rgba(73, 103, 152, 0.4);
+          position: relative;
+          padding: 22px;
+          border-radius: 18px;
+          background: linear-gradient(140deg, rgba(14, 23, 45, 0.92), rgba(9, 16, 30, 0.9));
+          border: 1px solid rgba(99, 102, 241, 0.22);
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 8px;
+          box-shadow: 0 24px 60px -38px rgba(8, 13, 30, 0.82);
+        }
+        .stat-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 120% at 100% 0%, rgba(56, 189, 248, 0.16), transparent 70%);
+          opacity: 0.7;
+          pointer-events: none;
         }
         .stat-card .label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: var(--text-muted);
         }
         .stat-card .value {
           font-size: 26px;
           font-weight: 700;
+          color: #f8fafc;
+        }
+        .stat-card .value.positive {
+          color: var(--success);
+        }
+        .stat-card .value.negative {
+          color: #f87171;
         }
         .chart-card {
-          margin-top: 22px;
+          position: relative;
+          margin-top: 18px;
           padding: 20px;
-          border-radius: 18px;
-          background: rgba(16, 28, 47, 0.82);
-          border: 1px solid rgba(73, 103, 152, 0.35);
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
+          border-radius: 20px;
+          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(7, 14, 26, 0.92));
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          box-shadow: 0 28px 72px -42px rgba(8, 13, 30, 0.88);
+          overflow: hidden;
+        }
+        .chart-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.18), transparent 65%);
+          opacity: 0.75;
+          pointer-events: none;
         }
         .chart-header {
           display: flex;
-          justify-content: space-between;
           align-items: flex-start;
+          justify-content: space-between;
           gap: 18px;
-          flex-wrap: wrap;
+          position: relative;
+          z-index: 1;
         }
         .chart-title {
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          font-size: 18px;
+          font-weight: 600;
         }
         .chart-subtitle {
           margin: 4px 0 0;
           font-size: 14px;
-          color: rgba(160, 182, 220, 0.9);
+          color: var(--text-muted);
         }
         .chart-total {
           display: flex;
           flex-direction: column;
           align-items: flex-end;
           gap: 4px;
+          font-weight: 600;
+          color: var(--text-muted);
         }
         .chart-total-value {
-          font-size: 28px;
+          font-size: 20px;
           font-weight: 700;
+          color: #f8fafc;
         }
         .chart-total-value.positive {
-          color: #4ade80;
+          color: var(--success);
         }
         .chart-total-value.negative {
           color: #f87171;
         }
-        .chart-total-label {
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.7);
-        }
         .chart-body {
+          margin-top: 16px;
           position: relative;
-          width: 100%;
-          height: 200px;
+          z-index: 1;
+          border-radius: 18px;
+          background: rgba(7, 14, 26, 0.72);
+          border: 1px solid rgba(99, 102, 241, 0.2);
+          padding: 12px;
         }
         .chart-body svg {
           width: 100%;
-          height: 100%;
+          height: 140px;
+        }
+        .chart-area {
+          width: 100%;
+          height: 220px;
         }
         .chart-empty {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 100%;
-          height: 160px;
-          border-radius: 14px;
-          border: 1px dashed rgba(96, 165, 250, 0.35);
-          color: rgba(140, 163, 204, 0.9);
-          font-size: 14px;
-          background: rgba(17, 31, 52, 0.6);
+          padding: 22px;
+          text-align: center;
+          color: var(--text-muted);
+          font-size: 15px;
         }
         .chart-footer {
+          margin-top: 12px;
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          gap: 12px;
+          color: var(--text-muted);
           font-size: 13px;
-          color: rgba(140, 163, 204, 0.85);
         }
-        .chart-footer span:first-child,
-        .chart-footer span:last-child {
-          color: rgba(140, 163, 204, 0.7);
-        }
-        #playsContainer {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-        details.month {
+        .month {
           border-radius: 18px;
-          border: 1px solid rgba(72, 103, 152, 0.35);
-          background: rgba(17, 29, 49, 0.75);
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          margin-bottom: 16px;
           overflow: hidden;
-          box-shadow: 0 28px 65px -35px rgba(7, 11, 24, 0.9);
+          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(7, 14, 26, 0.9));
         }
-        details.month summary {
-          list-style: none;
+        .month summary {
           padding: 18px 22px;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
           cursor: pointer;
-          background: linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(56, 189, 248, 0.08));
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 16px;
+          list-style: none;
+          color: #e2e8f0;
         }
-        details.month summary::-webkit-details-marker {
+        .month summary::-webkit-details-marker {
           display: none;
         }
-        details.month[open] summary {
-          border-bottom: 1px solid rgba(72, 103, 152, 0.35);
-          background: linear-gradient(135deg, rgba(96, 165, 250, 0.08), rgba(56, 189, 248, 0.05));
+        .month summary::after {
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-right: 2px solid rgba(165, 180, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 180, 252, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.25s ease;
+        }
+        .month[open] summary::after {
+          transform: rotate(-135deg);
         }
         .month-count {
-          font-size: 14px;
-          color: rgba(140, 163, 204, 0.9);
+          font-size: 13px;
+          color: var(--text-muted);
         }
         .row {
           display: grid;
-          grid-template-columns: 120px 1.8fr 90px 90px 150px 1.4fr 260px;
+          grid-template-columns: 120px 1.8fr 100px 100px 160px 1.2fr 260px;
           gap: 16px;
-          padding: 16px 22px;
-          align-items: flex-start;
+          padding: 18px 22px;
+          border-top: 1px solid rgba(99, 102, 241, 0.18);
+          align-items: center;
         }
         .row-head {
-          background: rgba(255, 255, 255, 0.02);
           font-size: 12px;
-          letter-spacing: 0.08em;
           text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.9);
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+          background: rgba(7, 14, 26, 0.7);
+        }
+        .cell-match {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .match {
           font-weight: 600;
-          padding-top: 14px;
-          padding-bottom: 14px;
+          color: #f8fafc;
         }
-        .row:not(.row-head):nth-child(odd) {
-          background: rgba(10, 18, 32, 0.3);
-        }
-        .row > div {
-          min-width: 0;
-        }
-        .cell-match .match {
-          font-weight: 600;
-          display: block;
-        }
-        .cell-match .market {
-          display: block;
+        .market {
           font-size: 13px;
-          color: rgba(140, 163, 204, 0.9);
-          margin-top: 2px;
+          color: var(--text-muted);
         }
         .note-cell {
           font-size: 14px;
-          line-height: 1.4;
-          opacity: 0.92;
+          line-height: 1.45;
+          color: rgba(226, 232, 240, 0.82);
         }
         .result-controls {
           display: flex;
           flex-wrap: wrap;
-          gap: 10px;
+          gap: 12px;
           align-items: center;
         }
         .result-select {
@@ -1969,84 +2232,232 @@ export default function AppPage() {
           flex: 0 0 auto;
         }
         .status-badge {
-          padding: 6px 12px;
+          padding: 6px 14px;
           border-radius: 999px;
           font-size: 11px;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.12em;
           text-transform: uppercase;
           font-weight: 700;
-          background: rgba(37, 99, 235, 0.18);
-          border: 1px solid rgba(129, 140, 248, 0.4);
-          color: #c7d2fe;
+          background: rgba(59, 130, 246, 0.18);
+          border: 1px solid rgba(99, 102, 241, 0.4);
+          color: rgba(191, 219, 254, 0.95);
         }
         .status-badge.win {
-          background: rgba(22, 163, 74, 0.2);
-          border-color: rgba(74, 222, 128, 0.45);
-          color: #bbf7d0;
+          background: rgba(34, 197, 94, 0.22);
+          border-color: rgba(134, 239, 172, 0.5);
+          color: rgba(187, 247, 208, 0.95);
         }
         .status-badge.loss {
-          background: rgba(185, 28, 28, 0.2);
-          border-color: rgba(248, 113, 113, 0.45);
-          color: #fecaca;
+          background: rgba(239, 68, 68, 0.22);
+          border-color: rgba(252, 165, 165, 0.45);
+          color: rgba(254, 202, 202, 0.95);
         }
         .status-badge.pending {
-          background: rgba(37, 99, 235, 0.18);
+          background: rgba(59, 130, 246, 0.18);
         }
         .status-badge.void {
-          background: rgba(107, 114, 128, 0.18);
-          border-color: rgba(156, 163, 175, 0.35);
-          color: #e5e7eb;
+          background: rgba(148, 163, 184, 0.18);
+          border-color: rgba(203, 213, 225, 0.35);
+          color: rgba(226, 232, 240, 0.9);
         }
         .empty-state {
-          padding: 32px 24px;
+          padding: 36px 28px;
           text-align: center;
-          background: rgba(17, 31, 52, 0.75);
+          background: rgba(7, 14, 26, 0.75);
           border: 1px dashed rgba(99, 102, 241, 0.35);
-          color: rgba(140, 163, 204, 0.9);
+          color: var(--text-muted);
           font-size: 15px;
           line-height: 1.6;
-          border-radius: 18px;
+          border-radius: 20px;
         }
-        .highlight-panel {
+        .secondary {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .latest-panel {
           position: sticky;
-          top: 24px;
+          top: 32px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+        .latest-panel::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 120% at 100% 0%, rgba(236, 72, 153, 0.16), transparent 70%);
+          opacity: 0.7;
+          pointer-events: none;
+        }
+        .latest-list {
           display: flex;
           flex-direction: column;
           gap: 16px;
+          position: relative;
+          z-index: 1;
         }
-        .overview-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px;
-          margin-top: 6px;
+        .latest-item {
+          border-radius: 18px;
+          background: linear-gradient(140deg, rgba(12, 21, 40, 0.92), rgba(7, 14, 26, 0.9));
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          overflow: hidden;
+          transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
         }
-        .overview-card {
-          padding: 16px;
-          border-radius: 14px;
-          background: rgba(18, 32, 54, 0.72);
-          border: 1px solid rgba(72, 103, 152, 0.35);
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
-        }
-        .overview-card:hover {
+        .latest-item[open] {
+          background: linear-gradient(140deg, rgba(15, 27, 52, 0.95), rgba(7, 14, 26, 0.95));
+          border-color: rgba(59, 130, 246, 0.45);
           transform: translateY(-2px);
-          border-color: rgba(96, 165, 250, 0.5);
-          background: rgba(21, 38, 62, 0.8);
         }
-        .overview-card .label {
+        .latest-item summary {
+          list-style: none;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          align-items: center;
+          gap: 16px;
+          padding: 20px 22px;
+          cursor: pointer;
+        }
+        .latest-item summary::-webkit-details-marker {
+          display: none;
+        }
+        .latest-item summary::after {
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-right: 2px solid rgba(165, 180, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 180, 252, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.25s ease;
+        }
+        .latest-item[open] summary::after {
+          transform: rotate(-135deg);
+        }
+        .latest-summary {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .latest-summary .status-badge {
+          flex-shrink: 0;
+        }
+        .latest-match {
+          font-weight: 600;
+          font-size: 16px;
+          color: #f8fafc;
+          flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .latest-date {
+          font-size: 13px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .latest-body {
+          padding: 20px 22px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          border-top: 1px solid rgba(99, 102, 241, 0.18);
+          background: rgba(6, 12, 25, 0.9);
+        }
+        .latest-meta {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: 1fr;
+          color: rgba(226, 232, 240, 0.88);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .latest-meta strong {
+          color: rgba(165, 180, 252, 0.95);
+          font-weight: 600;
+          margin-right: 6px;
+        }
+        .latest-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .latest-action-label {
           font-size: 12px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: rgba(140, 163, 204, 0.9);
+          color: var(--text-muted);
         }
-        .overview-card .value {
-          font-size: 24px;
-          font-weight: 700;
+        .latest-action-select {
+          width: 100%;
+        }
+        .latest-action-button {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 13px 18px;
+          border-radius: 14px;
+          background: rgba(9, 16, 30, 0.82);
+          border: 1px solid rgba(99, 102, 241, 0.22);
+          color: rgba(226, 232, 240, 0.9);
+          font-size: 15px;
+          font-weight: 600;
+          text-align: left;
+          transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
+        }
+        .latest-action-button:hover {
+          background: rgba(15, 23, 42, 0.9);
+          border-color: rgba(59, 130, 246, 0.45);
+          transform: translateY(-1px);
+        }
+        .latest-action-button .dropdown-caret {
+          margin-left: auto;
+          font-size: 12px;
+          opacity: 0.7;
+        }
+        .latest-action-button.danger {
+          color: #fca5a5;
+          border-color: rgba(248, 113, 113, 0.45);
+        }
+        .latest-action-button.danger:hover {
+          background: rgba(127, 29, 29, 0.32);
+          border-color: rgba(248, 113, 113, 0.65);
+        }
+        .latest-empty {
+          padding: 32px 26px;
+          text-align: center;
+          border-radius: 18px;
+          background: rgba(7, 14, 26, 0.75);
+          border: 1px dashed rgba(99, 102, 241, 0.35);
+          color: var(--text-muted);
+          font-size: 15px;
+          line-height: 1.6;
+        }
+        .positive {
+          color: var(--success);
+        }
+        .negative {
+          color: #f87171;
         }
         .hide {
           display: none !important;
+        }
+        @keyframes floatGlow {
+          0% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+          50% {
+            transform: translate3d(20px, -10px, 0) scale(1.05);
+          }
+          100% {
+            transform: translate3d(-10px, 10px, 0) scale(0.98);
+          }
         }
         @media (max-width: 1100px) {
           .workspace {
@@ -2056,11 +2467,11 @@ export default function AppPage() {
             flex-direction: row;
             flex-wrap: wrap;
           }
-          .highlight-panel {
+          .latest-panel {
             position: static;
           }
           .row {
-            grid-template-columns: 110px 1.6fr 80px 80px 140px 1.2fr 240px;
+            grid-template-columns: 110px 1.6fr 90px 90px 140px 1.2fr 240px;
           }
           .grid {
             grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2090,20 +2501,29 @@ export default function AppPage() {
           }
           .row {
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            padding: 14px 18px;
-            border-bottom: 1px solid rgba(72, 103, 152, 0.25);
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+          }
+          .latest-item summary {
+            grid-template-columns: 1fr;
+          }
+          .latest-item summary::after {
+            justify-self: end;
+          }
+          .latest-date {
+            justify-self: start;
           }
           .row:not(.row-head) > div {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
           }
           .row:not(.row-head) > div::before {
             content: attr(data-label);
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            color: rgba(140, 163, 204, 0.9);
+            color: var(--text-muted);
             font-weight: 600;
           }
           .actions {
@@ -2151,10 +2571,13 @@ export default function AppPage() {
             justify-content: flex-start;
             width: 100%;
           }
+          .container {
+            padding: 44px 20px 80px;
+          }
         }
         @media (max-width: 480px) {
           .right-actions {
-            gap: 10px;
+            gap: 12px;
           }
           .right-actions button {
             width: 100%;
@@ -2168,6 +2591,7 @@ export default function AppPage() {
             align-items: flex-start;
           }
         }
+
       `}</style>
     </div>
   );
