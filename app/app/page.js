@@ -1338,83 +1338,92 @@ export default function AppPage() {
               <div className="section-header compact">
                 <div>
                   <h2>Senaste spel</h2>
-                  <span className="subtle-tag">
-                    {currentProjectId
-                      ? `Enhet: ${currentUnitMeta.label}`
-                      : 'Välj eller skapa ett projekt'}
-                  </span>
                 </div>
               </div>
               {currentProjectId && latestBets.length > 0 ? (
                 <div className="latest-list">
-                  {latestBets.map((bet, index) => (
-                    <details key={bet.id} className="latest-item" open={index === 0}>
-                      <summary>
-                        <div className="latest-summary">
-                          <span className="latest-match">{bet.match || '–'}</span>
-                          <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
-                            {bet.result || 'Pending'}
-                          </span>
-                        </div>
-                        <span className="latest-date">
-                          {bet.matchday ? formatDay(bet.matchday.slice(0, 10)) : '–'}
-                        </span>
-                      </summary>
-                      <div className="latest-body">
-                        <div className="latest-meta">
-                          {bet.market ? (
-                            <span>
-                              <strong>Marknad:</strong> {bet.market}
+                  {latestBets.map((bet, index) => {
+                    const resultSelectId = `latest-result-${bet.id}`;
+                    return (
+                      <details key={bet.id} className="latest-item" open={index === 0}>
+                        <summary>
+                          <div className="latest-summary">
+                            <span className="latest-match">{bet.match || '–'}</span>
+                            <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                              {bet.result || 'Pending'}
                             </span>
-                          ) : null}
-                          <span>
-                            <strong>Odds:</strong> {formatNumber(bet.odds, 2)}
-                          </span>
-                          <span>
-                            <strong>Insats:</strong> {formatStake(bet.stake)}
-                          </span>
-                          <span>
-                            <strong>Utfall:</strong> {formatMoney(computeProfit(bet))}
-                          </span>
-                          {bet.book ? (
-                            <span>
-                              <strong>Spelbolag:</strong> {bet.book}
-                            </span>
-                          ) : null}
-                          {bet.note ? (
-                            <span>
-                              <strong>Notering:</strong> {bet.note}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="latest-actions">
-                          <div className="quick-actions" role="group" aria-label="Snabbresultat">
-                            {['Pending', 'Win', 'Loss', 'Void'].map((result) => (
-                              <button
-                                key={result}
-                                type="button"
-                                className={`quick-action ${bet.result === result ? 'active' : ''}`}
-                                onClick={() => handleUpdateBetResult(bet.id, result)}
-                                disabled={bet.result === result}
-                              >
-                                {result}
-                              </button>
-                            ))}
                           </div>
-                          <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
-                            Redigera
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-ghost danger"
-                            onClick={() => handleDeleteBet(bet.id)}
-                          >
-                            Ta bort
-                          </button>
+                          <span className="latest-date">
+                            {bet.matchday ? formatDay(bet.matchday.slice(0, 10)) : '–'}
+                          </span>
+                        </summary>
+                        <div className="latest-body">
+                          <div className="latest-meta">
+                            {bet.market ? (
+                              <span>
+                                <strong>Marknad:</strong> {bet.market}
+                              </span>
+                            ) : null}
+                            <span>
+                              <strong>Odds:</strong> {formatNumber(bet.odds, 2)}
+                            </span>
+                            <span>
+                              <strong>Insats:</strong> {formatStake(bet.stake)}
+                            </span>
+                            <span>
+                              <strong>Utfall:</strong> {formatMoney(computeProfit(bet))}
+                            </span>
+                            {bet.book ? (
+                              <span>
+                                <strong>Spelbolag:</strong> {bet.book}
+                              </span>
+                            ) : null}
+                            {bet.note ? (
+                              <span>
+                                <strong>Notering:</strong> {bet.note}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="latest-actions">
+                            <label className="latest-action-label" htmlFor={resultSelectId}>
+                              Uppdatera resultat
+                            </label>
+                            <select
+                              id={resultSelectId}
+                              className="latest-action-select"
+                              value={bet.result || 'Pending'}
+                              onChange={(e) => handleUpdateBetResult(bet.id, e.target.value)}
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Win">Win</option>
+                              <option value="Loss">Loss</option>
+                              <option value="Void">Void</option>
+                            </select>
+                            <button
+                              type="button"
+                              className="latest-action-button"
+                              onClick={() => handleStartEditBet(bet)}
+                            >
+                              <span>Redigera</span>
+                              <span aria-hidden="true" className="dropdown-caret">
+                                ▾
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              className="latest-action-button danger"
+                              onClick={() => handleDeleteBet(bet.id)}
+                            >
+                              <span>Ta bort</span>
+                              <span aria-hidden="true" className="dropdown-caret">
+                                ▾
+                              </span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    </details>
-                  ))}
+                      </details>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="latest-empty">
@@ -1599,17 +1608,6 @@ export default function AppPage() {
         .section-header.compact {
           margin-bottom: 12px;
           align-items: baseline;
-        }
-        .subtle-tag {
-          display: inline-block;
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(140, 163, 204, 0.8);
-          background: rgba(15, 26, 44, 0.7);
-          border: 1px solid rgba(72, 95, 142, 0.4);
-          border-radius: 999px;
-          padding: 4px 10px;
         }
         .project-panel {
           padding: 0;
@@ -2228,38 +2226,50 @@ export default function AppPage() {
         .latest-actions {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 10px;
         }
-        .quick-actions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        .quick-action {
-          padding: 8px 14px;
-          border-radius: 999px;
-          background: rgba(15, 27, 46, 0.9);
-          border: 1px solid rgba(78, 106, 150, 0.45);
-          color: rgba(226, 232, 240, 0.9);
-          font-size: 13px;
-          font-weight: 600;
+        .latest-action-label {
+          font-size: 12px;
           text-transform: uppercase;
-          letter-spacing: 0.06em;
-          transition: background 0.2s ease, border 0.2s ease, transform 0.2s ease, color 0.2s ease;
+          letter-spacing: 0.08em;
+          color: rgba(140, 163, 204, 0.9);
         }
-        .quick-action:hover:not(:disabled) {
-          background: rgba(30, 58, 138, 0.5);
-          border-color: rgba(96, 165, 250, 0.8);
+        .latest-action-select {
+          width: 100%;
+        }
+        .latest-action-button {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px 16px;
+          border-radius: 12px;
+          background: rgba(10, 20, 35, 0.85);
+          border: 1px solid rgba(78, 106, 150, 0.4);
+          color: rgba(226, 232, 240, 0.92);
+          font-size: 15px;
+          font-weight: 600;
+          text-align: left;
+          transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease, color 0.2s ease;
+        }
+        .latest-action-button:hover {
+          background: rgba(30, 45, 74, 0.9);
+          border-color: rgba(96, 165, 250, 0.5);
           transform: translateY(-1px);
         }
-        .quick-action.active {
-          background: rgba(56, 189, 248, 0.18);
-          border-color: rgba(56, 189, 248, 0.6);
-          color: #bae6fd;
+        .latest-action-button .dropdown-caret {
+          margin-left: auto;
+          font-size: 12px;
+          opacity: 0.7;
         }
-        .quick-action:disabled {
-          cursor: default;
-          opacity: 0.65;
+        .latest-action-button.danger {
+          color: #fca5a5;
+          border-color: rgba(248, 113, 113, 0.45);
+        }
+        .latest-action-button.danger:hover {
+          background: rgba(127, 29, 29, 0.25);
+          border-color: rgba(248, 113, 113, 0.7);
         }
         .latest-empty {
           padding: 28px 22px;
