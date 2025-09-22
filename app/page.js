@@ -120,7 +120,7 @@ const yearNow = new Date().getFullYear();
 
 export default function LandingPage() {
   return (
-    <>
+    <div className={styles.page}>
       <header className={styles.landingTopbar}>
         <div className={styles.brand}>BetSpread</div>
         <nav className={styles.nav} aria-label="Primär">
@@ -340,6 +340,6 @@ export default function LandingPage() {
         </p>
         <p className={styles.footerCopy}>© {yearNow} BetSpread</p>
       </footer>
-    </>
+    </div>
   );
 }
