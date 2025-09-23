@@ -688,6 +688,34 @@
     padding: 80px 6vw 48px;
   }
 
+  .heroInner {
+    justify-items: center;
+    text-align: center;
+    gap: 36px;
+  }
+
+  .heroCopy {
+    max-width: 520px;
+    width: 100%;
+  }
+
+  .heroHighlights {
+    justify-items: center;
+  }
+
+  .heroMockup {
+    width: 100%;
+  }
+
+  .mockupCardSecondary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mockupTags {
+    flex-wrap: wrap;
+  }
+
   .workflowStep {
     grid-template-columns: 1fr;
   }
@@ -704,8 +732,33 @@
 }
 
 @media (max-width: 520px) {
+  .landingTopbar {
+    justify-content: center;
+  }
+
+  .brand {
+    width: 100%;
+    text-align: center;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .navLink {
+    flex: 1 1 calc(50% - 10px);
+    text-align: center;
+  }
+
+  .heroCopy {
+    text-align: center;
+  }
+
   .heroHighlights li {
     font-size: 14px;
+    justify-content: center;
+    text-align: left;
   }
 
   .ctaRow {
