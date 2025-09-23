@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Logo from './Logo';
 import styles from './auth-layout.module.css';
 
 export function AuthLayout({ children, topbarActions }) {
@@ -15,7 +16,7 @@ export function AuthLayout({ children, topbarActions }) {
     <div className={styles.screen}>
       <header className={styles.topbar}>
         <Link href="/" className={styles.brand} aria-label="BetSpread startsida">
-          BetSpread
+          <Logo className={styles.brandLogo} priority />
         </Link>
         {actions ? <div className={styles.topbarActions}>{actions}</div> : null}
       </header>

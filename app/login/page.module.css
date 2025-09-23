@@ -38,15 +38,22 @@
 }
 
 .brand {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: linear-gradient(135deg, #34d399, #38bdf8);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 26px rgba(56, 189, 248, 0.45);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.brand:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.45);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.brandLogo {
+  display: block;
+  width: 188px;
+  height: auto;
+  filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.4));
 }
 
 .topbarLink {
@@ -486,6 +493,10 @@
 }
 
 @media (max-width: 720px) {
+  .brandLogo {
+    width: 176px;
+  }
+
   .content {
     grid-template-columns: 1fr;
   }
@@ -512,8 +523,8 @@
 }
 
 @media (max-width: 520px) {
-  .brand {
-    font-size: 18px;
+  .brandLogo {
+    width: 150px;
   }
 
   .topbarLink {
