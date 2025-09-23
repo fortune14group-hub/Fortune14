@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useState } from 'react';
 import styles from './page.module.css';
 
 const navLinks = [
@@ -119,24 +122,62 @@ const faqs = [
 const yearNow = new Date().getFullYear();
 
 export default function LandingPage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const toggleMenu = () => setMenuOpen((prev) => !prev);
+  const closeMenu = () => setMenuOpen(false);
+  const navGroupClassName = menuOpen
+    ? `${styles.topbarNavGroup} ${styles.navGroupOpen}`
+    : styles.topbarNavGroup;
+
   return (
     <div className={styles.page}>
       <header className={styles.landingTopbar}>
         <div className={styles.brand}>BetSpread</div>
-        <nav className={styles.nav} aria-label="Primär">
-          {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className={styles.navLink}>
-              {link.label}
+        <button
+          type="button"
+          className={styles.mobileMenuButton}
+          onClick={toggleMenu}
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          data-open={menuOpen}
+        >
+          <span className={styles.menuIcon} aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          <span>{menuOpen ? 'Stäng meny' : 'Meny'}</span>
+        </button>
+        <div id="primary-navigation" className={navGroupClassName}>
+          <nav className={styles.nav} aria-label="Primär">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={styles.navLink}
+                onClick={closeMenu}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+          <div className={styles.topbarActions}>
+            <Link
+              href="/blog"
+              className={`${styles.btn} ${styles.btnGhost}`}
+              onClick={closeMenu}
+            >
+              Blogg
             </Link>
-          ))}
-        </nav>
-        <div className={styles.topbarActions}>
-          <Link href="/blog" className={`${styles.btn} ${styles.btnGhost}`}>
-            Blogg
-          </Link>
-          <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
-            Logga in
-          </Link>
+            <Link
+              href="/login"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={closeMenu}
+            >
+              Logga in
+            </Link>
+          </div>
         </div>
       </header>
 
