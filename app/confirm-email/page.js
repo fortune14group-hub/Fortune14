@@ -226,11 +226,13 @@ function ConfirmEmailContent() {
     setResendLoading(true);
 
     try {
+      const redirectTo = buildAbsoluteUrl('/confirm-email');
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: trimmedEmail,
         options: {
-          emailRedirectTo: buildAbsoluteUrl('/confirm-email'),
+          emailRedirectTo: redirectTo,
+          redirectTo,
         },
       });
 
