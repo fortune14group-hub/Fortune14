@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
+import { buildAbsoluteUrl } from '../../lib/siteUrl';
 import { AuthLayout, AuthCard, AuthCardHeader, AuthCardBody, authStyles } from '../../components/AuthLayout';
 
 const allowedOtpTypes = new Set(['signup', 'magiclink', 'recovery', 'email_change']);
@@ -50,6 +51,9 @@ function ConfirmEmailContent() {
   const [resendStatus, setResendStatus] = useState('');
   const [resendError, setResendError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
+  const statusContainerRef = useRef(null);
+  const resendSuccessRef = useRef(null);
+  const resendErrorRef = useRef(null);
   const [supabaseState] = useState(() => {
     try {
       return { client: getSupabaseBrowserClient(), error: null };
@@ -68,6 +72,32 @@ function ConfirmEmailContent() {
 
   const supabase = supabaseState.client;
   const supabaseError = supabaseState.error;
+
+  const scrollElementIntoView = useCallback((element) => {
+    if (!element) {
+      return;
+    }
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && window.matchMedia
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false;
+
+    if (typeof element.focus === 'function') {
+      try {
+        element.focus({ preventScroll: true });
+      } catch (error) {
+        element.focus();
+      }
+    }
+
+    if (typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -205,6 +235,23 @@ function ConfirmEmailContent() {
     };
   }, [supabase, tokenParam, typeParam, codeParam, router]);
 
+  useEffect(() => {
+    if (status === 'checking') {
+      return;
+    }
+
+    scrollElementIntoView(statusContainerRef.current);
+  }, [status, scrollElementIntoView]);
+
+  useEffect(() => {
+    if (!resendError && !resendStatus) {
+      return;
+    }
+
+    const target = resendError ? resendErrorRef.current : resendSuccessRef.current;
+    scrollElementIntoView(target);
+  }, [resendError, resendStatus, scrollElementIntoView]);
+
   const handleResend = async (event) => {
     event.preventDefault();
     setResendStatus('');
@@ -225,9 +272,14 @@ function ConfirmEmailContent() {
     setResendLoading(true);
 
     try {
+      const redirectTo = buildAbsoluteUrl('/confirm-email');
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: trimmedEmail,
+        options: {
+          emailRedirectTo: redirectTo,
+          redirectTo,
+        },
       });
 
       if (error) {
@@ -314,7 +366,14 @@ function ConfirmEmailContent() {
           description="Vi kontrollerar länken och guidar dig vidare."
         />
         <AuthCardBody>
-          <div className={`${styles.status} ${statusTone}`}>
+          <div
+            ref={statusContainerRef}
+            className={`${styles.status} ${statusTone}`}
+            role={status === 'error' ? 'alert' : 'status'}
+            aria-live={status === 'error' ? 'assertive' : 'polite'}
+            aria-busy={status === 'checking'}
+            tabIndex={-1}
+          >
             {status === 'checking' ? (
               <>
                 <p>Bekräftar ditt konto…</p>
@@ -368,18 +427,29 @@ function ConfirmEmailContent() {
               <label className={styles.label} htmlFor="resendEmail">
                 Få nytt bekräftelsemail
               </label>
+              <p id="resendEmailHelp" className={styles.helper}>
+                Ange e-postadressen du registrerade kontot med så skickar vi en ny länk.
+              </p>
               <input
                 id="resendEmail"
                 type="email"
                 placeholder="din@mail.se"
                 autoComplete="email"
+                enterKeyHint="send"
+                inputMode="email"
                 value={resendEmail}
                 onChange={(event) => setResendEmail(event.target.value)}
                 className={styles.input}
+                aria-describedby="resendEmailHelp"
               />
             </div>
             <div className={styles.buttonRow}>
-              <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={resendLoading}>
+              <button
+                type="submit"
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                disabled={resendLoading}
+                aria-busy={resendLoading}
+              >
                 {resendLoading ? 'Skickar…' : 'Skicka nytt mail'}
               </button>
               <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
@@ -387,12 +457,24 @@ function ConfirmEmailContent() {
               </Link>
             </div>
             {resendStatus ? (
-              <div className={`${styles.status} ${styles.statusSuccess}`}>
+              <div
+                ref={resendSuccessRef}
+                className={`${styles.status} ${styles.statusSuccess}`}
+                role="status"
+                aria-live="polite"
+                tabIndex={-1}
+              >
                 <p>{resendStatus}</p>
               </div>
             ) : null}
             {resendError ? (
-              <div className={`${styles.status} ${styles.statusError}`}>
+              <div
+                ref={resendErrorRef}
+                className={`${styles.status} ${styles.statusError}`}
+                role="alert"
+                aria-live="assertive"
+                tabIndex={-1}
+              >
                 <p>{resendError}</p>
               </div>
             ) : null}

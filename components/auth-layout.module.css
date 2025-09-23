@@ -40,6 +40,12 @@
   padding: clamp(20px, 4vw, 38px) clamp(24px, 6vw, 80px);
 }
 
+@supports (padding: max(0px)) {
+  .topbar {
+    padding-top: max(clamp(20px, 4vw, 38px), calc(env(safe-area-inset-top) + 16px));
+  }
+}
+
 .brand {
   font-size: 22px;
   font-weight: 700;
@@ -88,7 +94,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   padding: clamp(32px, 6vw, 96px) clamp(24px, 6vw, 96px) clamp(48px, 8vw, 120px);
+  overflow-y: auto;
+}
+
+@supports (padding: max(0px)) {
+  .shell {
+    padding-top: max(clamp(32px, 6vw, 96px), calc(env(safe-area-inset-top) + 24px));
+    padding-bottom: max(clamp(48px, 8vw, 120px), calc(env(safe-area-inset-bottom) + 32px));
+  }
 }
 
 .card {
@@ -301,6 +316,7 @@
 }
 
 .helper {
+  margin: 0;
   font-size: 13px;
   color: rgba(148, 163, 184, 0.78);
 }
@@ -316,15 +332,18 @@
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .topbar {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 18px;
+    align-items: stretch;
+    gap: 16px;
+    padding-inline: clamp(18px, 6vw, 40px);
   }
 
   .topbarActions {
     width: 100%;
+    justify-content: flex-start;
+    gap: 10px;
   }
 
   .topbarLink {
@@ -332,13 +351,51 @@
     justify-content: center;
   }
 
+  .shell {
+    align-items: flex-start;
+    padding: max(24px, 6vw) clamp(18px, 6vw, 32px) max(32px, 8vw);
+  }
+
+  @supports (padding: max(0px)) {
+    .shell {
+      padding-top: max(max(24px, 6vw), calc(env(safe-area-inset-top) + 18px));
+      padding-bottom: max(max(32px, 8vw), calc(env(safe-area-inset-bottom) + 28px));
+    }
+  }
+
   .buttonRow {
     width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
   }
 
   .buttonRow .btn,
   .buttonRow .btnGhost,
   .buttonRow .btnPrimary {
-    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 460px;
+    padding: 24px;
+    gap: 20px;
+    border-radius: 20px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.35);
+  }
+
+  .cardBody {
+    gap: 20px;
+  }
+
+  .status {
+    padding: 14px 16px;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  .form {
+    gap: 18px;
   }
 }
