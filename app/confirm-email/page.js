@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
+import { buildAbsoluteUrl } from '../../lib/siteUrl';
 import { AuthLayout, AuthCard, AuthCardHeader, AuthCardBody, authStyles } from '../../components/AuthLayout';
 
 const allowedOtpTypes = new Set(['signup', 'magiclink', 'recovery', 'email_change']);
@@ -225,9 +226,14 @@ function ConfirmEmailContent() {
     setResendLoading(true);
 
     try {
+      const redirectTo = buildAbsoluteUrl('/confirm-email');
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: trimmedEmail,
+        options: {
+          emailRedirectTo: redirectTo,
+          redirectTo,
+        },
       });
 
       if (error) {
