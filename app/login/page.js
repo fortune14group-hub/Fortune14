@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Logo from '../../components/Logo';
 import { getSupabaseBrowserClient } from '../../lib/supabaseClient';
 import styles from './page.module.css';
 
@@ -158,8 +159,8 @@ export default function LoginPage() {
   return (
     <div className={styles.screen}>
       <header className={styles.topbar}>
-        <Link href="/" className={styles.brand}>
-          BetSpread
+        <Link href="/" className={styles.brand} aria-label="BetSpread startsida">
+          <Logo className={styles.brandLogo} priority />
         </Link>
         <Link href="/" className={styles.topbarLink}>
           Till startsida
