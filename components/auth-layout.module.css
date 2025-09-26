@@ -30,39 +30,17 @@
   opacity: 0.55;
 }
 
-.topbar {
+.screenHeader {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: clamp(20px, 4vw, 38px) clamp(24px, 6vw, 80px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
 }
 
 @supports (padding: max(0px)) {
-  .topbar {
-    padding-top: max(clamp(20px, 4vw, 38px), calc(env(safe-area-inset-top) + 16px));
+  .screenHeader {
+    padding-top: max(0px, env(safe-area-inset-top));
   }
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 0;
-}
-
-.brand:focus-visible {
-  outline: 2px solid rgba(56, 189, 248, 0.45);
-  outline-offset: 4px;
-  border-radius: 8px;
-}
-
-.brandLogo {
-  display: block;
-  width: 188px;
-  height: auto;
-  filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.45));
 }
 
 .topbarActions {
@@ -164,12 +142,6 @@
 .cardBody {
   display: grid;
   gap: 18px;
-}
-
-@media (max-width: 520px) {
-  .brandLogo {
-    width: 160px;
-  }
 }
 
 .form {

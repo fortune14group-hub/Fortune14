@@ -28,32 +28,17 @@
   mix-blend-mode: screen;
 }
 
-.topbar {
+.screenHeader {
   position: relative;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: clamp(20px, 4vw, 38px) clamp(24px, 6vw, 80px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
 }
 
-.brand {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 0;
-}
-
-.brand:focus-visible {
-  outline: 2px solid rgba(56, 189, 248, 0.45);
-  outline-offset: 4px;
-  border-radius: 8px;
-}
-
-.brandLogo {
-  display: block;
-  width: 188px;
-  height: auto;
-  filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.4));
+@supports (padding: max(0px)) {
+  .screenHeader {
+    padding-top: max(0px, env(safe-area-inset-top));
+  }
 }
 
 .topbarLink {
@@ -483,20 +468,12 @@
 }
 
 @media (max-width: 960px) {
-  .topbar {
-    padding: 24px 24px;
-  }
-
   .shell {
     padding: 40px 24px 64px;
   }
 }
 
 @media (max-width: 720px) {
-  .brandLogo {
-    width: 176px;
-  }
-
   .content {
     grid-template-columns: 1fr;
   }
@@ -523,10 +500,6 @@
 }
 
 @media (max-width: 520px) {
-  .brandLogo {
-    width: 150px;
-  }
-
   .topbarLink {
     font-size: 14px;
   }

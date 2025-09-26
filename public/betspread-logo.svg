@@ -1,39 +1,20 @@
-<svg width="280" height="64" viewBox="0 0 280 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="640" height="200" viewBox="0 0 640 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">BetSpread logotyp</title>
+  <desc id="logoDesc">Turkos gradienttext som stavar BetSpread med transparent bakgrund</desc>
   <defs>
-    <linearGradient id="betspreadGradient" x1="0" y1="0" x2="280" y2="64" gradientUnits="userSpaceOnUse">
-<svg width="240" height="64" viewBox="0 0 240 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="betspreadGradient" x1="0" y1="0" x2="240" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="wordmarkGradient" x1="80" y1="40" x2="560" y2="160" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2DD4BF" />
       <stop offset="1" stop-color="#38BDF8" />
     </linearGradient>
   </defs>
-  <g>
-    <rect x="12" y="30" width="10" height="22" rx="3" fill="url(#betspreadGradient)" />
-    <rect x="28" y="24" width="10" height="28" rx="3" fill="url(#betspreadGradient)" />
-    <rect x="44" y="18" width="10" height="34" rx="3" fill="url(#betspreadGradient)" />
-    <rect x="60" y="12" width="10" height="40" rx="3" fill="url(#betspreadGradient)" />
-    <path
-      d="M14 26L32 16L48 22L72 6"
-      d="M14 32L32 20L48 30L72 10"
-      fill="none"
-      stroke="url(#betspreadGradient)"
-      stroke-width="4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-    <path d="M70 2L82 4L74 16" fill="url(#betspreadGradient)" />
-    <path d="M70 6L82 8L74 18" fill="url(#betspreadGradient)" />
-  </g>
   <text
-    x="98"
-    y="42"
-    fill="url(#betspreadGradient)"
-    font-family="'Poppins', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
-    font-size="28"
+    x="40"
+    y="140"
+    fill="url(#wordmarkGradient)"
+    font-family="'Poppins','Inter','Segoe UI','Helvetica Neue',Arial,sans-serif"
+    font-size="120"
     font-weight="700"
-    letter-spacing="0.14em"
-    text-rendering="geometricPrecision"
+    letter-spacing="0.04em"
   >
     BETSPREAD
   </text>
