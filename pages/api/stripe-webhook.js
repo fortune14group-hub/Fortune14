@@ -1,6 +1,8 @@
 import Stripe from 'stripe';
 import getRawBody from 'raw-body';
-import { getSupabaseServiceRoleClient } from '../../lib/supabaseAdmin.js';
+
+import { env } from '@/config/env.mjs';
+import { getSupabaseServiceRoleClient } from '@/lib/supabaseAdmin';
 
 export const config = {
   api: {
@@ -8,7 +10,7 @@ export const config = {
   },
 };
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripeSecretKey = env.STRIPE_SECRET_KEY;
 let stripeClient = null;
 
 function getStripeClient() {
@@ -75,7 +77,7 @@ export default async function handler(req, res) {
   }
 
   const sig = req.headers['stripe-signature'];
-  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) {
+  if (!sig || !env.STRIPE_WEBHOOK_SECRET) {
     res.status(400).send('Missing Stripe signature or webhook secret');
     return;
   }
@@ -86,7 +88,7 @@ export default async function handler(req, res) {
     event = stripe.webhooks.constructEvent(
       body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+      env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);

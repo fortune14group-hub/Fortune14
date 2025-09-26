@@ -1,0 +1,176 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+  .:
+    dependencies:
+      '@next/font':
+        specifier: 14.2.5
+        version: 14.2.5
+      '@react-email/components':
+        specifier: ^0.0.21
+        version: 0.0.21
+      '@react-email/render':
+        specifier: ^0.0.16
+        version: 0.0.16
+      '@sentry/nextjs':
+        specifier: ^8.8.0
+        version: 8.8.0
+      '@supabase/auth-helpers-nextjs':
+        specifier: ^0.10.0
+        version: 0.10.0
+      '@supabase/supabase-js':
+        specifier: ^2.45.4
+        version: 2.45.4
+      '@tanstack/react-query':
+        specifier: ^5.51.1
+        version: 5.51.1
+      '@t3-oss/env-nextjs':
+        specifier: ^0.12.0
+        version: 0.12.0
+      '@vercel/analytics':
+        specifier: ^1.2.2
+        version: 1.2.2
+      '@vercel/speed-insights':
+        specifier: ^1.0.12
+        version: 1.0.12
+      '@upstash/ratelimit':
+        specifier: ^1.1.4
+        version: 1.1.4
+      '@upstash/redis':
+        specifier: ^1.30.0
+        version: 1.30.0
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      date-fns:
+        specifier: ^3.6.0
+        version: 3.6.0
+      next:
+        specifier: ^14.2.5
+        version: 14.2.5
+      next-intl:
+        specifier: ^3.17.0
+        version: 3.17.0
+      next-sitemap:
+        specifier: ^4.3.1
+        version: 4.3.1
+      nprogress:
+        specifier: ^0.2.0
+        version: 0.2.0
+      nodemailer:
+        specifier: ^6.9.13
+        version: 6.9.13
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-hook-form:
+        specifier: ^7.51.5
+        version: 7.51.5
+      react-hot-toast:
+        specifier: ^2.4.1
+        version: 2.4.1
+      react-email:
+        specifier: ^3.0.0
+        version: 3.0.0
+      raw-body:
+        specifier: ^2.5.2
+        version: 2.5.2
+      stripe:
+        specifier: ^14.25.0
+        version: 14.25.0
+      zod:
+        specifier: ^3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@commitlint/cli':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@commitlint/config-conventional':
+        specifier: ^19.2.2
+        version: 19.2.2
+      '@next/eslint-plugin-next':
+        specifier: ^14.2.5
+        version: 14.2.5
+      '@playwright/test':
+        specifier: ^1.46.0
+        version: 1.46.0
+      '@supabase/auth-helpers-shared':
+        specifier: ^0.8.0
+        version: 0.8.0
+      '@testing-library/jest-dom':
+        specifier: ^6.4.5
+        version: 6.4.5
+      '@testing-library/react':
+        specifier: ^14.3.0
+        version: 14.3.0
+      '@types/node':
+        specifier: ^20.14.9
+        version: 20.14.9
+      '@types/react':
+        specifier: ^18.3.3
+        version: 18.3.3
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.0
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^7.16.0
+        version: 7.16.0
+      '@typescript-eslint/parser':
+        specifier: ^7.16.0
+        version: 7.16.0
+      autoprefixer:
+        specifier: ^10.4.19
+        version: 10.4.19
+      eslint:
+        specifier: ^8.57.0
+        version: 8.57.0
+      eslint-config-prettier:
+        specifier: ^9.1.0
+        version: 9.1.0
+      eslint-plugin-import:
+        specifier: ^2.29.1
+        version: 2.29.1
+      eslint-plugin-jsx-a11y:
+        specifier: ^6.8.0
+        version: 6.8.0
+      eslint-plugin-security:
+        specifier: ^2.1.1
+        version: 2.1.1
+      eslint-plugin-testing-library:
+        specifier: ^6.2.2
+        version: 6.2.2
+      husky:
+        specifier: ^9.0.11
+        version: 9.0.11
+      lint-staged:
+        specifier: ^15.2.7
+        version: 15.2.7
+      msw:
+        specifier: ^2.3.4
+        version: 2.3.4
+      postcss:
+        specifier: ^8.4.39
+        version: 8.4.39
+      prettier:
+        specifier: ^3.3.2
+        version: 3.3.2
+      tailwindcss:
+        specifier: ^3.4.4
+        version: 3.4.4
+      ts-reset:
+        specifier: ^0.5.1
+        version: 0.5.1
+      typescript:
+        specifier: ^5.4.5
+        version: 5.4.5
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.0
+packages: {}

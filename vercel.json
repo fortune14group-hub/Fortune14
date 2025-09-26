@@ -1,5 +1,21 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "buildCommand": "pnpm install --frozen-lockfile && pnpm build",
+  "outputDirectory": ".next",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "functions": {
+    "api/**/*": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "images": {
+    "sizes": [320, 640, 828, 1080, 1200],
+    "minimumCacheTTL": 3600,
+    "formats": ["image/webp"],
+    "domains": [
+      "images.unsplash.com",
+      "avatars.githubusercontent.com",
+      "lh3.googleusercontent.com"
+    ]
+  }
 }
