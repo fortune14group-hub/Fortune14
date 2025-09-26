@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Logo from './Logo';
+import Header from './Header';
 import styles from './auth-layout.module.css';
 
 export function AuthLayout({ children, topbarActions }) {
@@ -14,12 +14,9 @@ export function AuthLayout({ children, topbarActions }) {
 
   return (
     <div className={styles.screen}>
-      <header className={styles.topbar}>
-        <Link href="/" className={styles.brand} aria-label="BetSpread startsida">
-          <Logo className={styles.brandLogo} priority />
-        </Link>
+      <Header className={styles.screenHeader} logoPriority>
         {actions ? <div className={styles.topbarActions}>{actions}</div> : null}
-      </header>
+      </Header>
       <main className={styles.shell}>{children}</main>
     </div>
   );
@@ -46,4 +43,3 @@ export function AuthCardBody({ children }) {
 }
 
 export const authStyles = styles;
-

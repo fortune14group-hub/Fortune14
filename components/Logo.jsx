@@ -10,7 +10,7 @@ export default function Logo({ className, priority = false }) {
       width={640}
       height={200}
       className={className}
-      sizes="(max-width: 520px) 150px, (max-width: 720px) 170px, (max-width: 900px) 188px, 220px"
+      sizes="(max-width: 640px) 170px, (max-width: 768px) 200px, (max-width: 1024px) 220px, 240px"
       priority={priority}
     />
   );

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Logo from '../components/Logo';
+import Header from '../components/Header';
 import styles from './page.module.css';
 
 const navLinks = [
@@ -122,26 +122,25 @@ const yearNow = new Date().getFullYear();
 export default function LandingPage() {
   return (
     <div className={styles.page}>
-      <header className={styles.landingTopbar}>
-        <Link href="/" className={styles.brand} aria-label="BetSpread startsida">
-          <Logo className={styles.brandLogo} priority />
-        </Link>
-        <nav className={styles.nav} aria-label="Primär">
-          {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className={styles.navLink}>
-              {link.label}
+      <Header logoPriority>
+        <div className={styles.topbarContent}>
+          <nav className={styles.nav} aria-label="Primär">
+            {navLinks.map((link) => (
+              <Link key={link.href} href={link.href} className={styles.navLink}>
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+          <div className={styles.topbarActions}>
+            <Link href="/blog" className={`${styles.btn} ${styles.btnGhost}`}>
+              Blogg
             </Link>
-          ))}
-        </nav>
-        <div className={styles.topbarActions}>
-          <Link href="/blog" className={`${styles.btn} ${styles.btnGhost}`}>
-            Blogg
-          </Link>
-          <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
-            Logga in
-          </Link>
+            <Link href="/login" className={`${styles.btn} ${styles.btnPrimary}`}>
+              Logga in
+            </Link>
+          </div>
         </div>
-      </header>
+      </Header>
 
       <main className={styles.main}>
         <section className={styles.hero} id="hero">
