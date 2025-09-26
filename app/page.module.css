@@ -59,7 +59,7 @@
 
 .brandLogo {
   display: block;
-  width: 188px;
+  width: 220px;
   height: auto;
   filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.35));
 }
@@ -664,6 +664,10 @@
 }
 
 @media (max-width: 900px) {
+  .brandLogo {
+    width: 188px;
+  }
+
   .landingTopbar {
     gap: 16px;
     flex-wrap: wrap;
@@ -686,11 +690,13 @@
   }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 720px) {
   .brandLogo {
     width: 170px;
   }
+}
 
+@media (max-width: 680px) {
   .statsGrid,
   .featureGrid {
     grid-template-columns: 1fr;

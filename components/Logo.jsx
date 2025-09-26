@@ -7,9 +7,10 @@ export default function Logo({ className, priority = false }) {
     <Image
       src="/betspread-logo.svg"
       alt="BetSpread"
-      width={240}
-      height={64}
+      width={1024}
+      height={576}
       className={className}
+      sizes="(max-width: 520px) 150px, (max-width: 720px) 170px, (max-width: 900px) 188px, 220px"
       priority={priority}
     />
   );

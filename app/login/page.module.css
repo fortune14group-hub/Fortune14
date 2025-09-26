@@ -51,7 +51,7 @@
 
 .brandLogo {
   display: block;
-  width: 188px;
+  width: 220px;
   height: auto;
   filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.4));
 }
@@ -492,9 +492,15 @@
   }
 }
 
+@media (max-width: 900px) {
+  .brandLogo {
+    width: 188px;
+  }
+}
+
 @media (max-width: 720px) {
   .brandLogo {
-    width: 176px;
+    width: 170px;
   }
 
   .content {

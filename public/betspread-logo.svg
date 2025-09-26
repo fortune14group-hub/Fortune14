@@ -1,39 +1,47 @@
-<svg width="280" height="64" viewBox="0 0 280 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="1024" height="576" viewBox="0 0 1024 576" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">BetSpread logotyp</title>
+  <desc id="logoDesc">Mörk gradient med ett turkosfärgat diagram och texten BetSpread</desc>
   <defs>
-    <linearGradient id="betspreadGradient" x1="0" y1="0" x2="280" y2="64" gradientUnits="userSpaceOnUse">
-<svg width="240" height="64" viewBox="0 0 240 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="betspreadGradient" x1="0" y1="0" x2="240" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bgGradient" x1="128" y1="32" x2="896" y2="544" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B2535" />
+      <stop offset="1" stop-color="#052033" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="160" y1="128" x2="820" y2="448" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2DD4BF" />
       <stop offset="1" stop-color="#38BDF8" />
     </linearGradient>
+    <filter id="glow" x="56" y="80" width="520" height="420" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
   </defs>
-  <g>
-    <rect x="12" y="30" width="10" height="22" rx="3" fill="url(#betspreadGradient)" />
-    <rect x="28" y="24" width="10" height="28" rx="3" fill="url(#betspreadGradient)" />
-    <rect x="44" y="18" width="10" height="34" rx="3" fill="url(#betspreadGradient)" />
-    <rect x="60" y="12" width="10" height="40" rx="3" fill="url(#betspreadGradient)" />
+  <rect width="1024" height="576" rx="40" fill="url(#bgGradient)" />
+  <g filter="url(#glow)">
+    <rect x="96" y="284" width="64" height="180" rx="16" fill="url(#accentGradient)" />
+    <rect x="192" y="240" width="64" height="224" rx="16" fill="url(#accentGradient)" />
+    <rect x="288" y="192" width="64" height="272" rx="16" fill="url(#accentGradient)" />
+    <rect x="384" y="144" width="64" height="320" rx="16" fill="url(#accentGradient)" />
     <path
-      d="M14 26L32 16L48 22L72 6"
-      d="M14 32L32 20L48 30L72 10"
-      fill="none"
-      stroke="url(#betspreadGradient)"
-      stroke-width="4"
+      d="M128 276L224 232L320 200L488 124"
+      stroke="url(#accentGradient)"
+      stroke-width="18"
       stroke-linecap="round"
       stroke-linejoin="round"
+      fill="none"
     />
-    <path d="M70 2L82 4L74 16" fill="url(#betspreadGradient)" />
-    <path d="M70 6L82 8L74 18" fill="url(#betspreadGradient)" />
+    <path d="M464 94L536 114L484 180" fill="url(#accentGradient)" />
   </g>
   <text
-    x="98"
-    y="42"
-    fill="url(#betspreadGradient)"
-    font-family="'Poppins', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
-    font-size="28"
+    x="440"
+    y="328"
+    fill="url(#accentGradient)"
+    font-family="'Poppins','Inter','Segoe UI','Helvetica Neue',Arial,sans-serif"
+    font-size="96"
     font-weight="700"
-    letter-spacing="0.14em"
-    text-rendering="geometricPrecision"
+    letter-spacing="0.05em"
   >
     BETSPREAD
   </text>
