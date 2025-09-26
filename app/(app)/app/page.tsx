@@ -1,0 +1,2600 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient';
+
+const initialForm = () => ({
+  date: new Date().toISOString().slice(0, 10),
+  match: '',
+  market: '',
+  odds: '',
+  stake: '1',
+  book: '',
+  result: 'Pending',
+  note: '',
+});
+
+const monthFormatter = new Intl.DateTimeFormat('sv-SE', {
+  month: 'long',
+  year: 'numeric',
+});
+
+const dayFormatter = new Intl.DateTimeFormat('sv-SE', {
+  day: '2-digit',
+  month: 'short',
+});
+
+const formatDay = (isoDate) => {
+  if (!isoDate) return '–';
+  const safeDate = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(safeDate.getTime())) return isoDate;
+  return dayFormatter.format(safeDate);
+};
+
+const DEFAULT_UNIT = 'units';
+
+const UNIT_METADATA = {
+  units: { label: 'Units', symbol: 'U', position: 'suffix', separator: '' },
+  kr: { label: 'Kr', symbol: 'kr', position: 'suffix', separator: ' ' },
+  eur: { label: 'EUR', symbol: '€', position: 'prefix', separator: '' },
+  usd: { label: 'USD', symbol: '$', position: 'prefix', separator: '' },
+};
+
+const sanitizeUnit = (unit) => {
+  if (typeof unit !== 'string') return DEFAULT_UNIT;
+  const key = unit.toLowerCase();
+  return UNIT_METADATA[key] ? key : DEFAULT_UNIT;
+};
+
+const isMissingProjectUnitColumn = (error) => {
+  if (!error) return false;
+  if (error.code && `${error.code}` === '42703') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('column') && message.includes('unit');
+};
+
+const formatValueWithUnit = (value, unit = DEFAULT_UNIT, decimals = 2, { trimZeros = false } = {}) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '–';
+  const meta = UNIT_METADATA[unit] ?? UNIT_METADATA[DEFAULT_UNIT];
+  const factor = 10 ** decimals;
+  const rounded = Math.round(num * factor) / factor;
+  const absText = Math.abs(rounded).toFixed(decimals);
+  const text = trimZeros
+    ? absText.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
+    : absText;
+  const sign = rounded < 0 ? '-' : '';
+  if (meta.position === 'prefix') {
+    return `${sign}${meta.symbol}${meta.separator}${text}`.trim();
+  }
+  return `${sign}${text}${meta.separator}${meta.symbol}`.trim();
+};
+
+const formatPercent = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0.0%';
+  return `${(Math.round(num * 10) / 10).toFixed(1)}%`;
+};
+
+const PAYWALL_ENABLED = false;
+
+const unlimitedFreeInfo = () => ({
+  premium: true,
+  used: 0,
+  left: Infinity,
+});
+
+const formatMonth = (key) => {
+  const [year, month] = key.split('-').map(Number);
+  if (!year || !month) return key;
+  return monthFormatter.format(new Date(year, month - 1, 1));
+};
+
+const computeProfit = (bet) => {
+  const stakeNum = Number(bet.stake);
+  if (!Number.isFinite(stakeNum)) return 0;
+  if (bet.result === 'Win') {
+    const oddsNum = Number(bet.odds);
+    if (!Number.isFinite(oddsNum)) return 0;
+    return (oddsNum - 1) * stakeNum;
+  }
+  if (bet.result === 'Loss') {
+    return -stakeNum;
+  }
+  return 0;
+};
+
+export default function AppPage() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [currentProjectId, setCurrentProjectId] = useState('');
+  const [bets, setBets] = useState([]);
+  const [tab, setTab] = useState('reg');
+  const [form, setForm] = useState(initialForm);
+  const [monthFilter, setMonthFilter] = useState('all');
+  const [freeInfo, setFreeInfo] = useState(() => (PAYWALL_ENABLED ? null : unlimitedFreeInfo()));
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [supportsProjectUnits, setSupportsProjectUnits] = useState(true);
+  const [loadingBets, setLoadingBets] = useState(false);
+  const [editingBet, setEditingBet] = useState(null);
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [supabaseState] = useState(() => {
+    try {
+      return { client: getSupabaseBrowserClient(), error: null };
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Okänt fel vid initiering av Supabase-klienten.';
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.error('Supabase-konfiguration saknas:', err);
+      }
+      return { client: null, error: message };
+    }
+  });
+  const supabase = supabaseState.client;
+  const supabaseError = supabaseState.error;
+
+  const paywallLimitReached =
+    PAYWALL_ENABLED && freeInfo && !freeInfo.premium && freeInfo.left <= 0;
+
+  useEffect(() => {
+    if (!supabase) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    let authSubscription = null;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      const nextSession = data.session ?? null;
+      const nextUser = nextSession?.user ?? null;
+      setUser(nextUser);
+      if (!nextUser) {
+        router.replace('/login');
+      }
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const nextUser = nextSession?.user ?? null;
+      setUser(nextUser);
+      if (!nextUser) {
+        router.replace('/login');
+      }
+    });
+    authSubscription = data?.subscription ?? null;
+
+    return () => {
+      isMounted = false;
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
+    };
+  }, [router, supabase]);
+
+  const ensureProfileRow = useCallback(
+    async (targetUser) => {
+      if (!supabase) return;
+      const u = targetUser ?? user;
+      if (!u?.id) return;
+      try {
+        const payload = { id: u.id };
+        if (u.email) payload.email = u.email;
+        const { error } = await supabase.from('users').upsert(payload, { onConflict: 'id' });
+        if (error) {
+          console.error('Kunde inte skapa/uppdatera användarrad', error);
+        }
+      } catch (err) {
+        console.error('ensureProfileRow fel', err);
+      }
+    },
+    [supabase, user]
+  );
+
+  const updateFreeUsage = useCallback(async () => {
+    if (!PAYWALL_ENABLED) {
+      setFreeInfo(unlimitedFreeInfo());
+      return;
+    }
+    if (!supabase) {
+      setFreeInfo(null);
+      return;
+    }
+    if (!user?.id) {
+      setFreeInfo(null);
+      return;
+    }
+    try {
+      const { data: profile, error: profileErr } = await supabase
+        .from('users')
+        .select('is_premium')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profileErr) throw profileErr;
+      if (!profile) {
+        await ensureProfileRow(user);
+      }
+
+      const isPremium = !!profile?.is_premium;
+      if (isPremium) {
+        setFreeInfo(unlimitedFreeInfo());
+        return;
+      }
+
+      const { count, error: countErr } = await supabase
+        .from('bets')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      if (countErr) throw countErr;
+
+      const used = count ?? 0;
+      const left = Math.max(0, 20 - used);
+      setFreeInfo({ premium: false, used, left });
+    } catch (err) {
+      console.error('updateFreeUsage fel', err);
+      if (PAYWALL_ENABLED) {
+        setFreeInfo({ premium: false, used: 0, left: 20 });
+      } else {
+        setFreeInfo(unlimitedFreeInfo());
+      }
+    }
+  }, [ensureProfileRow, supabase, user]);
+
+  const loadProjects = useCallback(async () => {
+    if (!supabase) {
+      setProjects([]);
+      setCurrentProjectId('');
+      setLoadingProjects(false);
+      return;
+    }
+    if (!user?.id) {
+      setProjects([]);
+      setCurrentProjectId('');
+      setLoadingProjects(false);
+      return;
+    }
+    setLoadingProjects(true);
+    try {
+      let allowUnits = supportsProjectUnits;
+      const fetchProjects = async (withUnits) => {
+        const columns = withUnits ? 'id,name,unit' : 'id,name';
+        return supabase
+          .from('projects')
+          .select(columns)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+      };
+
+      let data = null;
+      if (supportsProjectUnits) {
+        const response = await fetchProjects(true);
+        if (response.error) {
+          if (isMissingProjectUnitColumn(response.error)) {
+            setSupportsProjectUnits(false);
+            allowUnits = false;
+            const fallback = await fetchProjects(false);
+            if (fallback.error) throw fallback.error;
+            data = fallback.data ?? [];
+          } else {
+            throw response.error;
+          }
+        } else {
+          data = response.data ?? [];
+        }
+      } else {
+        const response = await fetchProjects(false);
+        if (response.error) throw response.error;
+        data = response.data ?? [];
+      }
+
+      const list = (data ?? []).map((project) => ({
+        ...project,
+        unit: allowUnits ? sanitizeUnit(project.unit) : DEFAULT_UNIT,
+      }));
+      setProjects(list);
+      setCurrentProjectId((prev) => {
+        if (prev && list.some((p) => p.id === prev)) return prev;
+        return list[0]?.id ?? '';
+      });
+    } catch (err) {
+      console.error('Kunde inte ladda projekt', err);
+      setProjects([]);
+      setCurrentProjectId('');
+    } finally {
+      setLoadingProjects(false);
+    }
+  }, [supabase, supportsProjectUnits, user]);
+
+  const loadBets = useCallback(
+    async (projectId) => {
+      if (!supabase) {
+        setBets([]);
+        setLoadingBets(false);
+        return;
+      }
+      if (!user?.id || !projectId) {
+        setBets([]);
+        setLoadingBets(false);
+        await updateFreeUsage();
+        return;
+      }
+      setLoadingBets(true);
+      try {
+        const { data, error } = await supabase
+          .from('bets')
+          .select('*')
+          .eq('project_id', projectId)
+          .eq('user_id', user.id)
+          .order('matchday', { ascending: false })
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setBets(data ?? []);
+      } catch (err) {
+        console.error('Kunde inte ladda spel', err);
+        setBets([]);
+      } finally {
+        setLoadingBets(false);
+        await updateFreeUsage();
+      }
+    },
+    [supabase, updateFreeUsage, user]
+  );
+
+  useEffect(() => {
+    if (user?.id) {
+      ensureProfileRow(user);
+      loadProjects();
+    }
+  }, [ensureProfileRow, loadProjects, user]);
+
+  useEffect(() => {
+    if (!currentProjectId) {
+      setBets([]);
+      updateFreeUsage();
+      return;
+    }
+    loadBets(currentProjectId);
+  }, [currentProjectId, loadBets, updateFreeUsage]);
+
+  useEffect(() => {
+    setEditingBet(null);
+    setForm(initialForm());
+  }, [currentProjectId]);
+
+  const currentProject = useMemo(
+    () => projects.find((project) => project.id === currentProjectId) ?? null,
+    [projects, currentProjectId]
+  );
+
+  const projectBadge = useMemo(() => {
+    if (!currentProject?.name) return '---';
+    const compact = currentProject.name.replace(/\s+/g, '');
+    if (!compact) return '---';
+    return compact.slice(0, 4).toUpperCase();
+  }, [currentProject]);
+
+  useEffect(() => {
+    if (!loadingProjects && (projects.length === 0 || !currentProjectId)) {
+      setProjectOpen(true);
+    }
+  }, [currentProjectId, loadingProjects, projects]);
+
+  const monthGroups = useMemo(() => {
+    const groups = new Map();
+    for (const bet of bets) {
+      if (!bet.matchday) continue;
+      const key = bet.matchday.slice(0, 7);
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key).push(bet);
+    }
+    return Array.from(groups.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [bets]);
+
+  useEffect(() => {
+    setMonthFilter((prev) => {
+      if (prev === 'all') return 'all';
+      return monthGroups.some(([key]) => key === prev) ? prev : 'all';
+    });
+  }, [monthGroups]);
+
+  const filteredBets = useMemo(
+    () => (monthFilter === 'all' ? bets : bets.filter((bet) => bet.matchday?.startsWith(monthFilter))),
+    [bets, monthFilter]
+  );
+
+  const latestBets = useMemo(() => bets.slice(0, 3), [bets]);
+  const showLatestPanel = tab !== 'list';
+  const workspaceClassName = `workspace${showLatestPanel ? '' : ' full-width'}`;
+
+  const summaryData = useMemo(() => {
+    const decided = filteredBets.filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void');
+    const wins = decided.filter((bet) => bet.result === 'Win');
+    const stakeSum = decided.reduce((sum, bet) => {
+      const stakeNum = Number(bet.stake);
+      return Number.isFinite(stakeNum) ? sum + stakeNum : sum;
+    }, 0);
+    let oddsSum = 0;
+    let oddsCount = 0;
+    for (const bet of wins) {
+      const oddsNum = Number(bet.odds);
+      if (Number.isFinite(oddsNum) && oddsNum > 0) {
+        oddsSum += oddsNum;
+        oddsCount += 1;
+      }
+    }
+    const profit = decided.reduce((sum, bet) => sum + computeProfit(bet), 0);
+    const roi = stakeSum > 0 ? (profit / stakeSum) * 100 : 0;
+    const averageOdds = oddsCount > 0 ? oddsSum / oddsCount : undefined;
+    return {
+      games: decided.length,
+      wins: wins.length,
+      profit,
+      roi,
+      totalStake: stakeSum,
+      averageOdds,
+    };
+  }, [filteredBets]);
+
+  const performanceSeries = useMemo(() => {
+    const decided = filteredBets
+      .filter((bet) => bet.result !== 'Pending' && bet.result !== 'Void')
+      .filter((bet) => !!bet.matchday);
+    if (decided.length === 0) {
+      return { points: [], min: 0, max: 0, start: null, end: null };
+    }
+    const sorted = [...decided].sort((a, b) => {
+      const dateA = a.matchday ?? '';
+      const dateB = b.matchday ?? '';
+      if (dateA === dateB) {
+        const createdA = a.created_at ?? '';
+        const createdB = b.created_at ?? '';
+        return createdA.localeCompare(createdB);
+      }
+      return dateA.localeCompare(dateB);
+    });
+    let running = 0;
+    const points = sorted.map((bet) => {
+      running += computeProfit(bet);
+      return {
+        date: bet.matchday.slice(0, 10),
+        value: Math.round(running * 100) / 100,
+      };
+    });
+    const values = points.map((p) => p.value);
+    const min = Math.min(0, ...values);
+    const max = Math.max(0, ...values);
+    return {
+      points,
+      min,
+      max,
+      start: points[0].date,
+      end: points[points.length - 1].date,
+    };
+  }, [filteredBets]);
+
+  const performanceChart = useMemo(() => {
+    const { points, min, max } = performanceSeries;
+    if (points.length === 0) {
+      return { coords: [], linePoints: '', areaPoints: '', min: 0, max: 0 };
+    }
+    const range = max - min || 1;
+    const coords = points.map((point, index) => {
+      const x = points.length > 1 ? (index / (points.length - 1)) * 100 : 50;
+      const y = 100 - ((point.value - min) / range) * 100;
+      return { ...point, x, y };
+    });
+    const linePoints = coords.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+    const areaPoints = [
+      ...coords.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`),
+      `${coords[coords.length - 1].x.toFixed(2)},100.00`,
+      `${coords[0].x.toFixed(2)},100.00`,
+    ].join(' ');
+    return { coords, linePoints, areaPoints, min, max };
+  }, [performanceSeries]);
+
+  const handleLogout = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    await supabase.auth.signOut();
+    router.replace('/login');
+  };
+
+  const handleNewProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id) return;
+    const name = window.prompt('Namn på nytt projekt:', 'Nytt projekt');
+    if (!name) return;
+    try {
+      const attemptInsert = async (withUnits) => {
+        const payload = { name, user_id: user.id };
+        if (withUnits) {
+          payload.unit = DEFAULT_UNIT;
+        }
+        const columns = withUnits ? 'id,name,unit' : 'id,name';
+        return supabase.from('projects').insert(payload).select(columns).single();
+      };
+
+      let allowUnits = supportsProjectUnits;
+      let response = await attemptInsert(supportsProjectUnits);
+      if (response.error && supportsProjectUnits && isMissingProjectUnitColumn(response.error)) {
+        setSupportsProjectUnits(false);
+        allowUnits = false;
+        response = await attemptInsert(false);
+      }
+      if (response.error) throw response.error;
+      const data = response.data;
+      const nextProject = allowUnits
+        ? { ...data, unit: sanitizeUnit(data.unit) }
+        : { ...data, unit: DEFAULT_UNIT };
+      setProjects((prev) => [...prev, nextProject]);
+      setCurrentProjectId(nextProject.id);
+      loadBets(nextProject.id);
+    } catch (err) {
+      console.error('Kunde inte skapa projekt', err);
+      window.alert('Kunde inte skapa projekt');
+    }
+  };
+
+  const handleRenameProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id || !currentProject) return;
+    const name = window.prompt('Nytt namn:', currentProject.name);
+    if (!name) return;
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ name })
+        .eq('id', currentProject.id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setProjects((prev) => prev.map((p) => (p.id === currentProject.id ? { ...p, name } : p)));
+    } catch (err) {
+      console.error('Kunde inte byta namn', err);
+      window.alert('Kunde inte byta namn');
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id || !currentProject) return;
+    if (!window.confirm('Radera projektet och alla spel?')) return;
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', currentProject.id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setEditingBet(null);
+      setForm(initialForm());
+      setTab('reg');
+      setProjects((prev) => prev.filter((p) => p.id !== currentProject.id));
+      setCurrentProjectId('');
+    } catch (err) {
+      console.error('Kunde inte radera projekt', err);
+      window.alert('Kunde inte radera projekt');
+    }
+  };
+
+  const handleResetProject = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id || !currentProject) return;
+    if (!window.confirm('Ta bort alla spel i projektet?')) return;
+    try {
+      const { error } = await supabase
+        .from('bets')
+        .delete()
+        .eq('project_id', currentProject.id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setEditingBet(null);
+      setForm(initialForm());
+      setTab('reg');
+      loadBets(currentProject.id);
+    } catch (err) {
+      console.error('Kunde inte nollställa projekt', err);
+      window.alert('Kunde inte nollställa projekt');
+    }
+  };
+
+  const handleSaveBet = async () => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id || !currentProjectId) {
+      window.alert('Välj eller skapa projekt först.');
+      return;
+    }
+    const matchday = form.date;
+    const match = form.match.trim();
+    const market = form.market.trim();
+    const odds = parseFloat(form.odds);
+    const stake = parseFloat(form.stake);
+    const book = form.book.trim();
+    const result = form.result;
+    const note = form.note.trim();
+
+    if (!matchday || !match || !market || !Number.isFinite(odds) || !Number.isFinite(stake)) {
+      window.alert('Fyll i alla fält.');
+      return;
+    }
+
+    if (!editingBet && paywallLimitReached) {
+      window.alert('Du har använt alla 20 gratis spel. Uppgradera för fler.');
+      return;
+    }
+
+    try {
+      if (editingBet?.id) {
+        const { error } = await supabase
+          .from('bets')
+          .update({ matchday, match, market, odds, stake, book, result, note })
+          .eq('id', editingBet.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('bets').insert({
+          project_id: currentProjectId,
+          user_id: user.id,
+          matchday,
+          match,
+          market,
+          odds,
+          stake,
+          book,
+          result,
+          note,
+        });
+        if (error) throw error;
+      }
+      setForm(initialForm());
+      setEditingBet(null);
+      setTab('list');
+      loadBets(currentProjectId);
+    } catch (err) {
+      console.error('Kunde inte spara spel', err);
+      window.alert('Kunde inte spara spel');
+    }
+  };
+
+  const handleStartEditBet = (bet) => {
+    setEditingBet(bet);
+    setTab('reg');
+    setForm({
+      date: bet.matchday ? bet.matchday.slice(0, 10) : new Date().toISOString().slice(0, 10),
+      match: bet.match ?? '',
+      market: bet.market ?? '',
+      odds: bet.odds != null ? String(bet.odds) : '',
+      stake: bet.stake != null ? String(bet.stake) : '',
+      book: bet.book ?? '',
+      result: bet.result ?? 'Pending',
+      note: bet.note ?? '',
+    });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingBet(null);
+    setForm(initialForm());
+  };
+
+  const handleUpdateBetResult = async (betId, result) => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id) return;
+    try {
+      const { error } = await supabase
+        .from('bets')
+        .update({ result })
+        .eq('id', betId)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      loadBets(currentProjectId);
+    } catch (err) {
+      console.error('Kunde inte uppdatera resultat', err);
+      window.alert('Kunde inte uppdatera resultat');
+    }
+  };
+
+  const handleDeleteBet = async (betId) => {
+    if (!supabase) {
+      window.alert('Supabase är inte konfigurerat.');
+      return;
+    }
+    if (!user?.id) return;
+    if (!window.confirm('Ta bort spelet?')) return;
+    try {
+      const { error } = await supabase
+        .from('bets')
+        .delete()
+        .eq('id', betId)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      if (editingBet?.id === betId) {
+        handleCancelEdit();
+      }
+      loadBets(currentProjectId);
+    } catch (err) {
+      console.error('Kunde inte ta bort spel', err);
+      window.alert('Kunde inte ta bort spel');
+    }
+  };
+
+  const getAccessToken = useCallback(async () => {
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Kunde inte hämta Supabase-session', error);
+        return null;
+      }
+      return data?.session?.access_token ?? null;
+    } catch (err) {
+      console.error('Oväntat fel vid hämtning av session', err);
+      return null;
+    }
+  }, [supabase]);
+
+  const handleUpgrade = async () => {
+    if (!user?.id) return;
+    try {
+      await ensureProfileRow(user);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        window.alert('Din session har gått ut. Logga in igen och försök på nytt.');
+        return;
+      }
+
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        window.alert(data?.error || 'Kunde inte starta Stripe Checkout');
+      }
+    } catch (err) {
+      console.error('Stripe checkout fel', err);
+      window.alert('Nätverksfel mot Stripe');
+    }
+  };
+
+  const handleManageBilling = async () => {
+    if (!user?.id) return;
+    try {
+      await ensureProfileRow(user);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        window.alert('Din session har gått ut. Logga in igen och försök på nytt.');
+        return;
+      }
+
+      const res = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        window.alert(data?.error || 'Ingen portal hittades');
+      }
+    } catch (err) {
+      console.error('Stripe portal fel', err);
+      window.alert('Nätverksfel mot Stripe');
+    }
+  };
+
+  const isEditing = !!editingBet;
+  const isSubmitDisabled = !currentProjectId || (!isEditing && paywallLimitReached);
+  const currentUnit = sanitizeUnit(currentProject?.unit);
+  const currentUnitMeta = UNIT_METADATA[currentUnit] ?? UNIT_METADATA[DEFAULT_UNIT];
+  const formatUnitValue = useCallback(
+    (value, decimals = 2, options = {}) => formatValueWithUnit(value, currentUnit, decimals, options),
+    [currentUnit]
+  );
+  const formatMoney = useCallback(
+    (value, decimals = 2) => formatUnitValue(value, decimals, { trimZeros: true }),
+    [formatUnitValue]
+  );
+  const formatNumber = (value, decimals = 2) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num.toFixed(decimals) : '–';
+  };
+  const formatStake = useCallback(
+    (value, decimals = 2) => formatUnitValue(value, decimals, { trimZeros: true }),
+    [formatUnitValue]
+  );
+
+  const summaryMonthName = monthFilter === 'all' ? 'Alla månader' : formatMonth(monthFilter);
+  const chartLatestValue =
+    performanceSeries.points.length > 0
+      ? performanceSeries.points[performanceSeries.points.length - 1].value
+      : 0;
+  const chartLatestFormatted = formatMoney(chartLatestValue);
+  const chartTrendClass = chartLatestValue >= 0 ? 'positive' : 'negative';
+  const chartStartLabel = performanceSeries.start ? formatDay(performanceSeries.start) : '–';
+  const chartEndLabel = performanceSeries.end ? formatDay(performanceSeries.end) : '–';
+  const editingDateLabel = editingBet?.matchday
+    ? formatDay(editingBet.matchday.slice(0, 10))
+    : null;
+  const chartHasData = performanceChart.coords.length > 0;
+  const lastChartPoint = chartHasData
+    ? performanceChart.coords[performanceChart.coords.length - 1]
+    : null;
+
+  if (supabaseError) {
+    return (
+      <main
+        style={{
+          maxWidth: '640px',
+          margin: '4rem auto',
+          padding: '2.5rem',
+          borderRadius: '1.5rem',
+          background: '#ffffff',
+          boxShadow: '0 24px 64px rgba(15, 23, 42, 0.12)',
+          color: '#0f172a',
+          lineHeight: 1.6,
+        }}
+      >
+        <h1 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Konfigurationsfel</h1>
+        <p style={{ marginBottom: '1rem' }}>
+          BetSpread kan inte koppla upp sig mot din Supabase-databas eftersom nödvändiga
+          miljövariabler saknas. Lägg till <code>NEXT_PUBLIC_SUPABASE_URL</code>,{' '}
+          <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, <code>SUPABASE_URL</code> och{' '}
+          <code>SUPABASE_SERVICE_ROLE</code> i din miljö och deploya på nytt.
+        </p>
+        <p style={{ marginBottom: '1.5rem', fontWeight: 500 }}>{supabaseError}</p>
+        <p style={{ fontSize: '0.95rem', color: '#475569' }}>
+          När variablerna är satta kommer denna sida att ladda om och ansluta automatiskt.
+        </p>
+      </main>
+    );
+  }
+
+  return (
+    <div className="container">
+      <header className="top-bar">
+        <div className="brand-block">
+          <div className="brand">BetSpread</div>
+          <p className="tagline">Planera, följ upp och förbättra dina spel.</p>
+        </div>
+        <div className="right-actions">
+          <span className="badge">{user?.email || 'Ingen e-post'}</span>
+          {PAYWALL_ENABLED && freeInfo?.premium ? (
+            <button type="button" id="manageBillingBtn" onClick={handleManageBilling}>
+              Hantera
+            </button>
+          ) : null}
+          {PAYWALL_ENABLED && !freeInfo?.premium ? (
+            <button type="button" id="upgradeBtn" className="btn-green" onClick={handleUpgrade}>
+              Uppgradera
+            </button>
+          ) : null}
+          <button type="button" className="btn-red" onClick={handleLogout}>
+            Logga ut
+          </button>
+        </div>
+      </header>
+
+      {PAYWALL_ENABLED && !freeInfo?.premium ? (
+        <div className="banner">
+          <div>
+            <h2>Gratisläge</h2>
+            <p>
+              Du har använt <strong>{freeInfo?.used ?? 0}</strong> av 20 spel.
+              <br />Återstår: <strong>{freeInfo ? Math.max(0, freeInfo.left) : 20}</strong> spel.
+            </p>
+          </div>
+          <span className="hint">Uppgradera för obegränsade registreringar.</span>
+        </div>
+      ) : null}
+
+      <main className={workspaceClassName}>
+        <section className="primary">
+          <div className={`panel project-panel ${projectOpen ? 'open' : ''}`}>
+            <button
+              type="button"
+              className="project-toggle"
+              onClick={() => setProjectOpen((prev) => !prev)}
+              aria-expanded={projectOpen}
+            >
+              <div className="project-avatar">
+                <span>{projectBadge}</span>
+              </div>
+              <div className="project-summary">
+                <h2>Projekt</h2>
+                <span className="project-name">{currentProject?.name || 'Inget projekt valt'}</span>
+                <span className="project-count">
+                  Projekt totalt: <strong>{projects.length}</strong>
+                </span>
+              </div>
+              <span className={`chevron ${projectOpen ? 'open' : ''}`} aria-hidden="true" />
+            </button>
+            {projectOpen ? (
+              <div className="project-dropdown">
+                <div className="project-controls">
+                  <label htmlFor="projectSelect">Välj projekt</label>
+                  <div className="control-row">
+                    <select
+                      id="projectSelect"
+                      value={currentProjectId}
+                      onChange={(e) => setCurrentProjectId(e.target.value)}
+                      disabled={loadingProjects}
+                    >
+                      {projects.length === 0 ? (
+                        <option value="">Inga projekt</option>
+                      ) : null}
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="button-cluster">
+                      <button type="button" onClick={handleNewProject}>
+                        Nytt projekt
+                      </button>
+                      <button type="button" onClick={handleRenameProject} disabled={!currentProject}>
+                        Byt namn
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-red"
+                        onClick={handleDeleteProject}
+                        disabled={!currentProject}
+                      >
+                        Radera
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <nav className="tabs" role="tablist">
+            <button
+              type="button"
+              className={`tab ${tab === 'reg' ? 'active' : ''}`}
+              data-tab="reg"
+              role="tab"
+              aria-selected={tab === 'reg'}
+              onClick={() => setTab('reg')}
+            >
+              Registrera spel
+            </button>
+            <button
+              type="button"
+              className={`tab ${tab === 'summary' ? 'active' : ''}`}
+              data-tab="summary"
+              role="tab"
+              aria-selected={tab === 'summary'}
+              onClick={() => setTab('summary')}
+            >
+              Månadssummering
+            </button>
+            <button
+              type="button"
+              className={`tab ${tab === 'list' ? 'active' : ''}`}
+              data-tab="list"
+              role="tab"
+              aria-selected={tab === 'list'}
+              onClick={() => setTab('list')}
+            >
+              Spel
+            </button>
+          </nav>
+
+          <section
+            id="tab-reg"
+            className={`panel form-panel ${tab === 'reg' ? '' : 'hide'}`}
+            role="tabpanel"
+            aria-hidden={tab !== 'reg'}
+          >
+            <div className="section-header">
+              <div>
+                <h2>Registrera spel</h2>
+                <p className="hint">Fyll i matchinformationen och klicka på "Lägg till spel" för att spara.</p>
+              </div>
+            </div>
+            {isEditing ? (
+              <div className="edit-indicator">
+                <div className="edit-copy">
+                  <span className="edit-title">Redigerar spel</span>
+                  <span className="edit-meta">
+                    {editingBet?.match ? editingBet.match : 'Uppdatera detaljer nedan.'}
+                    {editingDateLabel ? ` • ${editingDateLabel}` : ''}
+                  </span>
+                </div>
+                <button type="button" className="btn-ghost" onClick={handleCancelEdit}>
+                  Avbryt
+                </button>
+              </div>
+            ) : null}
+            <div className="grid">
+              <div className="col-3 field">
+                <label htmlFor="iDate">Matchdag</label>
+                <input
+                  id="iDate"
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+              <div className="col-5 field">
+                <label htmlFor="iMatch">Match</label>
+                <input
+                  id="iMatch"
+                  type="text"
+                  placeholder="Arsenal — Chelsea"
+                  value={form.match}
+                  onChange={(e) => setForm((prev) => ({ ...prev, match: e.target.value }))}
+                />
+              </div>
+              <div className="col-4 field">
+                <label htmlFor="iMarket">Marknad</label>
+                <input
+                  id="iMarket"
+                  type="text"
+                  placeholder="Över 8.5 frisparkar"
+                  value={form.market}
+                  onChange={(e) => setForm((prev) => ({ ...prev, market: e.target.value }))}
+                />
+              </div>
+              <div className="col-2 field">
+                <label htmlFor="iOdds">Odds</label>
+                <input
+                  id="iOdds"
+                  type="number"
+                  step="0.01"
+                  min="1.01"
+                  placeholder="1.85"
+                  value={form.odds}
+                  onChange={(e) => setForm((prev) => ({ ...prev, odds: e.target.value }))}
+                />
+              </div>
+              <div className="col-2 field">
+                <label htmlFor="iStake">Insats</label>
+                <input
+                  id="iStake"
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={form.stake}
+                  onChange={(e) => setForm((prev) => ({ ...prev, stake: e.target.value }))}
+                />
+              </div>
+              <div className="col-3 field">
+                <label htmlFor="iBook">Spelbolag</label>
+                <input
+                  id="iBook"
+                  type="text"
+                  placeholder="Bet365"
+                  value={form.book}
+                  onChange={(e) => setForm((prev) => ({ ...prev, book: e.target.value }))}
+                />
+              </div>
+              <div className="col-3 field">
+                <label htmlFor="iResult">Resultat</label>
+                <select
+                  id="iResult"
+                  value={form.result}
+                  onChange={(e) => setForm((prev) => ({ ...prev, result: e.target.value }))}
+                >
+                  <option>Pending</option>
+                  <option>Win</option>
+                  <option>Loss</option>
+                  <option>Void</option>
+                </select>
+              </div>
+              <div className="col-12 field">
+                <label htmlFor="iNote">Notering</label>
+                <input
+                  id="iNote"
+                  type="text"
+                  placeholder="Ex. sent mål, cashout, etc."
+                  value={form.note}
+                  onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))}
+                />
+              </div>
+              <div className="col-12 field action-field">
+                <span className="sr-only">Åtgärder</span>
+                <div className="actions">
+                  <button type="button" className="btn-green" onClick={handleSaveBet} disabled={isSubmitDisabled}>
+                    {isEditing ? 'Spara ändringar' : 'Lägg till spel'}
+                  </button>
+                  {isEditing ? (
+                    <button type="button" className="btn-ghost" onClick={handleCancelEdit}>
+                      Avbryt redigering
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-red"
+                    onClick={handleResetProject}
+                    disabled={!currentProject}
+                  >
+                    Nollställ projekt
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="tab-summary"
+            className={`panel summary-panel ${tab === 'summary' ? '' : 'hide'}`}
+            role="tabpanel"
+            aria-hidden={tab !== 'summary'}
+          >
+            <div className="section-header">
+              <div>
+                <h2>Månadssummering</h2>
+                <p className="hint">Analysera avgjorda spel och följ ROI per månad.</p>
+              </div>
+              <div className="filter">
+                <label htmlFor="monthFilter">Månad (matchdag)</label>
+                <select
+                  id="monthFilter"
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                >
+                  <option value="all">Alla månader</option>
+                  {monthGroups.map(([key]) => (
+                    <option key={key} value={key}>
+                      {formatMonth(key)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="stat-grid">
+              <div className="stat-card">
+                <span className="label">Spel (avgjorda)</span>
+                <span className="value">{summaryData.games}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Vinster</span>
+                <span className="value">{summaryData.wins}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Snitt odds</span>
+                <span className="value">{formatNumber(summaryData.averageOdds, 2)}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Total insats</span>
+                <span className="value">{formatStake(summaryData.totalStake)}</span>
+              </div>
+              <div className="stat-card">
+                <span className="label">Nettoresultat</span>
+                <span className={`value ${summaryData.profit >= 0 ? 'positive' : 'negative'}`}>
+                  {formatMoney(summaryData.profit)}
+                </span>
+              </div>
+              <div className="stat-card">
+                <span className="label">ROI</span>
+                <span className={`value ${summaryData.roi >= 0 ? 'positive' : 'negative'}`}>
+                  {formatPercent(summaryData.roi)}
+                </span>
+              </div>
+            </div>
+            <div className="chart-card">
+              <div className="chart-header">
+                <div>
+                  <span className="chart-title">Utveckling</span>
+                  <p className="chart-subtitle">Kumulativt nettoresultat – {summaryMonthName}</p>
+                </div>
+                <div className="chart-total">
+                  <span className={`chart-total-value ${chartTrendClass}`}>{chartLatestFormatted}</span>
+                  <span className="chart-total-label">Senaste värde</span>
+                </div>
+              </div>
+              <div className="chart-body">
+                {chartHasData ? (
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Linje som visar projektets utveckling">
+                    <defs>
+                      <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(56, 189, 248, 0.4)" />
+                        <stop offset="100%" stopColor="rgba(56, 189, 248, 0)" />
+                      </linearGradient>
+                      <linearGradient id="trendStroke" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#38bdf8" />
+                        <stop offset="100%" stopColor="#22d3ee" />
+                      </linearGradient>
+                    </defs>
+                    <polygon points={performanceChart.areaPoints} fill="url(#trendFill)" />
+                    <polyline
+                      points={performanceChart.linePoints}
+                      fill="none"
+                      stroke="url(#trendStroke)"
+                      strokeWidth="1.8"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    {lastChartPoint ? (
+                      <circle cx={lastChartPoint.x} cy={lastChartPoint.y} r="2.4" fill="#38bdf8" />
+                    ) : null}
+                  </svg>
+                ) : (
+                  <div className="chart-empty">Ingen avgjord historik för perioden ännu.</div>
+                )}
+              </div>
+              <div className="chart-footer">
+                <span>{chartStartLabel}</span>
+                <span>{summaryMonthName}</span>
+                <span>{chartEndLabel}</span>
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="tab-list"
+            className={`panel list-panel ${tab === 'list' ? '' : 'hide'}`}
+            role="tabpanel"
+            aria-hidden={tab !== 'list'}
+          >
+            <div className="section-header">
+              <div>
+                <h2>Spelöversikt</h2>
+                <p className="hint">Hantera registrerade spel och uppdatera resultaten.</p>
+              </div>
+            </div>
+            {loadingBets ? (
+              <div className="empty-state">Laddar spel…</div>
+            ) : bets.length === 0 ? (
+              <div className="empty-state">
+                {currentProjectId
+                  ? 'Inga spel registrerade ännu. Lägg till ditt första spel via formuläret till vänster.'
+                  : 'Välj eller skapa ett projekt för att börja registrera spel.'}
+              </div>
+            ) : (
+              <div id="playsContainer">
+                {monthGroups.map(([key, list]) => (
+                  <details key={key} className="month">
+                    <summary>
+                      {formatMonth(key)}
+                      <span className="month-count">{list.length} spel</span>
+                    </summary>
+                    <div className="row row-head">
+                      <div>Datum</div>
+                      <div>Match &amp; Marknad</div>
+                      <div>Odds</div>
+                      <div>Insats</div>
+                      <div>Spelbolag</div>
+                      <div>Notering</div>
+                      <div>Resultat</div>
+                    </div>
+                    {list.map((bet) => (
+                      <div key={bet.id} className="row">
+                        <div data-label="Datum">{bet.matchday || '–'}</div>
+                        <div data-label="Match &amp; Marknad" className="cell-match">
+                          <span className="match">{bet.match || '–'}</span>
+                          {bet.market ? <span className="market">{bet.market}</span> : null}
+                        </div>
+                        <div data-label="Odds">{formatNumber(bet.odds, 2)}</div>
+                        <div data-label="Insats">{formatStake(bet.stake)}</div>
+                        <div data-label="Spelbolag">{bet.book || '–'}</div>
+                        <div data-label="Notering" className="note-cell">
+                          {bet.note || '–'}
+                        </div>
+                        <div data-label="Resultat">
+                          <div className="result-controls">
+                            <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                              {bet.result || 'Pending'}
+                            </span>
+                            <select
+                              className="result-select"
+                              value={bet.result}
+                              onChange={(e) => handleUpdateBetResult(bet.id, e.target.value)}
+                              aria-label="Uppdatera resultat"
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Win">Win</option>
+                              <option value="Loss">Loss</option>
+                              <option value="Void">Void</option>
+                            </select>
+                            <button type="button" className="btn-ghost" onClick={() => handleStartEditBet(bet)}>
+                              Redigera
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost danger"
+                              onClick={() => handleDeleteBet(bet.id)}
+                            >
+                              Ta bort
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </details>
+                ))}
+              </div>
+            )}
+          </section>
+        </section>
+
+        {showLatestPanel ? (
+          <aside className="secondary">
+            <section className="panel latest-panel">
+              <div className="section-header compact">
+                <div>
+                  <h2>Senaste spel</h2>
+                </div>
+              </div>
+              {currentProjectId && latestBets.length > 0 ? (
+                <div className="latest-list">
+                  {latestBets.map((bet, index) => {
+                    const resultSelectId = `latest-result-${bet.id}`;
+                    return (
+                      <details key={bet.id} className="latest-item" open={index === 0}>
+                        <summary>
+                          <div className="latest-summary">
+                            <span className="latest-match">{bet.match || '–'}</span>
+                            <span className={`status-badge ${bet.result ? bet.result.toLowerCase() : 'pending'}`}>
+                              {bet.result || 'Pending'}
+                            </span>
+                          </div>
+                          <span className="latest-date">
+                            {bet.matchday ? formatDay(bet.matchday.slice(0, 10)) : '–'}
+                          </span>
+                        </summary>
+                        <div className="latest-body">
+                          <div className="latest-meta">
+                            {bet.market ? (
+                              <span>
+                                <strong>Marknad:</strong> {bet.market}
+                              </span>
+                            ) : null}
+                            <span>
+                              <strong>Odds:</strong> {formatNumber(bet.odds, 2)}
+                            </span>
+                            <span>
+                              <strong>Insats:</strong> {formatStake(bet.stake)}
+                            </span>
+                            <span>
+                              <strong>Utfall:</strong> {formatMoney(computeProfit(bet))}
+                            </span>
+                            {bet.book ? (
+                              <span>
+                                <strong>Spelbolag:</strong> {bet.book}
+                              </span>
+                            ) : null}
+                            {bet.note ? (
+                              <span>
+                                <strong>Notering:</strong> {bet.note}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="latest-actions">
+                            <label className="latest-action-label" htmlFor={resultSelectId}>
+                              Uppdatera resultat
+                            </label>
+                            <select
+                              id={resultSelectId}
+                              className="latest-action-select"
+                              value={bet.result || 'Pending'}
+                              onChange={(e) => handleUpdateBetResult(bet.id, e.target.value)}
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Win">Win</option>
+                              <option value="Loss">Loss</option>
+                              <option value="Void">Void</option>
+                            </select>
+                            <button
+                              type="button"
+                              className="latest-action-button"
+                              onClick={() => handleStartEditBet(bet)}
+                            >
+                              <span>Redigera</span>
+                              <span aria-hidden="true" className="dropdown-caret">
+                                ▾
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              className="latest-action-button danger"
+                              onClick={() => handleDeleteBet(bet.id)}
+                            >
+                              <span>Ta bort</span>
+                              <span aria-hidden="true" className="dropdown-caret">
+                                ▾
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="latest-empty">
+                  {currentProjectId
+                    ? 'Inga spel registrerade ännu. Lägg till ditt första spel.'
+                    : 'Välj eller skapa ett projekt för att visa senaste spel.'}
+                </div>
+              )}
+            </section>
+          </aside>
+        ) : null}
+      </main>
+
+      <style jsx global>{`
+        :root {
+          --page-bg: #02040a;
+          --surface-primary: rgba(4, 12, 24, 0.88);
+          --surface-elevated: rgba(5, 16, 30, 0.92);
+          --surface-highlight: rgba(56, 189, 248, 0.12);
+          --border-soft: rgba(148, 163, 184, 0.2);
+          --border-accent: rgba(56, 189, 248, 0.18);
+          --border-strong: rgba(56, 189, 248, 0.4);
+          --text-primary: #f8fafc;
+          --text-muted: rgba(148, 163, 184, 0.9);
+          --accent: #38bdf8;
+          --accent-soft: rgba(56, 189, 248, 0.16);
+          --accent-strong: rgba(56, 189, 248, 0.35);
+          --accent-cyan: #22d3ee;
+          --accent-glow: rgba(56, 189, 248, 0.45);
+          --success: #34d399;
+          --danger: #ef4444;
+        }
+        body {
+          position: relative;
+          min-height: 100vh;
+          background:
+            radial-gradient(1200px 900px at 6% -10%, rgba(56, 189, 248, 0.18), transparent 68%),
+            radial-gradient(1100px 820px at 95% -8%, rgba(45, 212, 191, 0.16), transparent 70%),
+            linear-gradient(180deg, #04070d 0%, #071425 42%, #02040a 100%);
+          color: var(--text-primary);
+          overflow-x: hidden;
+        }
+        body::before,
+        body::after {
+          content: '';
+          position: fixed;
+          pointer-events: none;
+          z-index: -2;
+          mix-blend-mode: screen;
+          opacity: 0.65;
+        }
+        body::before {
+          width: 680px;
+          height: 680px;
+          top: -180px;
+          left: -200px;
+          background: radial-gradient(760px 760px at 12% 8%, rgba(56, 189, 248, 0.25) 0%, transparent 70%);
+          filter: blur(2px);
+          animation: floatGlow 18s ease-in-out infinite alternate;
+        }
+        body::after {
+          width: 760px;
+          height: 760px;
+          bottom: -220px;
+          right: -280px;
+          background: radial-gradient(820px 820px at 88% 12%, rgba(34, 211, 238, 0.22) 0%, transparent 68%);
+          filter: blur(2px);
+          animation: floatGlow 22s ease-in-out infinite alternate-reverse;
+        }
+        .container {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 1240px;
+          margin: 0 auto;
+          padding: 56px 28px 96px;
+        }
+        .container::before {
+          content: '';
+          position: absolute;
+          inset: 16px -24px 0;
+          border-radius: 36px;
+          background: linear-gradient(130deg, rgba(56, 189, 248, 0.12), rgba(45, 212, 191, 0.05));
+          opacity: 0.65;
+          z-index: -1;
+          filter: blur(60px);
+        }
+        header.top-bar {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 28px;
+          margin-bottom: 32px;
+          padding: 26px 34px;
+          border-radius: 26px;
+          background: linear-gradient(135deg, rgba(6, 20, 34, 0.92), rgba(3, 10, 20, 0.9));
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          box-shadow: 0 28px 70px -38px rgba(2, 6, 23, 0.7);
+          backdrop-filter: blur(22px);
+          overflow: hidden;
+        }
+        header.top-bar::before {
+          content: '';
+          position: absolute;
+          inset: -40% -20% auto;
+          height: 120%;
+          background: radial-gradient(660px 660px at 88% 0%, rgba(56, 189, 248, 0.24), transparent 68%);
+          opacity: 0.8;
+          transform: rotate(6deg);
+          z-index: 0;
+        }
+        header.top-bar::after {
+          content: '';
+          position: absolute;
+          inset: auto -25% -65% -25%;
+          height: 120%;
+          background: radial-gradient(540px 540px at 18% 100%, rgba(45, 212, 191, 0.2), transparent 70%);
+          opacity: 0.5;
+          z-index: 0;
+        }
+        .brand-block,
+        .right-actions {
+          position: relative;
+          z-index: 1;
+        }
+        .brand-block {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .brand {
+          font-weight: 800;
+          font-size: 30px;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          background: linear-gradient(120deg, #60a5fa 0%, #38bdf8 50%, #22d3ee 100%);
+          -webkit-background-clip: text;
+          color: transparent;
+        }
+        .tagline {
+          margin: 0;
+          font-size: 15px;
+          color: rgba(203, 213, 225, 0.82);
+          letter-spacing: 0.02em;
+        }
+        .right-actions {
+          display: flex;
+          gap: 14px;
+          align-items: center;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+        button,
+        .btn {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px 18px;
+          border-radius: 14px;
+          border: 1px solid rgba(148, 163, 184, 0.26);
+          background: rgba(4, 12, 20, 0.75);
+          color: rgba(226, 232, 240, 0.92);
+          font-weight: 600;
+          letter-spacing: 0.03em;
+          cursor: pointer;
+          transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease,
+            background 0.25s ease;
+          box-shadow: 0 18px 50px -32px rgba(2, 10, 23, 0.8);
+        }
+        button:hover,
+        .btn:hover {
+          transform: translateY(-2px);
+          border-color: rgba(56, 189, 248, 0.55);
+          background: rgba(6, 18, 32, 0.92);
+        }
+        button:focus-visible,
+        .btn:focus-visible {
+          outline: 2px solid rgba(56, 189, 248, 0.75);
+          outline-offset: 4px;
+        }
+        .btn-green {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(16, 185, 129, 0.88));
+          border-color: rgba(34, 197, 94, 0.52);
+          color: #f8fafc;
+          box-shadow: 0 22px 58px -28px rgba(16, 185, 129, 0.7);
+        }
+        .btn-green:hover {
+          border-color: rgba(134, 239, 172, 0.65);
+        }
+        .btn-red {
+          background: linear-gradient(135deg, rgba(248, 113, 113, 0.92), rgba(239, 68, 68, 0.88));
+          border-color: rgba(248, 113, 113, 0.5);
+          color: #fff5f5;
+          box-shadow: 0 22px 58px -28px rgba(248, 113, 113, 0.72);
+        }
+        .btn-red:hover {
+          border-color: rgba(254, 202, 202, 0.65);
+        }
+        .btn-ghost {
+          background: rgba(4, 12, 20, 0.7);
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          color: rgba(224, 242, 254, 0.86);
+          box-shadow: none;
+        }
+        .btn-ghost:hover {
+          border-color: rgba(56, 189, 248, 0.55);
+          background: rgba(6, 18, 32, 0.85);
+        }
+        .btn-ghost.danger {
+          color: #fca5a5;
+          border-color: rgba(248, 113, 113, 0.45);
+        }
+        .btn-ghost.danger:hover {
+          background: rgba(127, 29, 29, 0.32);
+          border-color: rgba(248, 113, 113, 0.65);
+        }
+        .btn-red:disabled,
+        .btn-green:disabled,
+        button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
+        }
+        .badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px 18px;
+          border-radius: 999px;
+          border: 1px solid rgba(56, 189, 248, 0.32);
+          background: linear-gradient(120deg, rgba(56, 189, 248, 0.2), rgba(45, 212, 191, 0.12));
+          color: rgba(224, 242, 254, 0.92);
+          font-weight: 600;
+          font-size: 13px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .banner {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+          margin-bottom: 32px;
+          padding: 24px 28px;
+          border-radius: 22px;
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(34, 197, 94, 0.1));
+          border: 1px solid rgba(56, 189, 248, 0.28);
+          color: #e0f2fe;
+          box-shadow: 0 24px 60px -36px rgba(15, 118, 110, 0.4);
+          overflow: hidden;
+        }
+        .banner::after {
+          content: '';
+          position: absolute;
+          inset: auto -20% -80% -20%;
+          height: 120%;
+          background: radial-gradient(520px 520px at 20% 100%, rgba(45, 212, 191, 0.35), transparent 70%);
+          opacity: 0.5;
+        }
+        .banner h2 {
+          margin: 0 0 6px;
+          font-size: 20px;
+          font-weight: 700;
+        }
+        .banner p {
+          margin: 0;
+          font-size: 15px;
+          color: rgba(224, 242, 254, 0.88);
+          line-height: 1.5;
+        }
+        .hint {
+          color: var(--text-muted);
+          font-size: 14px;
+        }
+        .subtle {
+          color: var(--text-muted);
+          font-size: 13px;
+        }
+        .workspace {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 340px;
+          gap: 28px;
+          align-items: flex-start;
+        }
+        .workspace.full-width {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .panel {
+          position: relative;
+          padding: 28px;
+          border-radius: 24px;
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.16);
+          box-shadow: 0 32px 80px -44px rgba(8, 13, 30, 0.9);
+          backdrop-filter: blur(18px);
+          overflow: hidden;
+        }
+        .panel::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 140% at 0% 0%, rgba(56, 189, 248, 0.16), transparent 60%);
+          opacity: 0.85;
+          pointer-events: none;
+        }
+        .panel h2 {
+          margin: 0;
+          font-size: 22px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+        .section-header {
+          position: relative;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 20px;
+          margin-bottom: 22px;
+          z-index: 1;
+        }
+        .section-header.compact {
+          margin-bottom: 14px;
+          align-items: baseline;
+        }
+        .project-panel {
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .project-panel::before {
+          display: none;
+        }
+        .project-toggle {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          width: 100%;
+          padding: 20px 24px;
+          background: transparent;
+          border: none;
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: background 0.2s ease, border 0.2s ease, transform 0.2s ease;
+        }
+        .project-toggle:hover {
+          background: rgba(8, 18, 32, 0.72);
+        }
+        .project-panel.open .project-toggle {
+          background: rgba(6, 18, 32, 0.9);
+        }
+        .project-avatar {
+          position: relative;
+          width: 48px;
+          height: 48px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(45, 212, 191, 0.16));
+          border: 1px solid rgba(56, 189, 248, 0.26);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          color: rgba(224, 242, 254, 0.95);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        }
+        .project-summary {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .project-name {
+          font-size: 17px;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+        }
+        .project-count {
+          font-size: 13px;
+          color: var(--text-muted);
+        }
+        .chevron {
+          margin-left: auto;
+          width: 38px;
+          height: 38px;
+          border-radius: 14px;
+          border: 1px solid rgba(56, 189, 248, 0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.25s ease, border 0.2s ease, background 0.2s ease;
+          background: rgba(4, 12, 20, 0.75);
+        }
+        .chevron::before {
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-right: 2px solid rgba(165, 243, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 243, 252, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.25s ease;
+        }
+        .project-panel.open .chevron {
+          background: rgba(6, 18, 32, 0.95);
+          border-color: rgba(56, 189, 248, 0.35);
+        }
+        .project-panel.open .chevron::before {
+          transform: rotate(-135deg);
+        }
+        .project-dropdown {
+          border-top: 1px solid rgba(56, 189, 248, 0.16);
+          padding: 22px 24px 26px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          background: rgba(4, 12, 20, 0.92);
+        }
+        .project-controls {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .project-controls label {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+        }
+        .control-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: center;
+        }
+        select,
+        input,
+        textarea {
+          background: rgba(4, 12, 20, 0.82);
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          color: rgba(226, 232, 240, 0.92);
+          padding: 14px 16px;
+          border-radius: 14px;
+          font-size: 15px;
+          min-height: 48px;
+          transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+        select:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible {
+          border-color: rgba(56, 189, 248, 0.65);
+          box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.2);
+          outline: none;
+        }
+        textarea {
+          min-height: 120px;
+        }
+        .button-cluster {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .tabs {
+          position: relative;
+          display: flex;
+          gap: 14px;
+          padding: 8px;
+          margin-bottom: 26px;
+          background: rgba(4, 12, 20, 0.78);
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          border-radius: 20px;
+          box-shadow: 0 28px 72px -42px rgba(8, 13, 30, 0.92);
+        }
+        .tab {
+          flex: 1;
+          padding: 13px 18px;
+          border-radius: 14px;
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--text-muted);
+          font-weight: 600;
+          letter-spacing: 0.03em;
+          cursor: pointer;
+          transition: background 0.2s ease, color 0.2s ease, border 0.2s ease, transform 0.2s ease;
+        }
+        .tab:hover {
+          color: #e2e8f0;
+          transform: translateY(-1px);
+        }
+        .tab.active {
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(45, 212, 191, 0.16));
+          border-color: rgba(56, 189, 248, 0.35);
+          color: #f8fafc;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          gap: 20px;
+        }
+        .field {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .field label {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+        }
+        .edit-indicator {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          padding: 16px 20px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(45, 212, 191, 0.12));
+          border: 1px solid rgba(56, 189, 248, 0.35);
+          margin-bottom: 20px;
+        }
+        .edit-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .edit-title {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgba(165, 243, 252, 0.95);
+        }
+        .edit-meta {
+          font-size: 14px;
+          color: rgba(165, 243, 252, 0.88);
+        }
+        .col-1 { grid-column: span 1; }
+        .col-2 { grid-column: span 2; }
+        .col-3 { grid-column: span 3; }
+        .col-4 { grid-column: span 4; }
+        .col-5 { grid-column: span 5; }
+        .col-6 { grid-column: span 6; }
+        .col-7 { grid-column: span 7; }
+        .col-8 { grid-column: span 8; }
+        .col-9 { grid-column: span 9; }
+        .col-10 { grid-column: span 10; }
+        .col-11 { grid-column: span 11; }
+        .col-12 { grid-column: span 12; }
+        .actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: center;
+        }
+        .action-field {
+          align-self: flex-end;
+        }
+        .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+        .summary-panel .filter {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          min-width: 190px;
+        }
+        .summary-panel select {
+          min-width: 190px;
+        }
+        .stat-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 18px;
+        }
+        .stat-card {
+          position: relative;
+          padding: 22px;
+          border-radius: 18px;
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          box-shadow: 0 24px 60px -38px rgba(8, 13, 30, 0.82);
+        }
+        .stat-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 120% at 100% 0%, rgba(56, 189, 248, 0.16), transparent 70%);
+          opacity: 0.7;
+          pointer-events: none;
+        }
+        .stat-card .label {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+        }
+        .stat-card .value {
+          font-size: 26px;
+          font-weight: 700;
+          color: #f8fafc;
+        }
+        .stat-card .value.positive {
+          color: var(--success);
+        }
+        .stat-card .value.negative {
+          color: #f87171;
+        }
+        .chart-card {
+          position: relative;
+          margin-top: 18px;
+          padding: 20px;
+          border-radius: 20px;
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          box-shadow: 0 28px 72px -42px rgba(8, 13, 30, 0.88);
+          overflow: hidden;
+        }
+        .chart-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 120% at 0% 0%, rgba(56, 189, 248, 0.2), transparent 65%);
+          opacity: 0.75;
+          pointer-events: none;
+        }
+        .chart-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 18px;
+          position: relative;
+          z-index: 1;
+        }
+        .chart-title {
+          font-size: 18px;
+          font-weight: 600;
+        }
+        .chart-subtitle {
+          margin: 4px 0 0;
+          font-size: 14px;
+          color: var(--text-muted);
+        }
+        .chart-total {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+          font-weight: 600;
+          color: var(--text-muted);
+        }
+        .chart-total-value {
+          font-size: 20px;
+          font-weight: 700;
+          color: #f8fafc;
+        }
+        .chart-total-value.positive {
+          color: var(--success);
+        }
+        .chart-total-value.negative {
+          color: #f87171;
+        }
+        .chart-body {
+          margin-top: 16px;
+          position: relative;
+          z-index: 1;
+          border-radius: 18px;
+          background: rgba(4, 12, 20, 0.72);
+          border: 1px solid rgba(56, 189, 248, 0.2);
+          padding: 12px;
+        }
+        .chart-body svg {
+          width: 100%;
+          height: 140px;
+        }
+        .chart-area {
+          width: 100%;
+          height: 220px;
+        }
+        .chart-empty {
+          padding: 22px;
+          text-align: center;
+          color: var(--text-muted);
+          font-size: 15px;
+        }
+        .chart-footer {
+          margin-top: 12px;
+          display: flex;
+          justify-content: space-between;
+          color: var(--text-muted);
+          font-size: 13px;
+        }
+        .month {
+          border-radius: 18px;
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          margin-bottom: 16px;
+          overflow: hidden;
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+        }
+        .month summary {
+          padding: 18px 22px;
+          cursor: pointer;
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 16px;
+          list-style: none;
+          color: #e2e8f0;
+        }
+        .month summary::-webkit-details-marker {
+          display: none;
+        }
+        .month summary::after {
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-right: 2px solid rgba(165, 243, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 243, 252, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.25s ease;
+        }
+        .month[open] summary::after {
+          transform: rotate(-135deg);
+        }
+        .month-count {
+          font-size: 13px;
+          color: var(--text-muted);
+        }
+        .row {
+          display: grid;
+          grid-template-columns: 120px 1.8fr 100px 100px 160px 1.2fr 260px;
+          gap: 16px;
+          padding: 18px 22px;
+          border-top: 1px solid rgba(56, 189, 248, 0.16);
+          align-items: center;
+        }
+        .row-head {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+          background: rgba(4, 12, 20, 0.7);
+        }
+        .cell-match {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .match {
+          font-weight: 600;
+          color: #f8fafc;
+        }
+        .market {
+          font-size: 13px;
+          color: var(--text-muted);
+        }
+        .note-cell {
+          font-size: 14px;
+          line-height: 1.45;
+          color: rgba(226, 232, 240, 0.82);
+        }
+        .result-controls {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: center;
+        }
+        .result-select {
+          min-width: 150px;
+          flex: 0 0 auto;
+        }
+        .status-badge {
+          padding: 6px 14px;
+          border-radius: 999px;
+          font-size: 11px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          font-weight: 700;
+          background: rgba(56, 189, 248, 0.18);
+          border: 1px solid rgba(56, 189, 248, 0.32);
+          color: rgba(165, 243, 252, 0.95);
+        }
+        .status-badge.win {
+          background: rgba(34, 197, 94, 0.22);
+          border-color: rgba(134, 239, 172, 0.5);
+          color: rgba(187, 247, 208, 0.95);
+        }
+        .status-badge.loss {
+          background: rgba(239, 68, 68, 0.22);
+          border-color: rgba(252, 165, 165, 0.45);
+          color: rgba(254, 202, 202, 0.95);
+        }
+        .status-badge.pending {
+          background: rgba(56, 189, 248, 0.18);
+        }
+        .status-badge.void {
+          background: rgba(148, 163, 184, 0.18);
+          border-color: rgba(203, 213, 225, 0.35);
+          color: rgba(226, 232, 240, 0.9);
+        }
+        .empty-state {
+          padding: 36px 28px;
+          text-align: center;
+          background: rgba(4, 12, 20, 0.75);
+          border: 1px dashed rgba(56, 189, 248, 0.28);
+          color: var(--text-muted);
+          font-size: 15px;
+          line-height: 1.6;
+          border-radius: 20px;
+        }
+        .secondary {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .latest-panel {
+          position: sticky;
+          top: 32px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+        .latest-panel::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(120% 120% at 92% 0%, rgba(56, 189, 248, 0.16), transparent 72%);
+          opacity: 0.7;
+          pointer-events: none;
+        }
+        .latest-list {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          position: relative;
+          z-index: 1;
+        }
+        .latest-item {
+          border-radius: 18px;
+          background: linear-gradient(150deg, rgba(6, 20, 34, 0.88), rgba(3, 10, 20, 0.92));
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          overflow: hidden;
+          transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
+        }
+        .latest-item[open] {
+          background: linear-gradient(140deg, rgba(7, 18, 32, 0.96), rgba(4, 12, 20, 0.95));
+          border-color: rgba(56, 189, 248, 0.45);
+          transform: translateY(-2px);
+        }
+        .latest-item summary {
+          list-style: none;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          align-items: center;
+          gap: 16px;
+          padding: 20px 22px;
+          cursor: pointer;
+        }
+        .latest-item summary::-webkit-details-marker {
+          display: none;
+        }
+        .latest-item summary::after {
+          content: '';
+          width: 10px;
+          height: 10px;
+          border-right: 2px solid rgba(165, 243, 252, 0.9);
+          border-bottom: 2px solid rgba(165, 243, 252, 0.9);
+          transform: rotate(45deg);
+          transition: transform 0.25s ease;
+        }
+        .latest-item[open] summary::after {
+          transform: rotate(-135deg);
+        }
+        .latest-summary {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .latest-summary .status-badge {
+          flex-shrink: 0;
+        }
+        .latest-match {
+          font-weight: 600;
+          font-size: 16px;
+          color: #f8fafc;
+          flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .latest-date {
+          font-size: 13px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .latest-body {
+          padding: 20px 22px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          border-top: 1px solid rgba(56, 189, 248, 0.16);
+          background: rgba(4, 12, 20, 0.9);
+        }
+        .latest-meta {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: 1fr;
+          color: rgba(226, 232, 240, 0.88);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .latest-meta strong {
+          color: rgba(165, 243, 252, 0.95);
+          font-weight: 600;
+          margin-right: 6px;
+        }
+        .latest-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .latest-action-label {
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-muted);
+        }
+        .latest-action-select {
+          width: 100%;
+        }
+        .latest-action-button {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 13px 18px;
+          border-radius: 14px;
+          background: rgba(4, 12, 20, 0.82);
+          border: 1px solid rgba(56, 189, 248, 0.18);
+          color: rgba(226, 232, 240, 0.9);
+          font-size: 15px;
+          font-weight: 600;
+          text-align: left;
+          transition: border 0.2s ease, background 0.2s ease, transform 0.2s ease;
+        }
+        .latest-action-button:hover {
+          background: rgba(6, 18, 32, 0.9);
+          border-color: rgba(56, 189, 248, 0.45);
+          transform: translateY(-1px);
+        }
+        .latest-action-button .dropdown-caret {
+          margin-left: auto;
+          font-size: 12px;
+          opacity: 0.7;
+        }
+        .latest-action-button.danger {
+          color: #fca5a5;
+          border-color: rgba(248, 113, 113, 0.45);
+        }
+        .latest-action-button.danger:hover {
+          background: rgba(127, 29, 29, 0.32);
+          border-color: rgba(248, 113, 113, 0.65);
+        }
+        .latest-empty {
+          padding: 32px 26px;
+          text-align: center;
+          border-radius: 18px;
+          background: rgba(4, 12, 20, 0.75);
+          border: 1px dashed rgba(56, 189, 248, 0.28);
+          color: var(--text-muted);
+          font-size: 15px;
+          line-height: 1.6;
+        }
+        .positive {
+          color: var(--success);
+        }
+        .negative {
+          color: #f87171;
+        }
+        .hide {
+          display: none !important;
+        }
+        @keyframes floatGlow {
+          0% {
+            transform: translate3d(0, 0, 0) scale(1);
+          }
+          50% {
+            transform: translate3d(20px, -10px, 0) scale(1.05);
+          }
+          100% {
+            transform: translate3d(-10px, 10px, 0) scale(0.98);
+          }
+        }
+        @media (max-width: 1100px) {
+          .workspace {
+            grid-template-columns: 1fr;
+          }
+          .secondary {
+            flex-direction: row;
+            flex-wrap: wrap;
+          }
+          .latest-panel {
+            position: static;
+          }
+          .row {
+            grid-template-columns: 110px 1.6fr 90px 90px 140px 1.2fr 240px;
+          }
+          .grid {
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+          }
+          .col-1,
+          .col-2 {
+            grid-column: span 3;
+          }
+          .col-3,
+          .col-4,
+          .col-5 {
+            grid-column: span 3;
+          }
+          .col-6,
+          .col-7,
+          .col-8,
+          .col-9,
+          .col-10,
+          .col-11,
+          .col-12 {
+            grid-column: span 6;
+          }
+        }
+        @media (max-width: 900px) {
+          .row-head {
+            display: none;
+          }
+          .row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(56, 189, 248, 0.16);
+          }
+          .latest-item summary {
+            grid-template-columns: 1fr;
+          }
+          .latest-item summary::after {
+            justify-self: end;
+          }
+          .latest-date {
+            justify-self: start;
+          }
+          .row:not(.row-head) > div {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
+          .row:not(.row-head) > div::before {
+            content: attr(data-label);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            font-weight: 600;
+          }
+          .actions {
+            justify-content: flex-start;
+          }
+        }
+        @media (max-width: 760px) {
+          .secondary {
+            flex-direction: column;
+          }
+        }
+        @media (max-width: 720px) {
+          .grid {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+          }
+          .col-1,
+          .col-2,
+          .col-3,
+          .col-4,
+          .col-6,
+          .col-12 {
+            grid-column: span 1;
+          }
+          .action-field {
+            align-self: auto;
+          }
+          .actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .tabs {
+            flex-direction: column;
+          }
+          .edit-indicator {
+            flex-direction: column;
+            align-items: stretch;
+          }
+        }
+        @media (max-width: 640px) {
+          header.top-bar {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .right-actions {
+            justify-content: flex-start;
+            width: 100%;
+          }
+          .container {
+            padding: 44px 20px 80px;
+          }
+        }
+        @media (max-width: 480px) {
+          .right-actions {
+            gap: 12px;
+          }
+          .right-actions button {
+            width: 100%;
+          }
+          .badge {
+            width: 100%;
+            justify-content: center;
+          }
+          .banner {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+        }
+
+      `}</style>
+    </div>
+  );
+}

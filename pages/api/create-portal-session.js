@@ -1,7 +1,9 @@
 import Stripe from 'stripe';
-import { getSupabaseServiceRoleClient } from '../../lib/supabaseAdmin.js';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+import { env } from '@/config/env.mjs';
+import { getSupabaseServiceRoleClient } from '@/lib/supabaseAdmin';
+
+const stripeSecretKey = env.STRIPE_SECRET_KEY;
 let stripeClient = null;
 
 function getStripeClient() {
@@ -30,11 +32,9 @@ function normalizeBaseUrl(candidate) {
 
 function getAppBaseUrl() {
   const candidates = [
-    process.env.APP_BASE_URL,
-    process.env.NEXT_PUBLIC_APP_URL,
-    process.env.NEXT_PUBLIC_SITE_URL,
-    process.env.SITE_URL,
-    process.env.STRIPE_RETURN_URL_BASE,
+    env.APP_BASE_URL,
+    env.NEXT_PUBLIC_SITE_URL,
+    env.STRIPE_RETURN_URL_BASE,
   ];
 
   if (process.env.VERCEL_URL) {
@@ -48,7 +48,7 @@ function getAppBaseUrl() {
     }
   }
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (env.NODE_ENV !== 'production') {
     return 'http://localhost:3000';
   }
 

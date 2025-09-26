@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "rangeStrategy": "bump",
+  "schedule": ["after 7pm on sunday"],
+  "packageRules": [
+    {
+      "matchDepTypes": ["dependencies"],
+      "matchPackagePatterns": ["^@supabase/"],
+      "groupName": "supabase"
+    }
+  ]
+}
