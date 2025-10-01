@@ -6,6 +6,7 @@ const navLinks = [
   { label: 'Funktioner', href: '#features' },
   { label: 'Insikter', href: '#stats' },
   { label: 'Arbetsflöde', href: '#workflow' },
+  { label: '+EV-beräknare', href: '/verktyg/ev' },
   { label: 'Vanliga frågor', href: '#faq' },
 ];
 
@@ -13,6 +14,7 @@ const heroHighlights = [
   'Registrera spel med match, marknad, odds, insats och egna noteringar.',
   'Få ROI, nettoresultat, hitrate och snittodds uträknade automatiskt per projekt.',
   'Uppdatera resultat med snabbval eller dropdowns direkt från listan.',
+  'Analysera +EV på sekunder med kalkylatorn som beräknar Kelly och parlayvärden.',
 ];
 
 const statHighlights = [
@@ -62,6 +64,16 @@ const featureCards = [
       'Automatiska värden för ROI, hitrate, snittodds och snittinsats',
       'Graf med markerade min-, max- och nollnivåer',
       'Panel för senaste spel med snabba statusuppdateringar',
+    ],
+  },
+  {
+    title: '+EV-beräknare',
+    description:
+      'Interaktiv kalkylator som räknar ut implied probability, edge, ROI, Kelly och parlaykombinationer direkt i webbläsaren.',
+    bullets: [
+      'Stöd för decimal-, amerikanska och fraktionella oddsformat',
+      'Kelly-rekommendationer med full, halv och kvarts insats utifrån bankrullen',
+      'Kombinera flera ben med parlay och kopiera resultatet till urklipp',
     ],
   },
 ];
@@ -134,6 +146,9 @@ export default function LandingPage() {
           ))}
         </nav>
         <div className={styles.topbarActions}>
+          <Link href="/verktyg/ev" className={`${styles.btn} ${styles.btnGhost}`}>
+            +EV-verktyg
+          </Link>
           <Link href="/blog" className={`${styles.btn} ${styles.btnGhost}`}>
             Blogg
           </Link>
@@ -159,6 +174,9 @@ export default function LandingPage() {
                 ))}
               </ul>
               <div className={styles.ctaRow}>
+                <Link href="/verktyg/ev" className={`${styles.btn} ${styles.btnGhost}`}>
+                  Öppna +EV-beräknaren
+                </Link>
                 <Link href="/login" className={`${styles.btn} ${styles.btnGhost}`}>
                   Logga in
                 </Link>
