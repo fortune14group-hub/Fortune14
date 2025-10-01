@@ -1032,7 +1032,9 @@ export default function AppPage() {
             <div className="section-header">
               <div>
                 <h2>Registrera spel</h2>
-                <p className="hint">Fyll i matchinformationen och klicka på "Lägg till spel" för att spara.</p>
+                <p className="hint">
+                  Fyll i matchinformationen och klicka på &rdquo;Lägg till spel&rdquo; för att spara.
+                </p>
               </div>
             </div>
             {isEditing ? (
