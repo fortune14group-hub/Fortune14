@@ -31,7 +31,7 @@ export default function PrivacyPage() {
         <p>
           BetSpread är personuppgiftsansvarig för behandlingar kopplade till plattformen. Frågor om
           dataskydd skickas till <a href="mailto:betspreadapp@gmail.com">betspreadapp@gmail.com</a> med
-          ämnesraden "Integritet".
+          ämnesraden &rdquo;Integritet&rdquo;.
         </p>
       </section>
 
