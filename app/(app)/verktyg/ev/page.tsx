@@ -1,11 +1,6 @@
 import type { Metadata } from 'next';
-import * as React from 'react';
 
-import { ToastProvider } from '@/components/ui/toast';
-
-import { EvForm } from './_components/EvForm';
-import { EvResults } from './_components/EvResults';
-import { EvComputation } from './_lib/types';
+import { EvCalculatorClient } from './_components/EvCalculatorClient';
 
 export const generateMetadata = (): Metadata => ({
   title: '+EV-beräknare | Betspread',
@@ -27,28 +22,5 @@ export default function EvPage() {
         <EvCalculatorClient />
       </div>
     </main>
-  );
-}
-
-function EvCalculatorClient() {
-  'use client';
-
-  const [result, setResult] = React.useState<EvComputation | null>(null);
-
-  return (
-    <ToastProvider>
-      <section className="flex flex-col gap-8">
-        <header className="space-y-3 text-center md:text-left">
-          <p className="text-sm uppercase tracking-[0.3em] text-brand-400">Verktyg</p>
-          <h1 className="text-3xl font-bold text-slate-50 md:text-4xl">+EV-beräknare</h1>
-          <p className="text-base text-slate-300 md:max-w-2xl">
-            Ange odds, egen sannolikhet och bankrulle för att se om ditt spel har positivt förväntat värde.
-            Verktyget räknar automatiskt ut implied probability, edge, ROI och Kelly-rekommendationer.
-          </p>
-        </header>
-        <EvForm onChange={setResult} />
-        <EvResults computation={result} />
-      </section>
-    </ToastProvider>
   );
 }
